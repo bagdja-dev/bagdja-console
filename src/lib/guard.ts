@@ -24,3 +24,4 @@ export function isPublicRoute(pathname: string): boolean {
   return PUBLIC_ROUTES.includes(pathname);
 }
 
+
