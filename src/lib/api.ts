@@ -102,6 +102,19 @@ export async function getProfile(): Promise<User> {
 }
 
 /**
+ * Get Google OAuth login URL
+ */
+export function getGoogleLoginUrl(): string {
+  const AUTH_API_BASE = process.env.NEXT_PUBLIC_AUTH_API || 'https://auth.bagdja.com';
+  const redirectUri = encodeURIComponent(
+    typeof window !== 'undefined' 
+      ? `${window.location.origin}/auth/callback`
+      : 'http://localhost:3000/auth/callback'
+  );
+  return `${AUTH_API_BASE}/auth/google?redirect_uri=${redirectUri}`;
+}
+
+/**
  * Logout user
  */
 export function logout(): void {
