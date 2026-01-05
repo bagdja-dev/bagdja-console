@@ -1,19 +1,33 @@
 'use client';
 
-import { useState, FormEvent } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, FormEvent, useEffect, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { login, getGoogleLoginUrl } from '@/lib/api';
 import { Input } from '@/ui/input';
 import { Button } from '@/ui/button';
 import type { ApiError } from '@/types';
 import Link from 'next/link';
 
-export default function LoginPage() {
+function LoginContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    // Check for success messages from query params
+    const registered = searchParams.get('registered');
+    const verified = searchParams.get('verified');
+    
+    if (registered === 'true') {
+      setSuccess('Registration successful! Please check your email to verify your account.');
+    } else if (verified === 'true') {
+      setSuccess('Email verified successfully! You can now log in.');
+    }
+  }, [searchParams]);
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -49,6 +63,14 @@ export default function LoginPage() {
           </p>
         </div>
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
+          {success && (
+            <div
+              className="rounded-md bg-green-50 p-4 text-sm text-green-800"
+              role="alert"
+            >
+              {success}
+            </div>
+          )}
           {error && (
             <div
               className="rounded-md bg-red-50 p-4 text-sm text-red-800"
@@ -130,6 +152,23 @@ export default function LoginPage() {
         </form>
       </div>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex min-h-screen items-center justify-center bg-gray-50">
+          <div className="text-center">
+            <div className="mb-4 text-gray-600">Loading...</div>
+            <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-blue-600 border-r-transparent"></div>
+          </div>
+        </div>
+      }
+    >
+      <LoginContent />
+    </Suspense>
   );
 }
 
