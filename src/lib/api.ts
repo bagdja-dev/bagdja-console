@@ -20,7 +20,7 @@ function isValidUrl(url: string): boolean {
     const urlObj = new URL(url.trim());
     return (
       (urlObj.protocol === 'http:' || urlObj.protocol === 'https:') &&
-      urlObj.hostname &&
+      Boolean(urlObj.hostname) &&
       urlObj.hostname.length > 0
     );
   } catch {

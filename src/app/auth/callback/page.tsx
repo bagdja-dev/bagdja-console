@@ -19,11 +19,17 @@ function CallbackContent() {
         // Redirect to dashboard
         router.replace('/dashboard');
       } catch (err) {
-        setError('Failed to process authentication. Please try again.');
         console.error('Auth callback error:', err);
+        // Use setTimeout to avoid calling setState synchronously in effect
+        setTimeout(() => {
+          setError('Failed to process authentication. Please try again.');
+        }, 0);
       }
     } else {
-      setError('No token received. Please try logging in again.');
+      // Use setTimeout to avoid calling setState synchronously in effect
+      setTimeout(() => {
+        setError('No token received. Please try logging in again.');
+      }, 0);
     }
   }, [searchParams, router]);
 

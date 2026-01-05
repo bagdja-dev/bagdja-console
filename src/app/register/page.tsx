@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { register, getFrontendUrl, getGoogleLoginUrl } from '@/lib/api';
 import { Input } from '@/ui/input';
 import { Button } from '@/ui/button';
-import type { ApiError } from '@/types';
+import type { ApiError, RegisterRequest } from '@/types';
 import Link from 'next/link';
 
 export default function RegisterPage() {
@@ -51,7 +51,7 @@ export default function RegisterPage() {
             // Only add if URL is truly valid
             registerData.redirectUri = fullUrl;
           }
-        } catch (e) {
+        } catch {
           // If URL is invalid, don't send redirectUri at all
           // This is fine - backend will return JSON instead of redirect
         }
