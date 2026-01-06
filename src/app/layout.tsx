@@ -31,7 +31,7 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
         <ClientTokenProvider>
-          {children}
+        {children}
         </ClientTokenProvider>
       </body>
     </html>
