@@ -2,6 +2,7 @@
 
 import { useState, FormEvent, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import Image from 'next/image';
 import { login, getGoogleLoginUrl } from '@/lib/api';
 import { Input } from '@/ui/input';
 import { Button } from '@/ui/button';
@@ -68,6 +69,17 @@ function LoginContent() {
           <div className="w-full max-w-2xl space-y-10">
             {/* Text Content */}
             <div className="text-center space-y-5 animate-fade-in-up">
+              {/* Logo */}
+              <div className="flex justify-center mb-6">
+                <Image
+                  src="/logo.png"
+                  alt="Bagdja Logo"
+                  width={120}
+                  height={120}
+                  className="drop-shadow-lg"
+                  priority
+                />
+              </div>
               <h1 className="text-5xl font-bold text-[var(--text-primary)] leading-tight drop-shadow-lg">
                 Welcome Back
               </h1>

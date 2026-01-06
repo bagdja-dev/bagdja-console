@@ -28,7 +28,7 @@ function CallbackContent() {
     } else {
       // Use setTimeout to avoid calling setState synchronously in effect
       setTimeout(() => {
-        setError('No token received. Please try logging in again.');
+      setError('No token received. Please try logging in again.');
       }, 0);
     }
   }, [searchParams, router]);
