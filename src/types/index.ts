@@ -7,6 +7,7 @@ export interface RegisterRequest {
   email: string;
   username: string;
   password: string;
+  redirectUri?: string;
 }
 
 export interface AuthResponse {
@@ -29,5 +30,16 @@ export interface User {
 export interface ApiError {
   message: string;
   statusCode?: number;
+}
+
+export interface ClientTokenRequest {
+  app_id: string;
+  app_secret: string;
+}
+
+export interface ClientTokenResponse {
+  'x-api-token': string;
+  token_type: string;
+  expires_in: number;
 }
 

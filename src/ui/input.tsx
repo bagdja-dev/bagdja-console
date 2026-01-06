@@ -1,20 +1,23 @@
-import { InputHTMLAttributes, forwardRef } from 'react';
+import React, { InputHTMLAttributes, forwardRef } from 'react';
 
 export interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
   label?: string;
   error?: string;
 }
 
+// Generate unique ID using useId hook (React 18+)
 export const Input = forwardRef<HTMLInputElement, InputProps>(
   ({ className = '', label, error, id, ...props }, ref) => {
-    const inputId = id || `input-${Math.random().toString(36).substr(2, 9)}`;
+    // Use useId for stable ID generation instead of Math.random
+    const generatedId = React.useId();
+    const inputId = id || `input-${generatedId}`;
 
     return (
       <div className="w-full">
         {label && (
           <label
             htmlFor={inputId}
-            className="block text-sm font-medium text-gray-700 mb-1"
+            className="block text-sm font-medium text-[var(--text-primary)] mb-1"
           >
             {label}
           </label>
@@ -24,15 +27,18 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
           id={inputId}
           className={`
             w-full px-4 py-2 border rounded-lg
-            focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent
-            disabled:bg-gray-100 disabled:cursor-not-allowed
-            ${error ? 'border-red-500' : 'border-gray-300'}
+            bg-[var(--bg-surface)] text-[var(--text-primary)]
+            border-[var(--border-default)]
+            focus:outline-none focus:ring-2 focus:ring-[var(--action-primary)] focus:border-transparent
+            disabled:bg-[var(--bg-sidebar)] disabled:cursor-not-allowed disabled:opacity-50
+            placeholder:text-[var(--text-muted)]
+            ${error ? 'border-[var(--brand-error)]' : ''}
             ${className}
           `}
           {...props}
         />
         {error && (
-          <p className="mt-1 text-sm text-red-600" role="alert">
+          <p className="mt-1 text-sm text-[var(--brand-error)]" role="alert">
             {error}
           </p>
         )}
@@ -42,5 +48,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
 );
 
 Input.displayName = 'Input';
+
+
 
 
