@@ -32,3 +32,14 @@ export interface ApiError {
   statusCode?: number;
 }
 
+export interface ClientTokenRequest {
+  app_id: string;
+  app_secret: string;
+}
+
+export interface ClientTokenResponse {
+  'x-api-token': string;
+  token_type: string;
+  expires_in: number;
+}
+
