@@ -32,21 +32,21 @@ export default function DashboardPage() {
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center">
-        <div className="text-gray-600">Loading...</div>
+      <div className="flex min-h-screen items-center justify-center bg-[var(--bg-main)]">
+        <div className="text-[var(--text-secondary)]">Loading...</div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-[var(--bg-main)]">
       <Topbar userEmail={user?.email} />
       <main className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">
+          <h1 className="text-3xl font-bold text-[var(--text-primary)]">
             Welcome{user?.name ? `, ${user.name}` : ''}
           </h1>
-          <p className="mt-2 text-gray-600">
+          <p className="mt-2 text-[var(--text-secondary)]">
             {user?.email && `Signed in as ${user.email}`}
           </p>
         </div>

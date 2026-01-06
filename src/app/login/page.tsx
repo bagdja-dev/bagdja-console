@@ -46,17 +46,17 @@ function LoginContent() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gray-50 px-4 py-12 sm:px-6 lg:px-8">
+    <div className="flex min-h-screen items-center justify-center bg-[var(--bg-main)] px-4 py-12 sm:px-6 lg:px-8">
       <div className="w-full max-w-md space-y-8">
         <div>
-          <h2 className="mt-6 text-center text-3xl font-bold tracking-tight text-gray-900">
+          <h2 className="mt-6 text-center text-3xl font-bold tracking-tight text-[var(--text-primary)]">
             Sign in to your account
           </h2>
-          <p className="mt-2 text-center text-sm text-gray-600">
+          <p className="mt-2 text-center text-sm text-[var(--text-secondary)]">
             Or{' '}
             <Link
               href="/register"
-              className="font-medium text-blue-600 hover:text-blue-500"
+              className="font-medium text-[var(--action-primary)] hover:text-[var(--action-primary-hover)]"
             >
               create a new account
             </Link>
@@ -65,7 +65,7 @@ function LoginContent() {
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
           {success && (
             <div
-              className="rounded-md bg-green-50 p-4 text-sm text-green-800"
+              className="rounded-md bg-[var(--brand-success)]/20 border border-[var(--brand-success)]/30 p-4 text-sm text-[var(--brand-success)]"
               role="alert"
             >
               {success}
@@ -73,7 +73,7 @@ function LoginContent() {
           )}
           {error && (
             <div
-              className="rounded-md bg-red-50 p-4 text-sm text-red-800"
+              className="rounded-md bg-[var(--brand-error)]/20 border border-[var(--brand-error)]/30 p-4 text-sm text-[var(--brand-error)]"
               role="alert"
             >
               {error}
@@ -111,10 +111,10 @@ function LoginContent() {
 
             <div className="relative">
               <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-gray-300" />
+                <div className="w-full border-t border-[var(--border-default)]" />
               </div>
               <div className="relative flex justify-center text-sm">
-                <span className="px-2 bg-gray-50 text-gray-500">Or continue with</span>
+                <span className="px-2 bg-[var(--bg-main)] text-[var(--text-muted)]">Or continue with</span>
               </div>
             </div>
 
@@ -159,10 +159,10 @@ export default function LoginPage() {
   return (
     <Suspense
       fallback={
-        <div className="flex min-h-screen items-center justify-center bg-gray-50">
+        <div className="flex min-h-screen items-center justify-center bg-[var(--bg-main)]">
           <div className="text-center">
-            <div className="mb-4 text-gray-600">Loading...</div>
-            <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-blue-600 border-r-transparent"></div>
+            <div className="mb-4 text-[var(--text-secondary)]">Loading...</div>
+            <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-[var(--action-primary)] border-r-transparent"></div>
           </div>
         </div>
       }

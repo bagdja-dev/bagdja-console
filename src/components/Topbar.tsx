@@ -17,17 +17,17 @@ export function Topbar({ userEmail }: TopbarProps) {
   };
 
   return (
-    <header className="w-full border-b border-gray-200 bg-white">
+    <header className="w-full border-b border-[var(--border-default)] bg-[var(--bg-surface)]">
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="flex h-16 items-center justify-between">
           <div className="flex items-center">
-            <h1 className="text-xl font-semibold text-gray-900">
+            <h1 className="text-xl font-semibold text-[var(--text-primary)]">
               Bagdja Console
             </h1>
           </div>
           <div className="flex items-center gap-4">
             {userEmail && (
-              <span className="text-sm text-gray-600">{userEmail}</span>
+              <span className="text-sm text-[var(--text-secondary)]">{userEmail}</span>
             )}
             <Button variant="outline" size="sm" onClick={handleLogout}>
               Logout

@@ -20,8 +20,8 @@ export default function HomePage() {
   }, [router]);
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gray-50">
-      <div className="text-gray-600">Loading...</div>
+    <div className="flex min-h-screen items-center justify-center bg-[var(--bg-main)]">
+      <div className="text-[var(--text-secondary)]">Loading...</div>
     </div>
   );
 }
