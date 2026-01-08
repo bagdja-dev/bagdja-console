@@ -2,7 +2,8 @@
 
 import { useEffect, useState, useRef } from 'react';
 import { logout, getOrganizations } from '@/lib/api';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
+import { Building } from 'lucide-react';
 import type { Organization } from '@/types';
 
 interface TopbarProps {
@@ -13,6 +14,7 @@ interface TopbarProps {
 
 export function Topbar({ userEmail, username, profilePicture }: TopbarProps) {
   const router = useRouter();
+  const pathname = usePathname();
   const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [activeOrganization, setActiveOrganization] = useState<Organization | null>(null);
   const [isOrgDropdownOpen, setIsOrgDropdownOpen] = useState(false);
@@ -21,31 +23,31 @@ export function Topbar({ userEmail, username, profilePicture }: TopbarProps) {
   const orgDropdownRef = useRef<HTMLDivElement>(null);
   const userDropdownRef = useRef<HTMLDivElement>(null);
 
+  // Function to update active organization from sessionStorage
+  const updateActiveOrganization = (orgs: Organization[]) => {
+    const activeOrgId = sessionStorage.getItem('activeOrganizationId');
+    if (activeOrgId) {
+      const activeOrg = orgs.find(org => org.id === activeOrgId);
+      if (activeOrg) {
+        setActiveOrganization(activeOrg);
+        return;
+      }
+    }
+    // If no active org found or no activeOrgId, set first one
+    if (orgs.length > 0) {
+      const firstOrg = orgs[0];
+      sessionStorage.setItem('activeOrganizationId', firstOrg.id);
+      setActiveOrganization(firstOrg);
+    }
+  };
+
   // Fetch organizations and set active
   useEffect(() => {
     const fetchOrganizations = async () => {
       try {
         const orgs = await getOrganizations();
         setOrganizations(orgs);
-
-        // Get active organization ID from sessionStorage
-        const activeOrgId = sessionStorage.getItem('activeOrganizationId');
-        if (activeOrgId) {
-          const activeOrg = orgs.find(org => org.id === activeOrgId);
-          if (activeOrg) {
-            setActiveOrganization(activeOrg);
-          } else if (orgs.length > 0) {
-            // Active org not found, set first one
-            const firstOrg = orgs[0];
-            sessionStorage.setItem('activeOrganizationId', firstOrg.id);
-            setActiveOrganization(firstOrg);
-          }
-        } else if (orgs.length > 0) {
-          // No active org, set first one
-          const firstOrg = orgs[0];
-          sessionStorage.setItem('activeOrganizationId', firstOrg.id);
-          setActiveOrganization(firstOrg);
-        }
+        updateActiveOrganization(orgs);
       } catch (error) {
         console.error('Failed to fetch organizations:', error);
       } finally {
@@ -55,6 +57,38 @@ export function Topbar({ userEmail, username, profilePicture }: TopbarProps) {
 
     fetchOrganizations();
   }, []);
+
+  // Listen for organization change events
+  useEffect(() => {
+    const handleOrganizationChange = () => {
+      // Refresh organizations and update active
+      const refreshOrganizations = async () => {
+        try {
+          const orgs = await getOrganizations();
+          setOrganizations(orgs);
+          updateActiveOrganization(orgs);
+        } catch (error) {
+          console.error('Failed to refresh organizations:', error);
+        }
+      };
+      refreshOrganizations();
+    };
+
+    // Listen for custom event when organization is selected from organizations page
+    window.addEventListener('organizationChanged', handleOrganizationChange);
+
+    return () => {
+      window.removeEventListener('organizationChanged', handleOrganizationChange);
+    };
+  }, []);
+
+  // Refresh active organization when route changes (e.g., when coming back from organizations page)
+  useEffect(() => {
+    if (!loading && organizations.length > 0) {
+      updateActiveOrganization(organizations);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pathname]);
 
   // Close dropdowns when clicking outside
   useEffect(() => {
@@ -82,6 +116,13 @@ export function Topbar({ userEmail, username, profilePicture }: TopbarProps) {
     setActiveOrganization(org);
     setIsOrgDropdownOpen(false);
 
+    // Dispatch custom event to notify all components to refresh
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('organizationChanged', { 
+        detail: { organizationId: org.id } 
+      }));
+    }
+
     // Refresh organizations to get latest data
     try {
       const orgs = await getOrganizations();
@@ -105,6 +146,11 @@ export function Topbar({ userEmail, username, profilePicture }: TopbarProps) {
     setIsUserDropdownOpen(false);
     // TODO: Navigate to profile page when implemented
     // router.push('/profile');
+  };
+
+  const handleMyOrganizations = () => {
+    setIsUserDropdownOpen(false);
+    router.push('/organizations');
   };
 
   return (
@@ -263,6 +309,19 @@ export function Topbar({ userEmail, username, profilePicture }: TopbarProps) {
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                       </svg>
                       <span>Profile</span>
+                    </button>
+
+                    {/* Separator */}
+                    <div className="border-t border-[var(--border-default)] my-1"></div>
+
+                    {/* My Organizations */}
+                    <button
+                      type="button"
+                      onClick={handleMyOrganizations}
+                      className="flex items-center gap-3 w-full px-4 py-2 text-sm text-[var(--text-primary)] hover:bg-[var(--bg-hover)] focus:outline-none"
+                    >
+                      <Building className="h-4 w-4" />
+                      <span>My Organizations</span>
                     </button>
 
                     {/* Separator */}

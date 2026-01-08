@@ -22,6 +22,7 @@ import type {
   ClientTokenResponse,
   Organization,
   CreateOrganizationRequest,
+  UpdateOrganizationRequest,
 } from '@/types';
 
 const AUTH_API_BASE = process.env.NEXT_PUBLIC_AUTH_API || 'https://auth.bagdja.com';
@@ -296,6 +297,19 @@ export async function getOrganizations(): Promise<Organization[]> {
 export async function createOrganization(data: CreateOrganizationRequest): Promise<Organization> {
   return apiRequest<Organization>('/auth/organizations', {
     method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+/**
+ * Update an organization
+ */
+export async function updateOrganization(
+  organizationId: string,
+  data: UpdateOrganizationRequest
+): Promise<Organization> {
+  return apiRequest<Organization>(`/auth/organizations/${organizationId}`, {
+    method: 'PUT',
     body: JSON.stringify(data),
   });
 }

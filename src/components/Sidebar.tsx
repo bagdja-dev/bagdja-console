@@ -56,16 +56,16 @@ const menuItems: MenuItem[] = [
     icon: ImageIcon,
     children: [
       {
-        id: 'assets-create',
-        label: 'Create',
-        icon: Plus,
-        href: '/assets/create',
-      },
-      {
         id: 'assets-list',
         label: 'My Assets',
         icon: List,
         href: '/assets',
+      },
+      {
+        id: 'assets-groups-list',
+        label: 'Groups',
+        icon: List,
+        href: '/assets/groups',
       },
     ],
   },
@@ -105,6 +105,7 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
   const [hoveredItemId, setHoveredItemId] = useState<string | null>(null);
   const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const buttonRefs = useRef<Record<string, HTMLButtonElement | null>>({});
+  const popupRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const [popupPosition, setPopupPosition] = useState<{ top: number; left: number } | null>(null);
 
   // Auto-expand when pathname changes to ensure active child's parent is expanded
@@ -145,6 +146,52 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
       return merged;
     });
   }, [pathname]);
+
+  // Close popup when clicking outside (only when sidebar is collapsed)
+  useEffect(() => {
+    if (!isCollapsed) return;
+
+    const handleClickOutside = (event: MouseEvent) => {
+      // Check if click is outside all popups and buttons
+      let clickedOutside = true;
+
+      // Check if click is on any button
+      Object.values(buttonRefs.current).forEach((button) => {
+        if (button && button.contains(event.target as Node)) {
+          clickedOutside = false;
+        }
+      });
+
+      // Check if click is on any popup
+      Object.values(popupRefs.current).forEach((popup) => {
+        if (popup && popup.contains(event.target as Node)) {
+          clickedOutside = false;
+        }
+      });
+
+      if (clickedOutside) {
+        // Clear hover timeout
+        if (hoverTimeoutRef.current) {
+          clearTimeout(hoverTimeoutRef.current);
+          hoverTimeoutRef.current = null;
+        }
+        // Close all popups (both hovered and expanded)
+        setHoveredItemId(null);
+        setPopupPosition(null);
+        // Also collapse all expanded items (but keep track of manually collapsed)
+        const currentExpanded = expandedItems;
+        currentExpanded.forEach(id => {
+          manuallyCollapsedRef.current.add(id);
+        });
+        setExpandedItems([]);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isCollapsed, expandedItems]);
 
   const toggleExpanded = (itemId: string) => {
     setExpandedItems((prev) => {
@@ -283,6 +330,9 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
             
             {shouldShowPopup && popupPosition && typeof window !== 'undefined' && createPortal(
               <div 
+                ref={(el) => {
+                  popupRefs.current[item.id] = el;
+                }}
                 className="fixed bg-[var(--bg-surface)] border-2 border-[var(--border-default)] rounded-lg shadow-2xl p-2 space-y-1"
                 style={{ 
                   zIndex: 999999,

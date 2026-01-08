@@ -1,11 +1,12 @@
 'use client';
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { createAsset } from '@/lib/assets-api';
+import { createAsset, getAssetGroups } from '@/lib/assets-api';
 import { Button } from '@/ui/button';
 import { Input } from '@/ui/input';
-import type { ApiError } from '@/types';
+import { CustomSelect } from '@/ui/custom-select';
+import type { ApiError, AssetGroup } from '@/types';
 import { FileText, Image as ImageIcon, File } from 'lucide-react';
 
 export default function CreateAssetPage() {
@@ -14,11 +15,79 @@ export default function CreateAssetPage() {
   const [error, setError] = useState<string | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
+  const [groups, setGroups] = useState<AssetGroup[]>([]);
+  const [loadingGroups, setLoadingGroups] = useState(true);
   const [formData, setFormData] = useState({
-    group: 'logo' as 'logo' | 'banner' | 'email' | 'document',
+    groupId: '',
     name: '',
   });
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Fetch groups on mount
+  useEffect(() => {
+    const fetchGroups = async () => {
+      try {
+        setLoadingGroups(true);
+        const data = await getAssetGroups();
+        setGroups(data);
+        // Set first group as default if available and no group selected
+        if (data.length > 0) {
+          setFormData(prev => {
+            if (!prev.groupId) {
+              return { ...prev, groupId: data[0].id };
+            }
+            return prev;
+          });
+        }
+      } catch (err) {
+        console.error('Failed to fetch asset groups:', err);
+        setError('Failed to load asset groups. Please refresh the page.');
+      } finally {
+        setLoadingGroups(false);
+      }
+    };
+
+    fetchGroups();
+  }, []);
+
+  // Reset form when organization changes
+  useEffect(() => {
+    const handleOrganizationChange = () => {
+      // Reset form when organization changes
+      setSelectedFile(null);
+      setPreview(null);
+      setFormData({
+        groupId: '',
+        name: '',
+      });
+      setError(null);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+      // Refetch groups for new organization
+      const fetchGroups = async () => {
+        try {
+          setLoadingGroups(true);
+          const data = await getAssetGroups();
+          setGroups(data);
+          // Set first group as default
+          if (data.length > 0) {
+            setFormData(prev => ({ ...prev, groupId: data[0].id }));
+          }
+        } catch (err) {
+          console.error('Failed to fetch asset groups:', err);
+        } finally {
+          setLoadingGroups(false);
+        }
+      };
+      fetchGroups();
+    };
+
+    window.addEventListener('organizationChanged', handleOrganizationChange);
+    return () => {
+      window.removeEventListener('organizationChanged', handleOrganizationChange);
+    };
+  }, []);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -62,11 +131,16 @@ export default function CreateAssetPage() {
 
     setLoading(true);
 
+    if (!formData.groupId) {
+      setError('Please select a group');
+      return;
+    }
+
     try {
       await createAsset(
         {
           file: selectedFile,
-          group: formData.group,
+          groupId: formData.groupId,
           name: formData.name || undefined,
         },
         organizationId
@@ -191,23 +265,24 @@ export default function CreateAssetPage() {
           </div>
 
           {/* Group Select */}
-          <div>
-            <label className="block text-sm font-medium text-[var(--text-primary)] mb-1">
-              Group <span className="text-[var(--brand-error)]">*</span>
-            </label>
-            <select
-              value={formData.group}
-              onChange={(e) => setFormData({ ...formData, group: e.target.value as typeof formData.group })}
-              disabled={loading}
-              className="w-full px-4 py-2 border rounded-lg bg-[var(--bg-surface)] text-[var(--text-primary)] border-[var(--border-default)] focus:outline-none focus:ring-2 focus:ring-[var(--action-primary)] focus:border-transparent disabled:bg-[var(--bg-sidebar)] disabled:cursor-not-allowed disabled:opacity-50"
-              required
-            >
-              <option value="logo">Logo</option>
-              <option value="banner">Banner</option>
-              <option value="email">Email</option>
-              <option value="document">Document</option>
-            </select>
-          </div>
+          <CustomSelect
+            label={
+              <>
+                Group <span className="text-[var(--brand-error)]">*</span>
+              </>
+            }
+            value={formData.groupId}
+            onChange={(value) => setFormData({ ...formData, groupId: value })}
+            options={groups.map((group) => ({
+              value: group.id,
+              label: group.name,
+              description: group.description,
+            }))}
+            placeholder="Select a group"
+            disabled={loading || loadingGroups}
+            loading={loadingGroups}
+            emptyText="No groups available. Please create a group first."
+          />
 
           {/* Name Input */}
           <Input

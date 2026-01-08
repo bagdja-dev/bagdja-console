@@ -68,11 +68,20 @@ export interface CreateOrganizationRequest {
   contactEmail?: string;
 }
 
+export interface UpdateOrganizationRequest {
+  name?: string;
+  slug?: string;
+  description?: string;
+  logo?: string;
+  contactEmail?: string;
+}
+
 export interface Asset {
   id: string;
   orgId: string;
   createdBy: string;
-  group: string;
+  group: string; // Group name (for backward compatibility)
+  groupId: string; // Asset Group ID
   name: string;
   mimeType: string;
   storageKey: string;
@@ -85,7 +94,29 @@ export interface Asset {
 
 export interface CreateAssetRequest {
   file: File;
-  group: 'logo' | 'banner' | 'email' | 'document';
+  groupId: string; // Asset Group ID
   name?: string;
+}
+
+export interface AssetGroup {
+  id: string;
+  orgId: string;
+  name: string;
+  description?: string;
+  createdBy: string;
+  isActive: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface CreateAssetGroupRequest {
+  name: string;
+  description?: string;
+}
+
+export interface UpdateAssetGroupRequest {
+  name?: string;
+  description?: string;
+  isActive?: boolean;
 }
 
