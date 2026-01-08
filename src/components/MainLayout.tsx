@@ -7,9 +7,11 @@ import { Topbar } from './Topbar';
 interface MainLayoutProps {
   children: React.ReactNode;
   userEmail?: string;
+  username?: string;
+  profilePicture?: string;
 }
 
-export function MainLayout({ children, userEmail }: MainLayoutProps) {
+export function MainLayout({ children, userEmail, username, profilePicture }: MainLayoutProps) {
   // Initialize state from localStorage using lazy initialization
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(() => {
     if (typeof window !== 'undefined') {
@@ -39,7 +41,7 @@ export function MainLayout({ children, userEmail }: MainLayoutProps) {
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col overflow-hidden" style={{ position: 'relative', zIndex: 1 }}>
         {/* Topbar */}
-        <Topbar userEmail={userEmail} />
+        <Topbar userEmail={userEmail} username={username} profilePicture={profilePicture} />
 
         {/* Page Content */}
         <main className="flex-1 overflow-y-auto bg-[var(--bg-main)]">

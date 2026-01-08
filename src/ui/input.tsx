@@ -3,11 +3,12 @@ import React, { InputHTMLAttributes, forwardRef } from 'react';
 export interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
   label?: string;
   error?: string;
+  helpText?: string;
 }
 
 // Generate unique ID using useId hook (React 18+)
 export const Input = forwardRef<HTMLInputElement, InputProps>(
-  ({ className = '', label, error, id, ...props }, ref) => {
+  ({ className = '', label, error, helpText, id, ...props }, ref) => {
     // Use useId for stable ID generation instead of Math.random
     const generatedId = React.useId();
     const inputId = id || `input-${generatedId}`;
@@ -40,6 +41,11 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
         {error && (
           <p className="mt-1 text-sm text-[var(--brand-error)]" role="alert">
             {error}
+          </p>
+        )}
+        {!error && helpText && (
+          <p className="mt-1 text-sm text-[var(--text-secondary)]">
+            {helpText}
           </p>
         )}
       </div>

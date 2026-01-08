@@ -20,6 +20,8 @@ import type {
   ApiError,
   ClientTokenRequest,
   ClientTokenResponse,
+  Organization,
+  CreateOrganizationRequest,
 } from '@/types';
 
 const AUTH_API_BASE = process.env.NEXT_PUBLIC_AUTH_API || 'https://auth.bagdja.com';
@@ -263,7 +265,9 @@ export async function register(data: RegisterRequest): Promise<AuthResponse> {
  * Get current user profile
  */
 export async function getProfile(): Promise<User> {
-  return apiRequest<User>('/auth/me');
+  const response = await apiRequest<{ user: User; clientApp?: { id: string; appId: string; appName: string } }>('/auth/me');
+  // Extract user from response (auth service returns { user, clientApp })
+  return response.user;
 }
 
 /**
@@ -280,10 +284,31 @@ export function getGoogleLoginUrl(): string {
 }
 
 /**
+ * Get user's organizations
+ */
+export async function getOrganizations(): Promise<Organization[]> {
+  return apiRequest<Organization[]>('/auth/organizations');
+}
+
+/**
+ * Create a new organization
+ */
+export async function createOrganization(data: CreateOrganizationRequest): Promise<Organization> {
+  return apiRequest<Organization>('/auth/organizations', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+/**
  * Logout user
  */
 export function logout(): void {
   removeAccessToken();
+  // Clear active organization from sessionStorage
+  if (typeof window !== 'undefined') {
+    sessionStorage.removeItem('activeOrganizationId');
+  }
   // Redirect handled by component
 }
 

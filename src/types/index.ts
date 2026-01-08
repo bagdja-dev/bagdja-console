@@ -43,3 +43,28 @@ export interface ClientTokenResponse {
   expires_in: number;
 }
 
+export interface Organization {
+  id: string;
+  name: string;
+  slug?: string;
+  description?: string;
+  isActive: boolean;
+  logo?: string;
+  contactEmail?: string;
+  createdAt?: Date;
+  updatedAt?: Date;
+  role?: {
+    id: string;
+    name: string;
+    slug: string;
+  };
+}
+
+export interface CreateOrganizationRequest {
+  name: string;
+  slug?: string;
+  description?: string;
+  logo?: string;
+  contactEmail?: string;
+}
+
