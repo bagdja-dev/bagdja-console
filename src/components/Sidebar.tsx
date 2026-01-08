@@ -10,7 +10,8 @@ import {
   List,
   ChevronRight,
   Menu,
-  X
+  X,
+  Image as ImageIcon
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Tooltip } from './Tooltip';
@@ -46,6 +47,25 @@ const menuItems: MenuItem[] = [
         label: 'My Service',
         icon: List,
         href: '/email-service',
+      },
+    ],
+  },
+  {
+    id: 'assets',
+    label: 'Assets',
+    icon: ImageIcon,
+    children: [
+      {
+        id: 'assets-create',
+        label: 'Create',
+        icon: Plus,
+        href: '/assets/create',
+      },
+      {
+        id: 'assets-list',
+        label: 'My Assets',
+        icon: List,
+        href: '/assets',
       },
     ],
   },

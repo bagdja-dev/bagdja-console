@@ -68,3 +68,24 @@ export interface CreateOrganizationRequest {
   contactEmail?: string;
 }
 
+export interface Asset {
+  id: string;
+  orgId: string;
+  createdBy: string;
+  group: string;
+  name: string;
+  mimeType: string;
+  storageKey: string;
+  publicUrl?: string;
+  size: number;
+  width?: number;
+  height?: number;
+  createdAt: Date;
+}
+
+export interface CreateAssetRequest {
+  file: File;
+  group: 'logo' | 'banner' | 'email' | 'document';
+  name?: string;
+}
+
