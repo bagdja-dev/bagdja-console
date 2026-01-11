@@ -18,6 +18,9 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Bagdja Console",
   description: "Control center for Bagdja",
+  icons: {
+    icon: '/icon.png',
+  },
 };
 
 export default function RootLayout({

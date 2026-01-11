@@ -11,7 +11,9 @@ import {
   ChevronRight,
   Menu,
   X,
-  Image as ImageIcon
+  Image as ImageIcon,
+  Grid3x3,
+  Package
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Tooltip } from './Tooltip';
@@ -66,6 +68,25 @@ const menuItems: MenuItem[] = [
         label: 'Groups',
         icon: List,
         href: '/assets/groups',
+      },
+    ],
+  },
+  {
+    id: 'applications',
+    label: 'Applications',
+    icon: Grid3x3,
+    children: [
+      {
+        id: 'apps-owned',
+        label: 'Owned Apps',
+        icon: Package,
+        href: '/applications/owned',
+      },
+      {
+        id: 'apps-subscribed',
+        label: 'Subscribed Apps',
+        icon: List,
+        href: '/applications/subscribed',
       },
     ],
   },

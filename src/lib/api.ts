@@ -23,6 +23,8 @@ import type {
   Organization,
   CreateOrganizationRequest,
   UpdateOrganizationRequest,
+  ClientApp,
+  CreateClientAppRequest,
 } from '@/types';
 
 const AUTH_API_BASE = process.env.NEXT_PUBLIC_AUTH_API || 'https://auth.bagdja.com';
@@ -311,6 +313,50 @@ export async function updateOrganization(
   return apiRequest<Organization>(`/auth/organizations/${organizationId}`, {
     method: 'PUT',
     body: JSON.stringify(data),
+  });
+}
+
+/**
+ * Get active organization ID from sessionStorage
+ */
+function getActiveOrganizationId(): string | null {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+  return sessionStorage.getItem('activeOrganizationId');
+}
+
+/**
+ * Get user's client apps (owned apps)
+ */
+export async function getClientApps(): Promise<ClientApp[]> {
+  const organizationId = getActiveOrganizationId();
+  if (!organizationId) {
+    throw new Error('No active organization selected');
+  }
+  return apiRequest<ClientApp[]>(`/auth/client-apps?organizationId=${encodeURIComponent(organizationId)}`);
+}
+
+/**
+ * Create a new client app
+ */
+export async function createClientApp(data: CreateClientAppRequest): Promise<ClientApp> {
+  const organizationId = getActiveOrganizationId();
+  if (!organizationId) {
+    throw new Error('No active organization selected');
+  }
+  return apiRequest<ClientApp>(`/auth/client-apps?organizationId=${encodeURIComponent(organizationId)}`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+/**
+ * Regenerate app secret for a client app
+ */
+export async function regenerateAppSecret(clientAppId: string): Promise<{ app_secret: string }> {
+  return apiRequest<{ app_secret: string }>(`/auth/client-apps/${clientAppId}/regenerate-secret`, {
+    method: 'POST',
   });
 }
 

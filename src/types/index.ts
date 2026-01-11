@@ -76,6 +76,29 @@ export interface UpdateOrganizationRequest {
   contactEmail?: string;
 }
 
+export interface ClientApp {
+  id: string;
+  appId: string;
+  appName: string;
+  description?: string;
+  contactEmail?: string;
+  logo?: string;
+  isActive: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+  lastUsedAt?: Date;
+  userId: string;
+  app_secret?: string; // Only returned once during creation/regeneration
+}
+
+export interface CreateClientAppRequest {
+  app_id: string;
+  app_name: string;
+  description?: string;
+  contact_email?: string;
+  logo?: string;
+}
+
 export interface Asset {
   id: string;
   orgId: string;
