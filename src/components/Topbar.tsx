@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef } from 'react';
 import { logout, getOrganizations } from '@/lib/api';
 import { useRouter, usePathname } from 'next/navigation';
-import { Building } from 'lucide-react';
+import { Building, Wallet } from 'lucide-react';
 import type { Organization } from '@/types';
 
 interface TopbarProps {
@@ -151,6 +151,11 @@ export function Topbar({ userEmail, username, profilePicture }: TopbarProps) {
   const handleMyOrganizations = () => {
     setIsUserDropdownOpen(false);
     router.push('/organizations');
+  };
+
+  const handleBalance = () => {
+    setIsUserDropdownOpen(false);
+    router.push('/balance');
   };
 
   return (
@@ -322,6 +327,16 @@ export function Topbar({ userEmail, username, profilePicture }: TopbarProps) {
                     >
                       <Building className="h-4 w-4" />
                       <span>My Organizations</span>
+                    </button>
+
+                    {/* Balance */}
+                    <button
+                      type="button"
+                      onClick={handleBalance}
+                      className="flex items-center gap-3 w-full px-4 py-2 text-sm text-[var(--text-primary)] hover:bg-[var(--bg-hover)] focus:outline-none"
+                    >
+                      <Wallet className="h-4 w-4" />
+                      <span>Balance</span>
                     </button>
 
                     {/* Separator */}
