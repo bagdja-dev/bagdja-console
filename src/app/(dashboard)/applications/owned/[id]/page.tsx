@@ -238,7 +238,7 @@ export default function AppDetailPage() {
     return new Intl.NumberFormat('en-US', {
       minimumFractionDigits: 0,
       maximumFractionDigits: 2,
-    }).format(amount) + ' piece';
+    }).format(amount) + ' BP';
   };
 
   const getProductTypeLabel = (type: string): string => {
@@ -717,7 +717,7 @@ export default function AppDetailPage() {
                 className="flex items-center gap-2 px-4 py-2 bg-[var(--action-primary)] text-white rounded-lg hover:opacity-90 transition-opacity text-sm font-medium"
               >
                 <Coins className="h-4 w-4" />
-                Distribute Piece
+                Distribute BP
               </button>
             </div>
             
@@ -1421,7 +1421,7 @@ export default function AppDetailPage() {
         />
       )}
 
-      {/* Distribute Piece Modal */}
+      {/* Distribute BP Modal */}
       {app && (
         <DistributePieceModal
           isOpen={distributePieceModalOpen}

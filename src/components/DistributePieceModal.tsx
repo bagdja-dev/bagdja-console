@@ -63,11 +63,11 @@ export default function DistributePieceModal({
           if (balance.global) {
             setFromPieceId(balance.global.id);
           } else {
-            setError('Global Piece not found. Cannot distribute.');
+            setError('Global BP not found. Cannot distribute.');
           }
         } catch (err) {
           console.error('Failed to fetch balance:', err);
-          setError('Failed to fetch global Piece balance. Please try again.');
+          setError('Failed to fetch global BP balance. Please try again.');
         }
       };
       fetchBalance();
@@ -199,7 +199,7 @@ export default function DistributePieceModal({
     }
 
     if (!fromPieceId) {
-      setError('Failed to get source Piece. Please try again.');
+      setError('Failed to get source BP. Please try again.');
       return;
     }
 
@@ -216,7 +216,7 @@ export default function DistributePieceModal({
           toOwnerId: appId,
           amount: amountNum,
           referenceId,
-          description: description || `Piece distribution to user`,
+          description: description || `BP distribution to user`,
         });
       });
 
@@ -225,7 +225,7 @@ export default function DistributePieceModal({
       onClose();
     } catch (err) {
       const apiError = err as ApiError;
-      setError(apiError.message || 'Failed to distribute Piece');
+      setError(apiError.message || 'Failed to distribute BP');
     } finally {
       setLoading(false);
     }
@@ -242,7 +242,7 @@ export default function DistributePieceModal({
           <div className="flex items-center gap-2">
             <UserPlus className="h-5 w-5 text-[var(--action-primary)]" />
             <h2 className="text-xl font-semibold text-[var(--text-primary)]">
-              Distribute Piece to Users
+              Distribute BP to Users
             </h2>
           </div>
           <button
@@ -319,7 +319,7 @@ export default function DistributePieceModal({
                 </button>
               </div>
               <p className="text-xs text-[var(--text-secondary)] mt-1">
-                You can add any user from the system by entering their username, email, or user ID. This allows you to distribute Piece as a bonus to users who haven&apos;t transacted with this app yet.
+                You can add any user from the system by entering their username, email, or user ID. This allows you to distribute BP as a bonus to users who haven&apos;t transacted with this app yet.
               </p>
             </div>
 
@@ -386,7 +386,7 @@ export default function DistributePieceModal({
 
             {/* Amount Input */}
             <Input
-              label="Amount (Piece)"
+              label="Amount (BP)"
               type="number"
               min="1"
               step="1"

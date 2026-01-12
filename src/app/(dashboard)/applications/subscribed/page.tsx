@@ -204,7 +204,7 @@ export default function SubscribedAppsPage() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="text-sm font-semibold text-[var(--text-primary)]">
-                        {formatBalance(app.balance)} {app.currency}
+                        {formatBalance(app.balance)} BP
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">

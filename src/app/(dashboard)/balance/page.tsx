@@ -98,7 +98,7 @@ export default function BalancePage() {
             Balance
           </h1>
           <p className="mt-2 text-[var(--text-secondary)]">
-            View your Piece balance and distributions
+            View your BP balance and distributions
           </p>
         </div>
 
@@ -119,7 +119,7 @@ export default function BalancePage() {
             Balance
           </h1>
           <p className="mt-2 text-[var(--text-secondary)]">
-            View your Piece balance and distributions
+            View your BP balance and distributions
           </p>
         </div>
 
@@ -144,7 +144,7 @@ export default function BalancePage() {
               Balance
             </h1>
             <p className="mt-2 text-[var(--text-secondary)]">
-              View your Piece balance and distributions
+              View your BP balance and distributions
             </p>
           </div>
           <button
@@ -171,13 +171,13 @@ export default function BalancePage() {
                   Global Balance
                 </h2>
                 <p className="text-sm text-[var(--text-secondary)]">
-                  Your main Piece balance
+                  Your main BP balance
                 </p>
               </div>
             </div>
             <div className="text-right">
               <div className="text-3xl font-bold text-[var(--text-primary)]">
-                {formatBalance(balance.global.balance)} {balance.global.currency}
+                {formatBalance(balance.global.balance)} BP
               </div>
               <p className="text-xs text-[var(--text-secondary)] mt-1">
                 Updated {formatDate(balance.global.updatedAt)}
@@ -273,7 +273,7 @@ export default function BalancePage() {
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
                           <div className="text-sm font-semibold text-[var(--text-primary)]">
-                            {formatBalance(org.balance)} {org.currency}
+                            {formatBalance(org.balance)} BP
                           </div>
                         </td>
                         <td className="px-6 py-4 whitespace-nowrap">
@@ -302,7 +302,7 @@ export default function BalancePage() {
                               </td>
                               <td className="px-6 py-4 whitespace-nowrap">
                                 <div className="text-sm font-semibold text-[var(--text-primary)]">
-                                  {formatBalance(app.balance)} {app.currency}
+                                  {formatBalance(app.balance)} BP
                                 </div>
                               </td>
                               <td className="px-6 py-4 whitespace-nowrap">
@@ -340,7 +340,7 @@ export default function BalancePage() {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="text-sm font-semibold text-[var(--text-primary)]">
-                          {formatBalance(app.balance)} {app.currency}
+                          {formatBalance(app.balance)} BP
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">

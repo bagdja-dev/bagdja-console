@@ -193,7 +193,7 @@ export default function PlanModal({ isOpen, onClose, onSubmit, plan, appId: _app
 
           <div className="grid grid-cols-2 gap-4">
             <Input
-              label="Price (piece)"
+              label="Price (BP)"
               type="number"
               min="0"
               step="0.01"

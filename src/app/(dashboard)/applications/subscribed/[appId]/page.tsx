@@ -93,7 +93,7 @@ export default function SubscribedAppDetailPage() {
     return new Intl.NumberFormat('en-US', {
       minimumFractionDigits: 0,
       maximumFractionDigits: 2,
-    }).format(amount) + ' piece';
+    }).format(amount) + ' BP';
   };
 
   const getTransactionTypeLabel = (type: string) => {

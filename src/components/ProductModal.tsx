@@ -165,7 +165,7 @@ export default function ProductModal({ isOpen, onClose, onSubmit, product, appId
 
           <div className="grid grid-cols-2 gap-4">
             <Input
-              label="Price (piece)"
+              label="Price (BP)"
               type="number"
               min="0"
               step="0.01"

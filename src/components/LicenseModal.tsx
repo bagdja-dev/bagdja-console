@@ -199,7 +199,7 @@ export default function LicenseModal({ isOpen, onClose, onSubmit, license, appId
           </div>
 
           <Input
-            label="Price (piece)"
+            label="Price (BP)"
             type="number"
             min="0"
             step="0.01"
