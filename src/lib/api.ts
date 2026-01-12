@@ -329,6 +329,31 @@ function getActiveOrganizationId(): string | null {
 /**
  * Get user's client apps (owned apps)
  */
+export async function getUserById(userId: string): Promise<User> {
+  const token = getAccessToken();
+  if (!token) {
+    throw new Error('No access token found');
+  }
+
+  const response = await fetch(`${AUTH_API_BASE}/auth/users/${userId}`, {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ message: 'Failed to fetch user' }));
+    throw {
+      message: error.message || 'Failed to fetch user',
+      statusCode: response.status,
+    } as ApiError;
+  }
+
+  return response.json();
+}
+
 export async function getClientApps(): Promise<ClientApp[]> {
   const organizationId = getActiveOrganizationId();
   if (!organizationId) {

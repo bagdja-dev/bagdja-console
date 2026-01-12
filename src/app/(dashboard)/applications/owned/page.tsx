@@ -2,12 +2,14 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { getClientApps, regenerateAppSecret } from '@/lib/api';
 import type { ClientApp, ApiError } from '@/types';
 import { Plus, Package, Mail, Calendar, RefreshCw, Copy, Check, X } from 'lucide-react';
 import { Button } from '@/ui/button';
 
 export default function OwnedAppsPage() {
+  const router = useRouter();
   const [apps, setApps] = useState<ClientApp[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -21,7 +23,6 @@ export default function OwnedAppsPage() {
     try {
       setLoading(true);
       setError(null);
-      
       // Check if active organization exists
       const activeOrgId = typeof window !== 'undefined' ? sessionStorage.getItem('activeOrganizationId') : null;
       if (!activeOrgId) {
@@ -29,7 +30,6 @@ export default function OwnedAppsPage() {
         setLoading(false);
         return;
       }
-      
       const data = await getClientApps();
       setApps(data);
     } catch (err) {
@@ -250,7 +250,8 @@ export default function OwnedAppsPage() {
                 {apps.map((app) => (
                   <tr
                     key={app.id}
-                    className="hover:bg-[var(--bg-hover)] transition-colors"
+                    onClick={() => router.push(`/applications/owned/${app.id}`)}
+                    className="hover:bg-[var(--bg-hover)] transition-colors cursor-pointer"
                   >
                     <td className="px-6 py-4">
                       <div className="flex items-start">
@@ -313,7 +314,7 @@ export default function OwnedAppsPage() {
                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                       <button
                         type="button"
-                        onClick={() => handleRegenerateSecret(app.id)}
+                        onClick={(e) => { e.stopPropagation(); handleRegenerateSecret(app.id); }}
                         disabled={regenerating === app.id}
                         className="text-[var(--action-primary)] hover:text-[var(--action-primary-hover)] disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1 ml-auto"
                       >
