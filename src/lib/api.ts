@@ -422,6 +422,13 @@ export async function getAppUsers(appId: string): Promise<AppUser[]> {
 }
 
 /**
+ * Get public app details by app ID (for subscribed apps)
+ */
+export async function getPublicAppDetails(appId: string): Promise<ClientApp> {
+  return apiRequest<ClientApp>(`/auth/client-apps/public/${appId}`);
+}
+
+/**
  * Logout user
  */
 export function logout(): void {

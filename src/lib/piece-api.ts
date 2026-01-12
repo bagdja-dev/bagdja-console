@@ -147,3 +147,7 @@ export async function getBalanceWithRefresh(): Promise<BalanceResponse> {
 export async function getAppBalance(appId: string, userId: string): Promise<AppBalanceResponse> {
   return pieceApiRequest<AppBalanceResponse>(`/pieces/app-balance?appId=${appId}&userId=${userId}`);
 }
+
+export async function getMyAppBalance(appId: string): Promise<AppBalanceResponse> {
+  return pieceApiRequest<AppBalanceResponse>(`/pieces/my-app-balance?appId=${appId}`);
+}
