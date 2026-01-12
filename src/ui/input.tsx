@@ -8,7 +8,7 @@ export interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
 
 // Generate unique ID using useId hook (React 18+)
 export const Input = forwardRef<HTMLInputElement, InputProps>(
-  ({ className = '', label, error, helpText, id, ...props }, ref) => {
+  ({ className = '', label, error, helpText, id, type, ...props }, ref) => {
     // Use useId for stable ID generation instead of Math.random
     const generatedId = React.useId();
     const inputId = id || `input-${generatedId}`;
@@ -26,6 +26,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
         <input
           ref={ref}
           id={inputId}
+          type={type}
           className={`
             w-full px-4 py-2 border rounded-lg
             bg-[var(--bg-surface)] text-[var(--text-primary)]
@@ -33,6 +34,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
             focus:outline-none focus:ring-2 focus:ring-[var(--action-primary)] focus:border-transparent
             disabled:bg-[var(--bg-sidebar)] disabled:cursor-not-allowed disabled:opacity-50
             placeholder:text-[var(--text-muted)]
+            ${type === 'number' ? '[appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none' : ''}
             ${error ? 'border-[var(--brand-error)]' : ''}
             ${className}
           `}

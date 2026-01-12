@@ -143,3 +143,190 @@ export interface UpdateAssetGroupRequest {
   isActive?: boolean;
 }
 
+// License Types
+export enum LicenseType {
+  ORG = 'org',
+  APP = 'app',
+}
+
+export enum LicenseStatus {
+  AVAILABLE = 'available',
+  PURCHASED = 'purchased',
+  REVOKED = 'revoked',
+}
+
+export interface License {
+  id: string;
+  appId: string;
+  appName?: string;
+  type: LicenseType;
+  maxUsers: number;
+  expTime: number | null;
+  price: number;
+  licenseKey: string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  metadata: Record<string, any> | null;
+  status: LicenseStatus;
+  organizationId: string | null;
+  organizationName?: string | null;
+  purchasedAt: Date | null;
+  expiresAt: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface CreateLicenseRequest {
+  type: LicenseType;
+  maxUsers: number;
+  expTime?: number | null;
+  price: number;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  metadata?: Record<string, any>;
+}
+
+export interface UpdateLicenseRequest {
+  type?: LicenseType;
+  maxUsers?: number;
+  expTime?: number | null;
+  price?: number;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  metadata?: Record<string, any>;
+}
+
+export interface BuyLicenseResponse {
+  licenseKey: string;
+  licenseId: string;
+  transactionId: string;
+}
+
+// Plan Types
+export enum PlanDuration {
+  DAILY = 'daily',
+  WEEKLY = 'weekly',
+  MONTHLY = 'monthly',
+  YEARLY = 'yearly',
+}
+
+export enum PlanStatus {
+  ACTIVE = 'active',
+  INACTIVE = 'inactive',
+}
+
+export interface Plan {
+  id: string;
+  appId: string;
+  name: string;
+  description: string | null;
+  price: number;
+  duration: PlanDuration;
+  durationValue: number | null;
+  features: string[] | null;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  metadata: Record<string, any> | null;
+  status: PlanStatus;
+  isActive: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface CreatePlanRequest {
+  name: string;
+  description?: string;
+  price: number;
+  duration: PlanDuration;
+  durationValue?: number;
+  features?: string[];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  metadata?: Record<string, any>;
+  status?: PlanStatus;
+  isActive?: boolean;
+}
+
+export interface UpdatePlanRequest {
+  name?: string;
+  description?: string;
+  price?: number;
+  duration?: PlanDuration;
+  durationValue?: number;
+  features?: string[];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  metadata?: Record<string, any>;
+  status?: PlanStatus;
+  isActive?: boolean;
+}
+
+// Product Types
+export enum ProductStatus {
+  ACTIVE = 'active',
+  INACTIVE = 'inactive',
+}
+
+export interface Product {
+  id: string;
+  appId: string;
+  name: string;
+  description: string | null;
+  price: number;
+  type: string; // Free text
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  metadata: Record<string, any> | null;
+  status: ProductStatus;
+  isActive: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface CreateProductRequest {
+  name: string;
+  description?: string;
+  price: number;
+  type: string; // Free text
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  metadata?: Record<string, any>;
+  status?: ProductStatus;
+  isActive?: boolean;
+}
+
+export interface UpdateProductRequest {
+  name?: string;
+  description?: string;
+  price?: number;
+  type?: string; // Free text
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  metadata?: Record<string, any>;
+  status?: ProductStatus;
+  isActive?: boolean;
+}
+
+// Subscription Types
+export enum SubscriptionStatus {
+  ACTIVE = 'active',
+  EXPIRED = 'expired',
+  CANCELLED = 'cancelled',
+}
+
+export interface Subscription {
+  id: string;
+  userId: string;
+  planId: string;
+  planName?: string;
+  startDate: Date;
+  endDate: Date;
+  status: SubscriptionStatus;
+  transactionId: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+// App User Types
+export interface AppUser {
+  id: string;
+  email: string;
+  username: string;
+  name?: string;
+  joinedDate: Date;
+  lastActivity: Date;
+  status: 'Active' | 'Inactive';
+  transactionCount: number;
+}
+

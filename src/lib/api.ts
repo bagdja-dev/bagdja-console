@@ -25,6 +25,7 @@ import type {
   UpdateOrganizationRequest,
   ClientApp,
   CreateClientAppRequest,
+  AppUser,
 } from '@/types';
 
 const AUTH_API_BASE = process.env.NEXT_PUBLIC_AUTH_API || 'https://auth.bagdja.com';
@@ -383,6 +384,13 @@ export async function regenerateAppSecret(clientAppId: string): Promise<{ app_se
   return apiRequest<{ app_secret: string }>(`/auth/client-apps/${clientAppId}/regenerate-secret`, {
     method: 'POST',
   });
+}
+
+/**
+ * Get all users who have transacted with a specific app
+ */
+export async function getAppUsers(appId: string): Promise<AppUser[]> {
+  return apiRequest<AppUser[]>(`/auth/client-apps/${appId}/users`);
 }
 
 /**

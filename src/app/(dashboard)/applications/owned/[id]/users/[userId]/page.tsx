@@ -106,11 +106,10 @@ export default function UserDetailPage() {
   };
 
   const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('id-ID', {
-      style: 'currency',
-      currency: 'IDR',
+    return new Intl.NumberFormat('en-US', {
       minimumFractionDigits: 0,
-    }).format(amount);
+      maximumFractionDigits: 2,
+    }).format(amount) + ' piece';
   };
 
   const getTransactionTypeLabel = (type: string) => {
