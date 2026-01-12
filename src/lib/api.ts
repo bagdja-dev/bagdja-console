@@ -355,6 +355,34 @@ export async function getUserById(userId: string): Promise<User> {
   return response.json();
 }
 
+/**
+ * Find user by username or email
+ */
+export async function findUserByUsernameOrEmail(identifier: string): Promise<User> {
+  const token = getAccessToken();
+  if (!token) {
+    throw new Error('No access token found');
+  }
+
+  const response = await fetch(`${AUTH_API_BASE}/auth/users/search/${encodeURIComponent(identifier)}`, {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ message: 'Failed to find user' }));
+    throw {
+      message: error.message || 'Failed to find user',
+      statusCode: response.status,
+    } as ApiError;
+  }
+
+  return response.json();
+}
+
 export async function getClientApps(): Promise<ClientApp[]> {
   const organizationId = getActiveOrganizationId();
   if (!organizationId) {

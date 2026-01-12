@@ -1,12 +1,12 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { getUserById } from '@/lib/api';
 import { getAppBalance, type AppBalanceResponse } from '@/lib/piece-api';
 import type { User, ApiError } from '@/types';
-import { ArrowLeft, User as UserIcon, Mail, Calendar, Wallet, Activity, Loader2, UserX } from 'lucide-react';
+import { ArrowLeft, User as UserIcon, Mail, Calendar, Wallet, Activity, Loader2, UserX, RefreshCw } from 'lucide-react';
 
 // Dummy data for Activity Log tab
 const dummyActivities = [
@@ -66,6 +66,22 @@ export default function UserDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<TabType>('transactions');
+  const [refreshingBalance, setRefreshingBalance] = useState(false);
+
+  const fetchBalance = useCallback(async () => {
+    if (!appId || !userId) return;
+    
+    try {
+      setRefreshingBalance(true);
+      const balance = await getAppBalance(appId, userId);
+      setBalanceData(balance);
+    } catch (err) {
+      console.error('Failed to refresh balance:', err);
+      // Don't set error state on refresh, just log it
+    } finally {
+      setRefreshingBalance(false);
+    }
+  }, [appId, userId]);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -78,8 +94,7 @@ export default function UserDetailPage() {
         setUser(userData);
 
         // Fetch balance data
-        const balance = await getAppBalance(appId, userId);
-        setBalanceData(balance);
+        await fetchBalance();
       } catch (err) {
         const apiError = err as ApiError;
         setError(apiError.message || 'Failed to fetch data');
@@ -92,7 +107,19 @@ export default function UserDetailPage() {
     if (appId && userId) {
       fetchData();
     }
-  }, [appId, userId]);
+  }, [appId, userId, fetchBalance]);
+
+  // Auto-refresh balance when window gains focus (user comes back to tab)
+  useEffect(() => {
+    const handleFocus = () => {
+      if (appId && userId && !loading) {
+        fetchBalance();
+      }
+    };
+
+    window.addEventListener('focus', handleFocus);
+    return () => window.removeEventListener('focus', handleFocus);
+  }, [appId, userId, loading, fetchBalance]);
 
   const formatDate = (date: string | Date) => {
     const dateObj = typeof date === 'string' ? new Date(date) : date;
@@ -248,9 +275,19 @@ export default function UserDetailPage() {
           {balanceData && (
             <div className="flex-shrink-0">
               <div className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-hover)] p-4 min-w-[200px]">
-                <div className="flex items-center gap-2 mb-2">
-                  <Wallet className="h-4 w-4 text-[var(--text-secondary)]" />
-                  <span className="text-sm text-[var(--text-secondary)]">App Balance</span>
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <Wallet className="h-4 w-4 text-[var(--text-secondary)]" />
+                    <span className="text-sm text-[var(--text-secondary)]">App Balance</span>
+                  </div>
+                  <button
+                    onClick={fetchBalance}
+                    disabled={refreshingBalance}
+                    className="p-1 hover:bg-[var(--bg-surface)] rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    title="Refresh balance"
+                  >
+                    <RefreshCw className={`h-3 w-3 text-[var(--text-secondary)] ${refreshingBalance ? 'animate-spin' : ''}`} />
+                  </button>
                 </div>
                 <div className="text-2xl font-bold text-[var(--text-primary)]">
                   {formatCurrency(balanceData.balance)}

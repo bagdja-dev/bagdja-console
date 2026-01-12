@@ -9,10 +9,11 @@ import { getPlans, createPlan, updatePlan, deletePlan } from '@/lib/plans-api';
 import { getLicenses, getPurchasedLicenses, createLicense, updateLicense, deleteLicense } from '@/lib/licenses-api';
 import { getAppSubscriptions } from '@/lib/subscriptions-api';
 import type { ClientApp, ApiError, Product, Plan, PlanDuration, AppUser, CreateProductRequest, UpdateProductRequest, CreatePlanRequest, UpdatePlanRequest, License, CreateLicenseRequest, UpdateLicenseRequest, LicenseStatus, Subscription, SubscriptionStatus } from '@/types';
-import { ArrowLeft, Package, Mail, Calendar, Users, ShoppingBag, CreditCard, Plus, Edit, Trash2, Key, Copy, Check } from 'lucide-react';
+import { ArrowLeft, Package, Mail, Calendar, Users, ShoppingBag, CreditCard, Plus, Edit, Trash2, Key, Copy, Check, Coins } from 'lucide-react';
 import ProductModal from '@/components/ProductModal';
 import PlanModal from '@/components/PlanModal';
 import LicenseModal from '@/components/LicenseModal';
+import DistributePieceModal from '@/components/DistributePieceModal';
 
 type TabType = 'users' | 'product' | 'plan' | 'license' | 'subscriptions';
 
@@ -30,6 +31,7 @@ export default function AppDetailPage() {
   const [appUsers, setAppUsers] = useState<AppUser[]>([]);
   const [usersLoading, setUsersLoading] = useState(false);
   const [usersError, setUsersError] = useState<string | null>(null);
+  const [distributePieceModalOpen, setDistributePieceModalOpen] = useState(false);
   
   // Products state
   const [products, setProducts] = useState<Product[]>([]);
@@ -703,11 +705,20 @@ export default function AppDetailPage() {
         {/* Users Tab */}
         {activeTab === 'users' && (
           <div className="p-6">
-            <div className="mb-4">
-              <h2 className="text-lg font-semibold text-[var(--text-primary)]">Registered Users</h2>
-              <p className="text-sm text-[var(--text-secondary)] mt-1">
-                Users who have transacted with this application
-              </p>
+            <div className="mb-4 flex items-center justify-between">
+              <div>
+                <h2 className="text-lg font-semibold text-[var(--text-primary)]">Registered Users</h2>
+                <p className="text-sm text-[var(--text-secondary)] mt-1">
+                  Users who have transacted with this application
+                </p>
+              </div>
+              <button
+                onClick={() => setDistributePieceModalOpen(true)}
+                className="flex items-center gap-2 px-4 py-2 bg-[var(--action-primary)] text-white rounded-lg hover:opacity-90 transition-opacity text-sm font-medium"
+              >
+                <Coins className="h-4 w-4" />
+                Distribute Piece
+              </button>
             </div>
             
             {usersLoading ? (
@@ -1407,6 +1418,19 @@ export default function AppDetailPage() {
           onSubmit={handleLicenseSubmit}
           license={editingLicense}
           appId={app.id}
+        />
+      )}
+
+      {/* Distribute Piece Modal */}
+      {app && (
+        <DistributePieceModal
+          isOpen={distributePieceModalOpen}
+          onClose={() => setDistributePieceModalOpen(false)}
+          users={appUsers}
+          appId={app.id}
+          onSuccess={() => {
+            // Optionally refresh users or show success message
+          }}
         />
       )}
     </div>
