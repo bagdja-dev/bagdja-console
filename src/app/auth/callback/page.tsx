@@ -11,12 +11,40 @@ function CallbackContent() {
 
   useEffect(() => {
     const token = searchParams.get('token');
+    const redirectUrl = searchParams.get('redirect_url');
 
     if (token) {
       try {
         // Store the token
         setAccessToken(token);
-        // Redirect to dashboard
+        
+        // Redirect to redirect_url if provided, otherwise to dashboard
+        if (redirectUrl) {
+          // Validate redirect URL to prevent open redirect
+          try {
+            const url = new URL(redirectUrl);
+            const hostname = url.hostname.toLowerCase();
+            const currentOrigin = typeof window !== 'undefined' ? window.location.origin : '';
+            const isSameOrigin = url.origin === currentOrigin;
+            const isBagdjaDomain = hostname.endsWith('.bagdja.com') || hostname === 'bagdja.com';
+            const isLocalhost = hostname === 'localhost' || hostname === '127.0.0.1' || hostname.startsWith('127.0.0.1');
+            
+            if (isSameOrigin) {
+              // Same origin, use router for internal navigation
+              const path = url.pathname + url.search;
+              router.replace(path);
+              return;
+            } else if (isBagdjaDomain || isLocalhost) {
+              // External but allowed domain
+              window.location.href = redirectUrl;
+              return;
+            }
+          } catch {
+            // Invalid URL, fall through to dashboard
+          }
+        }
+        
+        // Default redirect to dashboard
         router.replace('/dashboard');
       } catch (err) {
         console.error('Auth callback error:', err);
