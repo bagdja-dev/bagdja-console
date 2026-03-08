@@ -53,6 +53,36 @@ function LoginContent() {
     window.location.href = loginUrl;
   };
 
+  const handleForgotPassword = () => {
+    const loginUrl = new URL(LOGIN_URL);
+
+    const callbackUrl = typeof window !== 'undefined'
+      ? `${window.location.origin}/auth/callback`
+      : 'http://localhost:3001/auth/callback';
+
+    const callbackUrlWithRedirect = new URL(callbackUrl);
+
+    if (redirectUrl) {
+      callbackUrlWithRedirect.searchParams.set('redirect_url', redirectUrl);
+    }
+
+    const redirect = searchParams.get('redirect');
+    if (redirect) {
+      callbackUrlWithRedirect.searchParams.set('redirect_url', redirect);
+    }
+
+    loginUrl.pathname = '/forgot-password';
+    loginUrl.searchParams.set('redirect_url', callbackUrlWithRedirect.toString());
+
+    searchParams.forEach((value, key) => {
+      if (key !== 'redirect_url' && key !== 'redirect') {
+        loginUrl.searchParams.set(key, value);
+      }
+    });
+
+    window.location.href = loginUrl.toString();
+  };
+
   return (
     <div className="flex min-h-screen bg-[var(--bg-main)] relative overflow-hidden">
       {/* Background Gradient Overlay */}
@@ -108,6 +138,15 @@ function LoginContent() {
                 Sign in Now
               </span>
                   </Button>
+                  <div className="text-center text-sm">
+                    <button
+                      type="button"
+                      onClick={handleForgotPassword}
+                      className="text-[var(--action-primary)] hover:text-[var(--action-primary-hover)]"
+                    >
+                      Forgot password?
+                    </button>
+                  </div>
           </div>
         </div>
       </div>
