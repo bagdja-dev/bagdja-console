@@ -15,4 +15,3 @@ export default async function AuthCallbackPage({
 
   return <CallbackClient token={token} redirectUrl={redirectUrl} />;
 }
-
