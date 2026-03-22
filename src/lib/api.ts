@@ -20,6 +20,12 @@ import type {
   ApiError,
   ClientTokenRequest,
   ClientTokenResponse,
+  Organization,
+  CreateOrganizationRequest,
+  UpdateOrganizationRequest,
+  ClientApp,
+  CreateClientAppRequest,
+  AppUser,
 } from '@/types';
 
 const AUTH_API_BASE = process.env.NEXT_PUBLIC_AUTH_API || 'https://auth.bagdja.com';
@@ -263,7 +269,9 @@ export async function register(data: RegisterRequest): Promise<AuthResponse> {
  * Get current user profile
  */
 export async function getProfile(): Promise<User> {
-  return apiRequest<User>('/auth/me');
+  const response = await apiRequest<{ user: User; clientApp?: { id: string; appId: string; appName: string } }>('/auth/me');
+  // Extract user from response (auth service returns { user, clientApp })
+  return response.user;
 }
 
 /**
@@ -280,10 +288,155 @@ export function getGoogleLoginUrl(): string {
 }
 
 /**
+ * Get user's organizations
+ */
+export async function getOrganizations(): Promise<Organization[]> {
+  return apiRequest<Organization[]>('/auth/organizations');
+}
+
+/**
+ * Create a new organization
+ */
+export async function createOrganization(data: CreateOrganizationRequest): Promise<Organization> {
+  return apiRequest<Organization>('/auth/organizations', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+/**
+ * Update an organization
+ */
+export async function updateOrganization(
+  organizationId: string,
+  data: UpdateOrganizationRequest
+): Promise<Organization> {
+  return apiRequest<Organization>(`/auth/organizations/${organizationId}`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  });
+}
+
+/**
+ * Get active organization ID from sessionStorage
+ */
+function getActiveOrganizationId(): string | null {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+  return sessionStorage.getItem('activeOrganizationId');
+}
+
+/**
+ * Get user's client apps (owned apps)
+ */
+export async function getUserById(userId: string): Promise<User> {
+  const token = getAccessToken();
+  if (!token) {
+    throw new Error('No access token found');
+  }
+
+  const response = await fetch(`${AUTH_API_BASE}/auth/users/${userId}`, {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ message: 'Failed to fetch user' }));
+    throw {
+      message: error.message || 'Failed to fetch user',
+      statusCode: response.status,
+    } as ApiError;
+  }
+
+  return response.json();
+}
+
+/**
+ * Find user by username or email
+ */
+export async function findUserByUsernameOrEmail(identifier: string): Promise<User> {
+  const token = getAccessToken();
+  if (!token) {
+    throw new Error('No access token found');
+  }
+
+  const response = await fetch(`${AUTH_API_BASE}/auth/users/search/${encodeURIComponent(identifier)}`, {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ message: 'Failed to find user' }));
+    throw {
+      message: error.message || 'Failed to find user',
+      statusCode: response.status,
+    } as ApiError;
+  }
+
+  return response.json();
+}
+
+export async function getClientApps(): Promise<ClientApp[]> {
+  const organizationId = getActiveOrganizationId();
+  if (!organizationId) {
+    throw new Error('No active organization selected');
+  }
+  return apiRequest<ClientApp[]>(`/auth/client-apps?organizationId=${encodeURIComponent(organizationId)}`);
+}
+
+/**
+ * Create a new client app
+ */
+export async function createClientApp(data: CreateClientAppRequest): Promise<ClientApp> {
+  const organizationId = getActiveOrganizationId();
+  if (!organizationId) {
+    throw new Error('No active organization selected');
+  }
+  return apiRequest<ClientApp>(`/auth/client-apps?organizationId=${encodeURIComponent(organizationId)}`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+/**
+ * Regenerate app secret for a client app
+ */
+export async function regenerateAppSecret(clientAppId: string): Promise<{ app_secret: string }> {
+  return apiRequest<{ app_secret: string }>(`/auth/client-apps/${clientAppId}/regenerate-secret`, {
+    method: 'POST',
+  });
+}
+
+/**
+ * Get all users who have transacted with a specific app
+ */
+export async function getAppUsers(appId: string): Promise<AppUser[]> {
+  return apiRequest<AppUser[]>(`/auth/client-apps/${appId}/users`);
+}
+
+/**
+ * Get public app details by app ID (for subscribed apps)
+ */
+export async function getPublicAppDetails(appId: string): Promise<ClientApp> {
+  return apiRequest<ClientApp>(`/auth/client-apps/public/${appId}`);
+}
+
+/**
  * Logout user
  */
 export function logout(): void {
   removeAccessToken();
+  // Clear active organization from sessionStorage
+  if (typeof window !== 'undefined') {
+    sessionStorage.removeItem('activeOrganizationId');
+  }
   // Redirect handled by component
 }
 

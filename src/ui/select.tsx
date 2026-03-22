@@ -1,45 +1,42 @@
-import React, { InputHTMLAttributes, forwardRef } from 'react';
+import React, { SelectHTMLAttributes, forwardRef } from 'react';
 
-export interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
+export interface SelectProps extends SelectHTMLAttributes<HTMLSelectElement> {
   label?: string;
   error?: string;
   helpText?: string;
 }
 
-// Generate unique ID using useId hook (React 18+)
-export const Input = forwardRef<HTMLInputElement, InputProps>(
-  ({ className = '', label, error, helpText, id, type, ...props }, ref) => {
-    // Use useId for stable ID generation instead of Math.random
+export const Select = forwardRef<HTMLSelectElement, SelectProps>(
+  ({ className = '', label, error, helpText, id, children, ...props }, ref) => {
     const generatedId = React.useId();
-    const inputId = id || `input-${generatedId}`;
+    const selectId = id || `select-${generatedId}`;
 
     return (
       <div className="w-full">
         {label && (
           <label
-            htmlFor={inputId}
+            htmlFor={selectId}
             className="block text-sm font-medium text-[var(--text-primary)] mb-1"
           >
             {label}
           </label>
         )}
-        <input
+        <select
           ref={ref}
-          id={inputId}
-          type={type}
+          id={selectId}
           className={`
             w-full px-4 py-2 border rounded-lg
             bg-[var(--bg-surface)] text-[var(--text-primary)]
             border-[var(--border-default)]
             focus:outline-none focus:ring-2 focus:ring-[var(--action-primary)] focus:border-transparent
             disabled:bg-[var(--bg-sidebar)] disabled:cursor-not-allowed disabled:opacity-50
-            placeholder:text-[var(--text-muted)]
-            ${type === 'number' ? '[appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none' : ''}
             ${error ? 'border-[var(--brand-error)]' : ''}
             ${className}
           `}
           {...props}
-        />
+        >
+          {children}
+        </select>
         {error && (
           <p className="mt-1 text-sm text-[var(--brand-error)]" role="alert">
             {error}
@@ -55,8 +52,5 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
   }
 );
 
-Input.displayName = 'Input';
-
-
-
+Select.displayName = 'Select';
 

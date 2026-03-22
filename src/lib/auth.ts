@@ -19,7 +19,11 @@ export function setAccessToken(token: string): void {
     
     // Also set cookie for middleware to check
     // Cookie expires when browser closes (session cookie)
-    document.cookie = `${COOKIE_NAME}=${token}; path=/; SameSite=Lax; Secure=${window.location.protocol === 'https:'}`;
+    const cookieParts = [`${COOKIE_NAME}=${encodeURIComponent(token)}`, 'path=/', 'SameSite=Lax'];
+    if (window.location.protocol === 'https:') {
+      cookieParts.push('Secure');
+    }
+    document.cookie = cookieParts.join('; ');
   }
 }
 
@@ -103,4 +107,3 @@ export function removeClientToken(): void {
     sessionStorage.removeItem(CLIENT_TOKEN_EXPIRY_KEY);
   }
 }
-
