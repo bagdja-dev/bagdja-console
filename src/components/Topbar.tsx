@@ -336,7 +336,7 @@ export function Topbar({ userEmail, username, profilePicture }: TopbarProps) {
                       className="flex items-center gap-3 w-full px-4 py-2 text-sm text-[var(--text-primary)] hover:bg-[var(--bg-hover)] focus:outline-none"
                     >
                       <Wallet className="h-4 w-4" />
-                      <span>Balance</span>
+                      <span>Wallet</span>
                     </button>
 
                     {/* Separator */}
@@ -363,7 +363,6 @@ export function Topbar({ userEmail, username, profilePicture }: TopbarProps) {
     </header>
   );
 }
-
 
 
 

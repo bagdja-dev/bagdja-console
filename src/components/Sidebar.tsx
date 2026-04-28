@@ -13,7 +13,10 @@ import {
   X,
   Image as ImageIcon,
   Grid3x3,
-  Package
+  Package,
+  CreditCard,
+  Wallet,
+  Settings
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Tooltip } from './Tooltip';
@@ -87,6 +90,25 @@ const menuItems: MenuItem[] = [
         label: 'Subscribed Apps',
         icon: List,
         href: '/applications/subscribed',
+      },
+    ],
+  },
+  {
+    id: 'payment',
+    label: 'Payment',
+    icon: CreditCard,
+    children: [
+      {
+        id: 'payment-wallet',
+        label: 'Wallet',
+        icon: Wallet,
+        href: '/balance',
+      },
+      {
+        id: 'payment-payout-setup',
+        label: 'Payout Setup',
+        icon: Settings,
+        href: '/payment/payout-setup',
       },
     ],
   },
@@ -515,4 +537,3 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
     </div>
   );
 }
-
