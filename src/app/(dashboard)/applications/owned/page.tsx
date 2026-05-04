@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { getClientApps, regenerateAppSecret } from '@/lib/api';
 import type { ClientApp, ApiError } from '@/types';
-import { Plus, Package, Mail, Calendar, RefreshCw, Copy, Check, X } from 'lucide-react';
+import { Plus, Package, Mail, Calendar, RefreshCw, Copy, Check, X, Key } from 'lucide-react';
 import { Button } from '@/ui/button';
 
 export default function OwnedAppsPage() {
@@ -302,11 +302,10 @@ export default function OwnedAppsPage() {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span
-                        className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                          app.isActive
-                            ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
-                            : 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200'
-                        }`}
+                        className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${app.isActive
+                          ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
+                          : 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200'
+                          }`}
                       >
                         {app.isActive ? 'Active' : 'Inactive'}
                       </span>
@@ -316,10 +315,10 @@ export default function OwnedAppsPage() {
                         type="button"
                         onClick={(e) => { e.stopPropagation(); handleRegenerateSecret(app.id); }}
                         disabled={regenerating === app.id}
-                        className="text-[var(--action-primary)] hover:text-[var(--action-primary-hover)] disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1 ml-auto"
+                        className="text-[var(--action-primary)] hover:text-[var(--action-primary-hover)] disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1 ml-auto group"
                       >
                         <RefreshCw className={`h-4 w-4 ${regenerating === app.id ? 'animate-spin' : ''}`} />
-                        Regenerate Secret
+                        <span>Regenerate Secret</span>
                       </button>
                     </td>
                   </tr>
@@ -332,66 +331,68 @@ export default function OwnedAppsPage() {
 
       {/* Secret Modal */}
       {showSecretModal && newAppSecret && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className="bg-[var(--bg-surface)] rounded-lg border border-[var(--border-default)] p-6 max-w-md w-full mx-4 shadow-xl">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-semibold text-[var(--text-primary)]">
-                {newAppName ? `App Secret - ${newAppName}` : 'App Secret'}
-              </h2>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+          <div className="bg-[var(--bg-surface)] rounded-2xl border border-[var(--border-default)] p-8 max-w-lg w-full shadow-2xl animate-in fade-in zoom-in duration-200">
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-yellow-500/10 rounded-lg">
+                  <Key className="h-6 w-6 text-yellow-600" />
+                </div>
+                <h2 className="text-xl font-bold text-[var(--text-primary)]">
+                  {newAppName ? `App Secret - ${newAppName}` : 'New App Secret'}
+                </h2>
+              </div>
               <button
                 type="button"
                 onClick={handleCloseSecretModal}
-                className="text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                className="p-2 text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] rounded-full transition-colors"
               >
                 <X className="h-5 w-5" />
               </button>
             </div>
 
-            <div className="space-y-4">
-              <div className="rounded-md bg-[var(--brand-warning)]/20 border border-[var(--brand-warning)]/30 p-4 text-sm text-[var(--brand-warning)]">
-                ⚠️ This secret will only be shown once. Make sure to copy it now and store it securely.
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-[var(--text-primary)] mb-2">
-                  App Secret
-                </label>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="text"
-                    readOnly
-                    value={newAppSecret}
-                    className="flex-1 rounded-md border border-[var(--border-default)] bg-[var(--bg-main)] px-3 py-2 text-sm font-mono text-[var(--text-primary)]"
-                  />
-                  <button
-                    type="button"
-                    onClick={handleCopySecret}
-                    className="flex items-center gap-2 rounded-md border border-[var(--border-default)] bg-[var(--bg-surface)] px-3 py-2 text-sm text-[var(--text-primary)] hover:bg-[var(--bg-hover)]"
-                  >
-                    {copiedSecret ? (
-                      <>
-                        <Check className="h-4 w-4 text-green-600" />
-                        Copied!
-                      </>
-                    ) : (
-                      <>
-                        <Copy className="h-4 w-4" />
-                        Copy
-                      </>
-                    )}
-                  </button>
-                </div>
-              </div>
-
-              <div className="flex items-center justify-end pt-4">
-                <Button
-                  type="button"
-                  onClick={handleCloseSecretModal}
-                >
-                  I&apos;ve copied the secret
-                </Button>
-              </div>
+            <div className="mb-6 p-4 bg-yellow-500/5 border border-yellow-500/20 rounded-xl">
+              <p className="text-sm text-yellow-700 leading-relaxed">
+                <strong>Important:</strong> Please copy this secret and store it securely. For security reasons,
+                you won't be able to see it again. If you lose it, you'll need to regenerate a new one.
+              </p>
             </div>
+
+            <div className="space-y-2 mb-8">
+              <label className="text-xs font-bold uppercase tracking-wider text-[var(--text-secondary)] ml-1">
+                App Secret
+              </label>
+              <div className="relative group">
+                <div className="w-full bg-[var(--bg-hover)] border border-[var(--border-default)] rounded-xl p-4 pr-12 font-mono text-sm break-all text-[var(--text-primary)]">
+                  {newAppSecret}
+                </div>
+                <button
+                  type="button"
+                  onClick={handleCopySecret}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 p-2 bg-[var(--bg-surface)] border border-[var(--border-default)] rounded-lg hover:border-[var(--action-primary)] transition-all shadow-sm"
+                  title="Copy to clipboard"
+                >
+                  {copiedSecret ? (
+                    <Check className="h-4 w-4 text-green-600" />
+                  ) : (
+                    <Copy className="h-4 w-4 text-[var(--text-secondary)]" />
+                  )}
+                </button>
+              </div>
+              {copiedSecret && (
+                <p className="text-xs text-green-600 font-medium ml-1 animate-in fade-in slide-in-from-top-1">
+                  Copied to clipboard!
+                </p>
+              )}
+            </div>
+
+            <Button
+              variant="primary"
+              className="w-full py-6 rounded-xl font-bold"
+              onClick={handleCloseSecretModal}
+            >
+              I've saved it
+            </Button>
           </div>
         </div>
       )}

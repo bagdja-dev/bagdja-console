@@ -1,361 +1,260 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
-import { getBalance, getBalanceWithRefresh } from '@/lib/piece-api';
-import type { BalanceResponse, BalanceItem } from '@/lib/piece-api';
-import type { ApiError } from '@/types';
-import { Wallet, Building, Package, ChevronDown, ChevronRight, Loader2, RefreshCw } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import { CheckCircle2, Clock3, Wallet as WalletIcon } from 'lucide-react';
 
-export default function BalancePage() {
-  const [balance, setBalance] = useState<BalanceResponse | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [expandedOrgs, setExpandedOrgs] = useState<Set<string>>(new Set());
+type Currency = 'IDR' | 'USD' | 'MYR';
+type TabKey = 'transactions' | 'withdraw_requests';
 
-  const fetchBalance = useCallback(async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      const data = await getBalance();
-      setBalance(data);
-    } catch (err) {
-      const apiError = err as ApiError;
-      setError(apiError.message || 'Failed to fetch balance');
-      console.error('Failed to fetch balance:', err);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+type WalletSummary = {
+  currency: Currency;
+  availableBalance: number;
+  heldBalance: number;
+};
 
-  useEffect(() => {
-    fetchBalance();
-  }, [fetchBalance]);
+function formatMoney(amount: number, currency: Currency) {
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency,
+    currencyDisplay: 'code',
+    maximumFractionDigits: currency === 'IDR' ? 0 : 2,
+  }).format(amount);
+}
 
-  const handleRefresh = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      const data = await getBalanceWithRefresh();
-      setBalance(data);
-    } catch (err) {
-      const apiError = err as ApiError;
-      setError(apiError.message || 'Failed to refresh balance');
-      console.error('Failed to refresh balance:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const toggleOrg = (orgId: string) => {
-    setExpandedOrgs((prev) => {
-      const newSet = new Set(prev);
-      if (newSet.has(orgId)) {
-        newSet.delete(orgId);
-      } else {
-        newSet.add(orgId);
-      }
-      return newSet;
-    });
-  };
-
-  const formatBalance = (amount: number): string => {
-    return new Intl.NumberFormat('en-US', {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    }).format(amount);
-  };
-
-  const formatDate = (date: Date | string) => {
-    if (!date) return '-';
-    const d = typeof date === 'string' ? new Date(date) : date;
-    return new Intl.DateTimeFormat('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    }).format(d);
-  };
-
-  // Group apps by organization
-  const appsByOrg = balance?.organizations.reduce((acc, org) => {
-    const orgApps = balance.apps.filter((app) => {
-      // Apps that belong to this organization
-      // Note: This is a simplified grouping - you may need to adjust based on your data structure
-      return app.organizationId === org.organizationId;
-    });
-    if (orgApps.length > 0) {
-      acc[org.organizationId || ''] = orgApps;
-    }
-    return acc;
-  }, {} as Record<string, BalanceItem[]>) || {};
-
-  if (loading) {
-    return (
-      <>
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-[var(--text-primary)]">
-            Balance
-          </h1>
-          <p className="mt-2 text-[var(--text-secondary)]">
-            View your BP balance and distributions
-          </p>
-        </div>
-
-        <div className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-surface)] p-6">
-          <div className="flex items-center justify-center py-12">
-            <Loader2 className="h-8 w-8 animate-spin text-[var(--text-secondary)]" />
+function WalletCard({
+  wallet,
+  isActive,
+  isSelected,
+  onActivate,
+  onSelect,
+}: {
+  wallet: WalletSummary;
+  isActive: boolean;
+  isSelected: boolean;
+  onActivate: () => void;
+  onSelect: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      className={[
+        'relative w-full rounded-lg border bg-[var(--bg-surface)] p-5 text-left transition-colors',
+        isSelected
+          ? 'border-[var(--action-primary)] ring-1 ring-[var(--action-primary)]'
+          : 'border-[var(--border-default)] hover:bg-[var(--bg-hover)]',
+      ].join(' ')}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[var(--action-primary)]/10">
+              <WalletIcon className="h-5 w-5 text-[var(--action-primary)]" />
+            </div>
+            <div>
+              <div className="text-sm font-semibold text-[var(--text-primary)]">{wallet.currency}</div>
+              <div className="text-xs text-[var(--text-secondary)]">Wallet</div>
+            </div>
           </div>
         </div>
-      </>
-    );
-  }
 
-  if (error) {
-    return (
-      <>
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-[var(--text-primary)]">
-            Balance
-          </h1>
-          <p className="mt-2 text-[var(--text-secondary)]">
-            View your BP balance and distributions
-          </p>
+        <div className="flex items-center gap-2 rounded-full border border-[var(--border-default)] bg-[var(--bg-main)] px-2.5 py-1">
+          {isActive ? (
+            <>
+              <CheckCircle2 className="h-4 w-4 text-[var(--action-primary)]" />
+              <span className="text-xs font-medium text-[var(--text-primary)]">Active</span>
+            </>
+          ) : (
+            <>
+              <Clock3 className="h-4 w-4 text-[var(--text-secondary)]" />
+              <span className="text-xs font-medium text-[var(--text-secondary)]">Inactive</span>
+            </>
+          )}
         </div>
+      </div>
 
-        <div className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-surface)] p-6">
-          <div
-            className="rounded-md bg-[var(--brand-error)]/20 border border-[var(--brand-error)]/30 p-4 text-sm text-[var(--brand-error)]"
-            role="alert"
-          >
-            {error}
+      <div className="mt-5 grid grid-cols-2 gap-3">
+        <div className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-main)] p-3">
+          <div className="text-xs text-[var(--text-secondary)]">Available balance</div>
+          <div className="mt-1 text-sm font-semibold text-[var(--text-primary)]">
+            {formatMoney(wallet.availableBalance, wallet.currency)}
           </div>
         </div>
-      </>
-    );
-  }
+        <div className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-main)] p-3">
+          <div className="text-xs text-[var(--text-secondary)]">Held balance</div>
+          <div className="mt-1 text-sm font-semibold text-[var(--text-primary)]">
+            {formatMoney(wallet.heldBalance, wallet.currency)}
+          </div>
+        </div>
+      </div>
+
+      <div className="pointer-events-none mt-2 flex justify-end">
+        <button
+          type="button"
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            onActivate();
+          }}
+          disabled={isActive}
+          className="pointer-events-auto rounded-lg bg-[var(--action-primary)] px-4 py-2 text-sm font-medium text-white hover:bg-[var(--action-primary-hover)] disabled:cursor-not-allowed disabled:bg-[var(--text-muted)]"
+        >
+          Activate
+        </button>
+      </div>
+    </button>
+  );
+}
+
+export default function WalletPage() {
+  const wallets = useMemo<WalletSummary[]>(
+    () => [
+      { currency: 'IDR', availableBalance: 0, heldBalance: 0 },
+      { currency: 'USD', availableBalance: 0, heldBalance: 0 },
+      { currency: 'MYR', availableBalance: 0, heldBalance: 0 },
+    ],
+    [],
+  );
+
+  const [activeCurrencies, setActiveCurrencies] = useState<Set<Currency>>(new Set());
+  const [selectedCurrency, setSelectedCurrency] = useState<Currency>('IDR');
+  const [activeTab, setActiveTab] = useState<TabKey>('transactions');
+
+  const handleActivate = (currency: Currency) => {
+    setActiveCurrencies((prev) => {
+      const next = new Set(prev);
+      next.add(currency);
+      return next;
+    });
+    setSelectedCurrency(currency);
+  };
+
+  const selectedWallet = wallets.find((w) => w.currency === selectedCurrency) ?? wallets[0];
+  const isSelectedActive = activeCurrencies.has(selectedWallet.currency);
 
   return (
     <>
       <div className="mb-8">
-        <div className="flex justify-between items-center">
-          <div>
-            <h1 className="text-3xl font-bold text-[var(--text-primary)]">
-              Balance
-            </h1>
-            <p className="mt-2 text-[var(--text-secondary)]">
-              View your BP balance and distributions
-            </p>
-          </div>
-          <button
-            onClick={handleRefresh}
-            disabled={loading}
-            className="flex items-center gap-2 px-4 py-2 bg-[var(--action-primary)] text-white rounded-lg hover:bg-[var(--action-primary-hover)] disabled:bg-[var(--text-muted)] disabled:cursor-not-allowed transition-colors"
-          >
-            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-            Refresh
-          </button>
-        </div>
+        <h1 className="text-3xl font-bold text-[var(--text-primary)]">Wallet</h1>
+        <p className="mt-2 text-[var(--text-secondary)]">Manage balances and payouts.</p>
       </div>
 
-      {/* Global Balance Card */}
-      {balance?.global && (
-        <div className="mb-6 rounded-lg border border-[var(--border-default)] bg-[var(--bg-surface)] p-6">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-[var(--action-primary)]/10">
-                <Wallet className="h-6 w-6 text-[var(--action-primary)]" />
-              </div>
-              <div>
-                <h2 className="text-lg font-semibold text-[var(--text-primary)]">
-                  Global Balance
-                </h2>
-                <p className="text-sm text-[var(--text-secondary)]">
-                  Your main BP balance
-                </p>
-              </div>
+      <div className="mb-8 grid grid-cols-1 gap-4 lg:grid-cols-3">
+        {wallets.map((wallet) => (
+          <WalletCard
+            key={wallet.currency}
+            wallet={wallet}
+            isActive={activeCurrencies.has(wallet.currency)}
+            isSelected={wallet.currency === selectedWallet.currency}
+            onActivate={() => handleActivate(wallet.currency)}
+            onSelect={() => setSelectedCurrency(wallet.currency)}
+          />
+        ))}
+      </div>
+
+      <div className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-surface)]">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--border-default)] px-6 py-4">
+          <div>
+            <div className="flex flex-wrap items-center gap-2">
+              <h2 className="text-lg font-semibold text-[var(--text-primary)]">Details</h2>
+              <span className="rounded-full border border-[var(--border-default)] bg-[var(--bg-main)] px-2 py-0.5 text-xs font-medium text-[var(--text-primary)]">
+                {selectedWallet.currency}
+              </span>
+              <span className="rounded-full border border-[var(--border-default)] bg-[var(--bg-main)] px-2 py-0.5 text-xs font-medium text-[var(--text-secondary)]">
+                {isSelectedActive ? 'Active' : 'Inactive'}
+              </span>
             </div>
-            <div className="text-right">
-              <div className="text-3xl font-bold text-[var(--text-primary)]">
-                {formatBalance(balance.global.balance)} BP
-              </div>
-              <p className="text-xs text-[var(--text-secondary)] mt-1">
-                Updated {formatDate(balance.global.updatedAt)}
-              </p>
-            </div>
+            <p className="mt-1 text-sm text-[var(--text-secondary)]">Transactions and withdraw requests.</p>
+          </div>
+
+          <div className="inline-flex rounded-lg border border-[var(--border-default)] bg-[var(--bg-main)] p-1">
+            <button
+              type="button"
+              onClick={() => setActiveTab('transactions')}
+              className={[
+                'rounded-md px-3 py-1.5 text-sm font-medium transition-colors',
+                activeTab === 'transactions'
+                  ? 'bg-[var(--bg-surface)] text-[var(--text-primary)] shadow-sm'
+                  : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]',
+              ].join(' ')}
+            >
+              Transaction
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('withdraw_requests')}
+              className={[
+                'rounded-md px-3 py-1.5 text-sm font-medium transition-colors',
+                activeTab === 'withdraw_requests'
+                  ? 'bg-[var(--bg-surface)] text-[var(--text-primary)] shadow-sm'
+                  : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]',
+              ].join(' ')}
+            >
+              Withdraw Request
+            </button>
           </div>
         </div>
-      )}
 
-      {/* Distributions Table */}
-      <div className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-surface)] overflow-hidden">
-        <div className="px-6 py-4 border-b border-[var(--border-default)]">
-          <h2 className="text-lg font-semibold text-[var(--text-primary)]">
-            Distributions
-          </h2>
-          <p className="text-sm text-[var(--text-secondary)] mt-1">
-            Organizational and app-level credits
-          </p>
-        </div>
-
-        {balance && balance.organizations.length === 0 && balance.apps.length === 0 ? (
-          <div className="p-12 text-center">
-            <Package className="mx-auto h-12 w-12 text-[var(--text-muted)]" />
-            <h3 className="mt-4 text-lg font-medium text-[var(--text-primary)]">
-              No distributions
-            </h3>
-            <p className="mt-2 text-sm text-[var(--text-secondary)]">
-              You don&apos;t have any organizational or app-level credits yet.
-            </p>
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-[var(--border-default)]">
-              <thead className="bg-[var(--bg-sidebar)]">
-                <tr>
-                  <th
-                    scope="col"
-                    className="px-6 py-3 text-left text-xs font-medium text-[var(--text-secondary)] uppercase tracking-wider"
-                  >
-                    Type
-                  </th>
-                  <th
-                    scope="col"
-                    className="px-6 py-3 text-left text-xs font-medium text-[var(--text-secondary)] uppercase tracking-wider"
-                  >
-                    Name
-                  </th>
-                  <th
-                    scope="col"
-                    className="px-6 py-3 text-left text-xs font-medium text-[var(--text-secondary)] uppercase tracking-wider"
-                  >
-                    Balance
-                  </th>
-                  <th
-                    scope="col"
-                    className="px-6 py-3 text-left text-xs font-medium text-[var(--text-secondary)] uppercase tracking-wider"
-                  >
-                    Updated
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="bg-[var(--bg-surface)] divide-y divide-[var(--border-default)]">
-                {balance?.organizations.map((org) => {
-                  const isExpanded = expandedOrgs.has(org.organizationId || '');
-                  const orgApps = appsByOrg[org.organizationId || ''] || [];
-
-                  return (
-                    <React.Fragment key={org.id}>
-                      <tr className="hover:bg-[var(--bg-hover)] transition-colors">
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="flex items-center">
-                            <button
-                              type="button"
-                              onClick={() => toggleOrg(org.organizationId || '')}
-                              className="mr-2 text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
-                            >
-                              {isExpanded ? (
-                                <ChevronDown className="h-4 w-4" />
-                              ) : (
-                                <ChevronRight className="h-4 w-4" />
-                              )}
-                            </button>
-                            <Building className="h-5 w-5 text-[var(--text-secondary)]" />
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm font-medium text-[var(--text-primary)]">
-                            {org.organizationName || 'Unknown Organization'}
-                          </div>
-                          <div className="text-xs text-[var(--text-secondary)]">
-                            Organization
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm font-semibold text-[var(--text-primary)]">
-                            {formatBalance(org.balance)} BP
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm text-[var(--text-secondary)]">
-                            {formatDate(org.updatedAt)}
-                          </div>
-                        </td>
-                      </tr>
-                      {isExpanded && orgApps.length > 0 && (
-                        <>
-                          {orgApps.map((app) => (
-                            <tr
-                              key={app.id}
-                              className="hover:bg-[var(--bg-hover)] transition-colors bg-[var(--bg-sidebar)]/50"
-                            >
-                              <td className="px-6 py-4 whitespace-nowrap pl-12">
-                                <Package className="h-4 w-4 text-[var(--text-secondary)]" />
-                              </td>
-                              <td className="px-6 py-4 whitespace-nowrap">
-                                <div className="text-sm font-medium text-[var(--text-primary)]">
-                                  {app.appName || 'Unknown App'}
-                                </div>
-                                <div className="text-xs text-[var(--text-secondary)]">
-                                  App
-                                </div>
-                              </td>
-                              <td className="px-6 py-4 whitespace-nowrap">
-                                <div className="text-sm font-semibold text-[var(--text-primary)]">
-                                  {formatBalance(app.balance)} BP
-                                </div>
-                              </td>
-                              <td className="px-6 py-4 whitespace-nowrap">
-                                <div className="text-sm text-[var(--text-secondary)]">
-                                  {formatDate(app.updatedAt)}
-                                </div>
-                              </td>
-                            </tr>
-                          ))}
-                        </>
-                      )}
-                    </React.Fragment>
-                  );
-                })}
-                {/* Standalone apps (not grouped under any organization) */}
-                {balance?.apps
-                  .filter((app) => {
-                    // Apps that don't belong to any organization in the list
-                    return !balance.organizations.some(
-                      (org) => org.organizationId === app.organizationId
-                    );
-                  })
-                  .map((app) => (
-                    <tr key={app.id} className="hover:bg-[var(--bg-hover)] transition-colors">
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <Package className="h-5 w-5 text-[var(--text-secondary)]" />
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm font-medium text-[var(--text-primary)]">
-                          {app.appName || 'Unknown App'}
-                        </div>
-                        <div className="text-xs text-[var(--text-secondary)]">
-                          App
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm font-semibold text-[var(--text-primary)]">
-                          {formatBalance(app.balance)} BP
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm text-[var(--text-secondary)]">
-                          {formatDate(app.updatedAt)}
-                        </div>
+        <div className="p-6">
+          {activeTab === 'transactions' ? (
+            <div className="overflow-hidden rounded-lg border border-[var(--border-default)] bg-[var(--bg-main)]">
+              <div className="border-b border-[var(--border-default)] px-4 py-3">
+                <div className="text-sm font-semibold text-[var(--text-primary)]">Transaction</div>
+                <div className="mt-0.5 text-xs text-[var(--text-secondary)]">
+                  All movements for {selectedWallet.currency} wallet.
+                </div>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="min-w-full text-left text-sm">
+                  <thead className="border-b border-[var(--border-default)] bg-[var(--bg-surface)]">
+                    <tr className="text-xs text-[var(--text-secondary)]">
+                      <th className="px-4 py-3 font-medium">Date</th>
+                      <th className="px-4 py-3 font-medium">Type</th>
+                      <th className="px-4 py-3 font-medium">Amount</th>
+                      <th className="px-4 py-3 font-medium">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr className="border-b border-[var(--border-default)] last:border-0">
+                      <td className="px-4 py-4 text-[var(--text-secondary)]" colSpan={4}>
+                        No transactions yet for {selectedWallet.currency} wallet.
                       </td>
                     </tr>
-                  ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          ) : (
+            <div className="overflow-hidden rounded-lg border border-[var(--border-default)] bg-[var(--bg-main)]">
+              <div className="border-b border-[var(--border-default)] px-4 py-3">
+                <div className="text-sm font-semibold text-[var(--text-primary)]">Withdraw Request</div>
+                <div className="mt-0.5 text-xs text-[var(--text-secondary)]">
+                  Payout requests for {selectedWallet.currency} wallet.
+                </div>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="min-w-full text-left text-sm">
+                  <thead className="border-b border-[var(--border-default)] bg-[var(--bg-surface)]">
+                    <tr className="text-xs text-[var(--text-secondary)]">
+                      <th className="px-4 py-3 font-medium">Date</th>
+                      <th className="px-4 py-3 font-medium">Currency</th>
+                      <th className="px-4 py-3 font-medium">Amount</th>
+                      <th className="px-4 py-3 font-medium">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr className="border-b border-[var(--border-default)] last:border-0">
+                      <td className="px-4 py-4 text-[var(--text-secondary)]" colSpan={4}>
+                        No withdraw requests yet for {selectedWallet.currency} wallet.
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
     </>
   );
 }
-

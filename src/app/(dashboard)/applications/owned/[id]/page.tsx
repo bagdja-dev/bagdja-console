@@ -9,13 +9,29 @@ import { getPlans, createPlan, updatePlan, deletePlan } from '@/lib/plans-api';
 import { getLicenses, getPurchasedLicenses, createLicense, updateLicense, deleteLicense } from '@/lib/licenses-api';
 import { getAppSubscriptions } from '@/lib/subscriptions-api';
 import type { ClientApp, ApiError, Product, Plan, PlanDuration, AppUser, CreateProductRequest, UpdateProductRequest, CreatePlanRequest, UpdatePlanRequest, License, CreateLicenseRequest, UpdateLicenseRequest, LicenseStatus, Subscription, SubscriptionStatus } from '@/types';
-import { ArrowLeft, Package, Mail, Calendar, Users, ShoppingBag, CreditCard, Plus, Edit, Trash2, Key, Copy, Check, Coins } from 'lucide-react';
+import { ArrowLeft, Package, Mail, Calendar, Users, ShoppingBag, CreditCard, Plus, Edit, Trash2, Key, Copy, Check, Coins, Activity, Shield, CheckCircle, XCircle, Globe, Lock, Code, List, Clock, Search, History, Link2 } from 'lucide-react';
 import ProductModal from '@/components/ProductModal';
 import PlanModal from '@/components/PlanModal';
 import LicenseModal from '@/components/LicenseModal';
 import DistributePieceModal from '@/components/DistributePieceModal';
+import EventRegisterModal from '@/components/EventRegisterModal';
+import EventSubscribeModal from '@/components/EventSubscribeModal';
+import {
+  getAppContracts,
+  createEventContract,
+  registerAppInHub,
+  updateEventContract,
+  deleteEventContract,
+  getMyAppSubscriptions,
+  subscribeToEvent,
+  updateMySubscription,
+  getSubscriptionRequests,
+  updateSubscriptionStatus,
+  getEventLogs
+} from '@/lib/api';
 
-type TabType = 'users' | 'product' | 'plan' | 'license' | 'subscriptions';
+type TabType = 'users' | 'product' | 'plan' | 'license' | 'subscriptions' | 'events';
+type EventSubTab = 'broadcast' | 'subscribe' | 'requests' | 'log';
 
 export default function AppDetailPage() {
   const params = useParams();
@@ -26,27 +42,27 @@ export default function AppDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<TabType>('users');
-  
+
   // Users state
   const [appUsers, setAppUsers] = useState<AppUser[]>([]);
   const [usersLoading, setUsersLoading] = useState(false);
   const [usersError, setUsersError] = useState<string | null>(null);
   const [distributePieceModalOpen, setDistributePieceModalOpen] = useState(false);
-  
+
   // Products state
   const [products, setProducts] = useState<Product[]>([]);
   const [productsLoading, setProductsLoading] = useState(false);
   const [productsError, setProductsError] = useState<string | null>(null);
   const [productModalOpen, setProductModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
-  
+
   // Plans state
   const [plans, setPlans] = useState<Plan[]>([]);
   const [plansLoading, setPlansLoading] = useState(false);
   const [plansError, setPlansError] = useState<string | null>(null);
   const [planModalOpen, setPlanModalOpen] = useState(false);
   const [editingPlan, setEditingPlan] = useState<Plan | null>(null);
-  
+
   // Licenses state
   const [licenses, setLicenses] = useState<License[]>([]);
   const [licensesLoading, setLicensesLoading] = useState(false);
@@ -58,12 +74,29 @@ export default function AppDetailPage() {
   const [purchasedLicenses, setPurchasedLicenses] = useState<License[]>([]);
   const [purchasedLicensesLoading, setPurchasedLicensesLoading] = useState(false);
   const [purchasedLicensesError, setPurchasedLicensesError] = useState<string | null>(null);
-  
+
   // Subscriptions state
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
   const [subscriptionsLoading, setSubscriptionsLoading] = useState(false);
   const [subscriptionsError, setSubscriptionsError] = useState<string | null>(null);
   const [subscriptionFilter, setSubscriptionFilter] = useState<'all' | 'active' | 'expired' | 'cancelled'>('all');
+
+  // Events state
+  const [eventSubTab, setEventSubTab] = useState<EventSubTab>('broadcast');
+  const [infraContracts, setInfraContracts] = useState<any[]>([]);
+  const [infraContractsLoading, setInfraContractsLoading] = useState(false);
+  const [availableEvents, setAvailableEvents] = useState<any[]>([]);
+  const [availableEventsLoading, setAvailableEventsLoading] = useState(false);
+  const [subscriptionRequests, setSubscriptionRequests] = useState<any[]>([]);
+  const [subscriptionRequestsLoading, setSubscriptionRequestsLoading] = useState(false);
+  const [eventLogs, setEventLogs] = useState<any[]>([]);
+  const [eventLogsLoading, setEventLogsLoading] = useState(false);
+  const [eventRegisterModalOpen, setEventRegisterModalOpen] = useState(false);
+  const [eventSubscribeModalOpen, setEventSubscribeModalOpen] = useState(false);
+  const [editingEvent, setEditingEvent] = useState<any>(null);
+  const [editingSubscription, setEditingSubscription] = useState<any>(null);
+  const [mySubscriptions, setMySubscriptions] = useState<any[]>([]);
+  const [mySubscriptionsLoading, setMySubscriptionsLoading] = useState(false);
 
   useEffect(() => {
     const fetchApp = async () => {
@@ -234,6 +267,82 @@ export default function AppDetailPage() {
     fetchSubscriptions();
   }, [activeTab, app?.id]);
 
+  // Fetch event contracts when events/broadcast tab is active
+  useEffect(() => {
+    const fetchContracts = async () => {
+      if (activeTab !== 'events' || eventSubTab !== 'broadcast' || !app?.appId) return;
+
+      try {
+        setInfraContractsLoading(true);
+        const data = await getAppContracts(app.appId);
+        setInfraContracts(data);
+      } catch (err) {
+        console.error('Failed to fetch contracts:', err);
+      } finally {
+        setInfraContractsLoading(false);
+      }
+    };
+
+    fetchContracts();
+  }, [activeTab, eventSubTab, app?.appId]);
+
+  // Fetch my subscriptions when events/subscribe tab is active
+  useEffect(() => {
+    const fetchMySubscriptions = async () => {
+      if (activeTab !== 'events' || eventSubTab !== 'subscribe' || !app?.appId) return;
+
+      try {
+        setMySubscriptionsLoading(true);
+        const data = await getMyAppSubscriptions(app.appId);
+        setMySubscriptions(data);
+      } catch (err) {
+        console.error('Failed to fetch my subscriptions:', err);
+      } finally {
+        setMySubscriptionsLoading(false);
+      }
+    };
+
+    fetchMySubscriptions();
+  }, [activeTab, eventSubTab, app?.appId]);
+
+  // Fetch subscription requests when events/requests tab is active
+  useEffect(() => {
+    const fetchRequests = async () => {
+      if (activeTab !== 'events' || eventSubTab !== 'requests' || !app?.appId) return;
+
+      try {
+        setSubscriptionRequestsLoading(true);
+        const data = await getSubscriptionRequests(app.appId);
+        setSubscriptionRequests(data);
+      } catch (err) {
+        console.error('Failed to fetch subscription requests:', err);
+      } finally {
+        setSubscriptionRequestsLoading(false);
+      }
+    };
+
+    fetchRequests();
+  }, [activeTab, eventSubTab, app?.appId]);
+
+  // Fetch event logs when events/log tab is active
+  useEffect(() => {
+    const fetchLogs = async () => {
+      if (activeTab !== 'events' || eventSubTab !== 'log' || !app?.appId) return;
+
+      try {
+        setEventLogsLoading(true);
+        const data = await getEventLogs(app.appId);
+        setEventLogs(data);
+      } catch (err) {
+        console.error('Failed to fetch event logs:', err);
+      } finally {
+        setEventLogsLoading(false);
+      }
+    };
+
+    fetchLogs();
+  }, [activeTab, eventSubTab, app?.appId]);
+
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-US', {
       minimumFractionDigits: 0,
@@ -347,6 +456,95 @@ export default function AppDetailPage() {
     }
   };
 
+  const handleEventRegister = async (data: { eventName: string; schema: any; isPublic: boolean; isActive?: boolean }) => {
+    if (!app) return;
+
+    try {
+      if (editingEvent) {
+        // Update existing contract
+        await updateEventContract(editingEvent.id, data);
+      } else {
+        // 1. Ensure app is registered in hub registry first (idempotent)
+        await registerAppInHub({
+          orgId: app.organizationId,
+          orgSlug: app.orgSlug || 'bagdja',
+          appId: app.appId,
+          appSlug: app.appSlug || app.appId.split('-')[0],
+        });
+
+        // 2. Create the event contract
+        await createEventContract(app.appId, data);
+      }
+
+      // 3. Refresh list
+      const updatedContracts = await getAppContracts(app.appId);
+      setInfraContracts(updatedContracts);
+      setEditingEvent(null);
+    } catch (err: any) {
+      throw new Error(err.message || 'Failed to process event');
+    }
+  };
+
+  const handleEventSubscribe = async (contractId: string, webhookUrl?: string) => {
+    if (!app?.appId) return;
+    try {
+      if (editingSubscription) {
+        await updateMySubscription(editingSubscription.id, webhookUrl);
+      } else {
+        await subscribeToEvent(contractId, webhookUrl);
+      }
+
+      // Refresh list
+      const data = await getMyAppSubscriptions(app.appId);
+      setMySubscriptions(data);
+      setEditingSubscription(null);
+    } catch (err: any) {
+      throw new Error(err.message || 'Failed to subscribe');
+    }
+  };
+
+  const openEditSubscription = (sub: any) => {
+    setEditingSubscription({
+      id: sub.id,
+      contractId: sub.contractId,
+      webhookUrl: sub.webhookUrl,
+      eventName: sub.contract?.eventName
+    });
+    setEventSubscribeModalOpen(true);
+  };
+
+  const openEditEvent = (event: any) => {
+    setEditingEvent(event);
+    setEventRegisterModalOpen(true);
+  };
+
+  const handleUpdateSubscriptionStatus = async (subId: string, status: string) => {
+    if (!app?.appId) return;
+    try {
+      await updateSubscriptionStatus(subId, status);
+      // Refresh list
+      const data = await getSubscriptionRequests(app.appId);
+      setSubscriptionRequests(data);
+    } catch (err: any) {
+      alert(err.message || 'Failed to update status');
+    }
+  };
+
+  const handleDeleteEvent = async (id: string) => {
+    if (!confirm('Are you sure you want to delete this event contract? This action cannot be undone.')) {
+      return;
+    }
+
+    try {
+      await deleteEventContract(id);
+      // Refresh list
+      const updatedContracts = await getAppContracts(app!.appId);
+      setInfraContracts(updatedContracts);
+    } catch (err: any) {
+      alert(err.message || 'Failed to delete event');
+    }
+  };
+
   const handleDeleteProduct = async (id: string) => {
     if (!confirm('Are you sure you want to delete this product? This action cannot be undone.')) {
       return;
@@ -451,7 +649,7 @@ export default function AppDetailPage() {
       setLicensesError(null);
       const data = await getLicenses(app.id);
       setLicenses(data);
-      
+
       // Also refresh purchased licenses if filter is 'sold'
       if (licenseFilter === 'sold') {
         try {
@@ -615,11 +813,10 @@ export default function AppDetailPage() {
               )}
               <div className="flex items-center gap-2">
                 <span
-                  className={`px-2 py-1 rounded text-xs font-medium ${
-                    app.isActive
-                      ? 'bg-green-500/10 text-green-600'
-                      : 'bg-gray-500/10 text-gray-600'
-                  }`}
+                  className={`px-2 py-1 rounded text-xs font-medium ${app.isActive
+                    ? 'bg-green-500/10 text-green-600'
+                    : 'bg-gray-500/10 text-gray-600'
+                    }`}
                 >
                   {app.isActive ? 'Active' : 'Inactive'}
                 </span>
@@ -634,11 +831,10 @@ export default function AppDetailPage() {
         <nav className="flex gap-8">
           <button
             onClick={() => setActiveTab('users')}
-            className={`pb-4 px-1 border-b-2 font-medium text-sm transition-colors ${
-              activeTab === 'users'
-                ? 'border-[var(--action-primary)] text-[var(--action-primary)]'
-                : 'border-transparent text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
-            }`}
+            className={`pb-4 px-1 border-b-2 font-medium text-sm transition-colors ${activeTab === 'users'
+              ? 'border-[var(--action-primary)] text-[var(--action-primary)]'
+              : 'border-transparent text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+              }`}
           >
             <div className="flex items-center gap-2">
               <Users className="h-4 w-4" />
@@ -647,11 +843,10 @@ export default function AppDetailPage() {
           </button>
           <button
             onClick={() => setActiveTab('product')}
-            className={`pb-4 px-1 border-b-2 font-medium text-sm transition-colors ${
-              activeTab === 'product'
-                ? 'border-[var(--action-primary)] text-[var(--action-primary)]'
-                : 'border-transparent text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
-            }`}
+            className={`pb-4 px-1 border-b-2 font-medium text-sm transition-colors ${activeTab === 'product'
+              ? 'border-[var(--action-primary)] text-[var(--action-primary)]'
+              : 'border-transparent text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+              }`}
           >
             <div className="flex items-center gap-2">
               <ShoppingBag className="h-4 w-4" />
@@ -660,11 +855,10 @@ export default function AppDetailPage() {
           </button>
           <button
             onClick={() => setActiveTab('plan')}
-            className={`pb-4 px-1 border-b-2 font-medium text-sm transition-colors ${
-              activeTab === 'plan'
-                ? 'border-[var(--action-primary)] text-[var(--action-primary)]'
-                : 'border-transparent text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
-            }`}
+            className={`pb-4 px-1 border-b-2 font-medium text-sm transition-colors ${activeTab === 'plan'
+              ? 'border-[var(--action-primary)] text-[var(--action-primary)]'
+              : 'border-transparent text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+              }`}
           >
             <div className="flex items-center gap-2">
               <CreditCard className="h-4 w-4" />
@@ -673,11 +867,10 @@ export default function AppDetailPage() {
           </button>
           <button
             onClick={() => setActiveTab('license')}
-            className={`pb-4 px-1 border-b-2 font-medium text-sm transition-colors ${
-              activeTab === 'license'
-                ? 'border-[var(--action-primary)] text-[var(--action-primary)]'
-                : 'border-transparent text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
-            }`}
+            className={`pb-4 px-1 border-b-2 font-medium text-sm transition-colors ${activeTab === 'license'
+              ? 'border-[var(--action-primary)] text-[var(--action-primary)]'
+              : 'border-transparent text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+              }`}
           >
             <div className="flex items-center gap-2">
               <Key className="h-4 w-4" />
@@ -686,15 +879,26 @@ export default function AppDetailPage() {
           </button>
           <button
             onClick={() => setActiveTab('subscriptions')}
-            className={`pb-4 px-1 border-b-2 font-medium text-sm transition-colors ${
-              activeTab === 'subscriptions'
-                ? 'border-[var(--action-primary)] text-[var(--action-primary)]'
-                : 'border-transparent text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
-            }`}
+            className={`pb-4 px-1 border-b-2 font-medium text-sm transition-colors ${activeTab === 'subscriptions'
+              ? 'border-[var(--action-primary)] text-[var(--action-primary)]'
+              : 'border-transparent text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+              }`}
           >
             <div className="flex items-center gap-2">
               <CreditCard className="h-4 w-4" />
               Subscriptions
+            </div>
+          </button>
+          <button
+            onClick={() => setActiveTab('events')}
+            className={`pb-4 px-1 border-b-2 font-medium text-sm transition-colors ${activeTab === 'events'
+              ? 'border-[var(--action-primary)] text-[var(--action-primary)]'
+              : 'border-transparent text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+              }`}
+          >
+            <div className="flex items-center gap-2">
+              <Activity className="h-4 w-4" />
+              Event
             </div>
           </button>
         </nav>
@@ -720,7 +924,7 @@ export default function AppDetailPage() {
                 Distribute BP
               </button>
             </div>
-            
+
             {usersLoading ? (
               <div className="flex items-center justify-center py-12">
                 <div className="text-[var(--text-secondary)]">Loading users...</div>
@@ -780,11 +984,10 @@ export default function AppDetailPage() {
                         </td>
                         <td className="py-3 px-4">
                           <span
-                            className={`px-2 py-1 rounded text-xs font-medium ${
-                              user.status === 'Active'
-                                ? 'bg-green-500/10 text-green-600'
-                                : 'bg-gray-500/10 text-gray-600'
-                            }`}
+                            className={`px-2 py-1 rounded text-xs font-medium ${user.status === 'Active'
+                              ? 'bg-green-500/10 text-green-600'
+                              : 'bg-gray-500/10 text-gray-600'
+                              }`}
                           >
                             {user.status}
                           </span>
@@ -816,7 +1019,7 @@ export default function AppDetailPage() {
                 Create Product
               </button>
             </div>
-            
+
             {productsLoading ? (
               <div className="flex items-center justify-center py-12">
                 <div className="text-[var(--text-secondary)]">Loading products...</div>
@@ -882,11 +1085,10 @@ export default function AppDetailPage() {
                         </td>
                         <td className="py-3 px-4">
                           <span
-                            className={`px-2 py-1 rounded text-xs font-medium ${
-                              product.status === 'active'
-                                ? 'bg-green-500/10 text-green-600'
-                                : 'bg-gray-500/10 text-gray-600'
-                            }`}
+                            className={`px-2 py-1 rounded text-xs font-medium ${product.status === 'active'
+                              ? 'bg-green-500/10 text-green-600'
+                              : 'bg-gray-500/10 text-gray-600'
+                              }`}
                           >
                             {product.status}
                           </span>
@@ -936,7 +1138,7 @@ export default function AppDetailPage() {
                 Create Plan
               </button>
             </div>
-            
+
             {plansLoading ? (
               <div className="flex items-center justify-center py-12">
                 <div className="text-[var(--text-secondary)]">Loading plans...</div>
@@ -1002,11 +1204,10 @@ export default function AppDetailPage() {
                         </td>
                         <td className="py-3 px-4">
                           <span
-                            className={`px-2 py-1 rounded text-xs font-medium ${
-                              plan.status === 'active'
-                                ? 'bg-green-500/10 text-green-600'
-                                : 'bg-gray-500/10 text-gray-600'
-                            }`}
+                            className={`px-2 py-1 rounded text-xs font-medium ${plan.status === 'active'
+                              ? 'bg-green-500/10 text-green-600'
+                              : 'bg-gray-500/10 text-gray-600'
+                              }`}
                           >
                             {plan.status}
                           </span>
@@ -1061,31 +1262,28 @@ export default function AppDetailPage() {
             <div className="mb-6 flex gap-2">
               <button
                 onClick={() => setLicenseFilter('all')}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                  licenseFilter === 'all'
-                    ? 'bg-[var(--action-primary)] text-white'
-                    : 'bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]'
-                }`}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${licenseFilter === 'all'
+                  ? 'bg-[var(--action-primary)] text-white'
+                  : 'bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]'
+                  }`}
               >
                 All
               </button>
               <button
                 onClick={() => setLicenseFilter('available')}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                  licenseFilter === 'available'
-                    ? 'bg-[var(--action-primary)] text-white'
-                    : 'bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]'
-                }`}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${licenseFilter === 'available'
+                  ? 'bg-[var(--action-primary)] text-white'
+                  : 'bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]'
+                  }`}
               >
                 Available
               </button>
               <button
                 onClick={() => setLicenseFilter('sold')}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                  licenseFilter === 'sold'
-                    ? 'bg-[var(--action-primary)] text-white'
-                    : 'bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]'
-                }`}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${licenseFilter === 'sold'
+                  ? 'bg-[var(--action-primary)] text-white'
+                  : 'bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]'
+                  }`}
               >
                 Sold
               </button>
@@ -1118,11 +1316,11 @@ export default function AppDetailPage() {
                   ) : displayData.length === 0 ? (
                     <div className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-surface)] p-8 text-center">
                       <p className="text-[var(--text-secondary)]">
-                        {licenseFilter === 'sold' 
-                          ? 'No purchased licenses found.' 
+                        {licenseFilter === 'sold'
+                          ? 'No purchased licenses found.'
                           : licenseFilter === 'available'
-                          ? 'No available licenses found.'
-                          : 'No licenses found. Create your first license!'}
+                            ? 'No available licenses found.'
+                            : 'No licenses found. Create your first license!'}
                       </p>
                     </div>
                   ) : (
@@ -1158,68 +1356,68 @@ export default function AppDetailPage() {
                         </thead>
                         <tbody className="divide-y divide-[var(--border-default)]">
                           {displayData.map((license) => (
-                      <tr key={license.id} className="hover:bg-[var(--bg-hover)] transition-colors">
-                        <td className="py-3 px-4">
-                          <div className="flex items-center gap-2">
-                            <code className="text-sm font-mono text-[var(--text-primary)]">
-                              {license.licenseKey}
-                            </code>
-                            <button
-                              className="p-1 text-[var(--text-secondary)] hover:text-[var(--action-primary)] transition-colors"
-                              onClick={() => handleCopyLicenseKey(license.licenseKey)}
-                              title="Copy license key"
-                            >
-                              {copiedKey === license.licenseKey ? (
-                                <Check className="h-4 w-4 text-green-600" />
-                              ) : (
-                                <Copy className="h-4 w-4" />
-                              )}
-                            </button>
-                          </div>
-                        </td>
-                        <td className="py-3 px-4 text-sm text-[var(--text-secondary)]">
-                          {license.type.toUpperCase()}
-                        </td>
-                        <td className="py-3 px-4 text-sm text-[var(--text-secondary)]">
-                          {license.maxUsers}
-                        </td>
-                        <td className="py-3 px-4 text-sm text-[var(--text-primary)]">
-                          {formatCurrency(Number(license.price))}
-                        </td>
-                        <td className="py-3 px-4">
-                          <span className={`px-2 py-1 rounded text-xs font-medium ${getLicenseStatusColor(license.status)}`}>
-                            {license.status}
-                          </span>
-                        </td>
-                        <td className="py-3 px-4 text-sm text-[var(--text-secondary)]">
-                          {license.organizationName || '-'}
-                        </td>
-                        <td className="py-3 px-4 text-sm text-[var(--text-secondary)]">
-                          {formatDate(license.expiresAt)}
-                        </td>
-                        <td className="py-3 px-4">
-                          <div className="flex items-center gap-2">
-                            {license.status === 'available' && (
-                              <>
-                                <button
-                                  className="p-1 text-[var(--text-secondary)] hover:text-[var(--action-primary)] transition-colors"
-                                  onClick={() => openEditLicenseModal(license)}
-                                  title="Edit"
-                                >
-                                  <Edit className="h-4 w-4" />
-                                </button>
-                                <button
-                                  className="p-1 text-[var(--text-secondary)] hover:text-[var(--text-danger)] transition-colors"
-                                  onClick={() => handleDeleteLicense(license.id)}
-                                  title="Delete"
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                </button>
-                              </>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
+                            <tr key={license.id} className="hover:bg-[var(--bg-hover)] transition-colors">
+                              <td className="py-3 px-4">
+                                <div className="flex items-center gap-2">
+                                  <code className="text-sm font-mono text-[var(--text-primary)]">
+                                    {license.licenseKey}
+                                  </code>
+                                  <button
+                                    className="p-1 text-[var(--text-secondary)] hover:text-[var(--action-primary)] transition-colors"
+                                    onClick={() => handleCopyLicenseKey(license.licenseKey)}
+                                    title="Copy license key"
+                                  >
+                                    {copiedKey === license.licenseKey ? (
+                                      <Check className="h-4 w-4 text-green-600" />
+                                    ) : (
+                                      <Copy className="h-4 w-4" />
+                                    )}
+                                  </button>
+                                </div>
+                              </td>
+                              <td className="py-3 px-4 text-sm text-[var(--text-secondary)]">
+                                {license.type.toUpperCase()}
+                              </td>
+                              <td className="py-3 px-4 text-sm text-[var(--text-secondary)]">
+                                {license.maxUsers}
+                              </td>
+                              <td className="py-3 px-4 text-sm text-[var(--text-primary)]">
+                                {formatCurrency(Number(license.price))}
+                              </td>
+                              <td className="py-3 px-4">
+                                <span className={`px-2 py-1 rounded text-xs font-medium ${getLicenseStatusColor(license.status)}`}>
+                                  {license.status}
+                                </span>
+                              </td>
+                              <td className="py-3 px-4 text-sm text-[var(--text-secondary)]">
+                                {license.organizationName || '-'}
+                              </td>
+                              <td className="py-3 px-4 text-sm text-[var(--text-secondary)]">
+                                {formatDate(license.expiresAt)}
+                              </td>
+                              <td className="py-3 px-4">
+                                <div className="flex items-center gap-2">
+                                  {license.status === 'available' && (
+                                    <>
+                                      <button
+                                        className="p-1 text-[var(--text-secondary)] hover:text-[var(--action-primary)] transition-colors"
+                                        onClick={() => openEditLicenseModal(license)}
+                                        title="Edit"
+                                      >
+                                        <Edit className="h-4 w-4" />
+                                      </button>
+                                      <button
+                                        className="p-1 text-[var(--text-secondary)] hover:text-[var(--text-danger)] transition-colors"
+                                        onClick={() => handleDeleteLicense(license.id)}
+                                        title="Delete"
+                                      >
+                                        <Trash2 className="h-4 w-4" />
+                                      </button>
+                                    </>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
                           ))}
                         </tbody>
                       </table>
@@ -1247,41 +1445,37 @@ export default function AppDetailPage() {
             <div className="mb-6 flex gap-2">
               <button
                 onClick={() => setSubscriptionFilter('all')}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                  subscriptionFilter === 'all'
-                    ? 'bg-[var(--action-primary)] text-white'
-                    : 'bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]'
-                }`}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${subscriptionFilter === 'all'
+                  ? 'bg-[var(--action-primary)] text-white'
+                  : 'bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]'
+                  }`}
               >
                 All
               </button>
               <button
                 onClick={() => setSubscriptionFilter('active')}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                  subscriptionFilter === 'active'
-                    ? 'bg-[var(--action-primary)] text-white'
-                    : 'bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]'
-                }`}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${subscriptionFilter === 'active'
+                  ? 'bg-[var(--action-primary)] text-white'
+                  : 'bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]'
+                  }`}
               >
                 Active
               </button>
               <button
                 onClick={() => setSubscriptionFilter('expired')}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                  subscriptionFilter === 'expired'
-                    ? 'bg-[var(--action-primary)] text-white'
-                    : 'bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]'
-                }`}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${subscriptionFilter === 'expired'
+                  ? 'bg-[var(--action-primary)] text-white'
+                  : 'bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]'
+                  }`}
               >
                 Expired
               </button>
               <button
                 onClick={() => setSubscriptionFilter('cancelled')}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                  subscriptionFilter === 'cancelled'
-                    ? 'bg-[var(--action-primary)] text-white'
-                    : 'bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]'
-                }`}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${subscriptionFilter === 'cancelled'
+                  ? 'bg-[var(--action-primary)] text-white'
+                  : 'bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]'
+                  }`}
               >
                 Cancelled
               </button>
@@ -1386,6 +1580,500 @@ export default function AppDetailPage() {
             })()}
           </div>
         )}
+
+        {/* Event Tab */}
+        {activeTab === 'events' && (
+          <div className="p-6">
+            <div className="mb-6 flex flex-col gap-4">
+              <div>
+                <h2 className="text-lg font-semibold text-[var(--text-primary)]">Event Management</h2>
+                <p className="text-sm text-[var(--text-secondary)] mt-1">
+                  Manage broadcasting, subscriptions, and logs for this application
+                </p>
+              </div>
+
+              {/* Sub-tabs */}
+              <div className="flex gap-4 border-b border-[var(--border-default)]">
+                <button
+                  onClick={() => setEventSubTab('broadcast')}
+                  className={`pb-2 px-1 border-b-2 text-sm font-medium transition-colors ${eventSubTab === 'broadcast'
+                    ? 'border-[var(--action-primary)] text-[var(--action-primary)]'
+                    : 'border-transparent text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+                    }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <Globe className="h-4 w-4" />
+                    Broadcast
+                  </div>
+                </button>
+                <button
+                  onClick={() => setEventSubTab('subscribe')}
+                  className={`pb-2 px-1 border-b-2 text-sm font-medium transition-colors ${eventSubTab === 'subscribe'
+                    ? 'border-[var(--action-primary)] text-[var(--action-primary)]'
+                    : 'border-transparent text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+                    }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <List className="h-4 w-4" />
+                    Subscribe
+                  </div>
+                </button>
+                <button
+                  onClick={() => setEventSubTab('requests')}
+                  className={`pb-2 px-1 border-b-2 text-sm font-medium transition-colors ${eventSubTab === 'requests'
+                    ? 'border-[var(--action-primary)] text-[var(--action-primary)]'
+                    : 'border-transparent text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+                    }`}
+                >
+                  <div className="flex items-center gap-2 justify-center">
+                    <CheckCircle className="h-4 w-4" />
+                    Subscriber Request
+                    {subscriptionRequests.filter(r => r.status === 'PENDING').length > 0 && (
+                      <span className="ml-1 px-1.5 py-0.5 bg-red-500 text-white text-[10px] rounded-full">
+                        {subscriptionRequests.filter(r => r.status === 'PENDING').length}
+                      </span>
+                    )}
+                  </div>
+                </button>
+
+                <button
+                  onClick={() => setEventSubTab('log')}
+                  className={`pb-2 px-1 border-b-2 text-sm font-medium transition-colors ${eventSubTab === 'log'
+                    ? 'border-[var(--action-primary)] text-[var(--action-primary)]'
+                    : 'border-transparent text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+                    }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <History className="h-4 w-4" />
+                    Log
+                  </div>
+                </button>
+              </div>
+            </div>
+
+            {/* Sub-tab Content */}
+            {eventSubTab === 'broadcast' && (
+              <div className="space-y-4">
+                <div className="flex justify-between items-center">
+                  <h3 className="text-md font-medium text-[var(--text-primary)]">Your Event Contracts</h3>
+                  <button
+                    onClick={() => setEventRegisterModalOpen(true)}
+                    className="flex items-center gap-2 px-3 py-1.5 bg-[var(--action-primary)] text-white rounded-lg text-sm font-medium hover:opacity-90"
+                  >
+                    <Plus className="h-4 w-4" />
+                    Register Event
+                  </button>
+                </div>
+
+                {infraContractsLoading ? (
+                  <div className="flex items-center justify-center py-12">
+                    <div className="text-[var(--text-secondary)]">Loading contracts...</div>
+                  </div>
+                ) : infraContracts.length === 0 ? (
+                  <div className="rounded-xl border border-[var(--border-default)] bg-white/5 min-h-[300px] flex flex-col items-center justify-center p-8 text-center">
+                    <div className="p-4 bg-[var(--bg-surface)] rounded-full border border-[var(--border-default)] mb-4">
+                      <Activity className="h-8 w-8 text-[var(--text-secondary)] opacity-50" />
+                    </div>
+                    <h4 className="text-[var(--text-primary)] font-medium mb-1">No event contracts yet</h4>
+                    <p className="text-[var(--text-secondary)] text-sm max-w-[300px]">
+                      Manage events that this application broadcasts to the hub. Start by registering your first event contract.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="overflow-hidden rounded-xl border border-[var(--border-default)]">
+                    <table className="min-w-full divide-y divide-[var(--border-default)]">
+                      <thead>
+                        <tr>
+                          <th className="px-6 py-4 text-left text-[10px] font-bold text-[var(--text-secondary)] uppercase tracking-wider">Event Name</th>
+                          <th className="px-6 py-4 text-left text-[10px] font-bold text-[var(--text-secondary)] uppercase tracking-wider">Privacy</th>
+                          <th className="px-6 py-4 text-left text-[10px] font-bold text-[var(--text-secondary)] uppercase tracking-wider">Status</th>
+                          <th className="px-6 py-4 text-left text-[10px] font-bold text-[var(--text-secondary)] uppercase tracking-wider">Created</th>
+                          <th className="px-6 py-4 text-right text-[10px] font-bold text-[var(--text-secondary)] uppercase tracking-wider">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-[var(--border-default)]">
+                        {infraContracts.map((contract) => (
+                          <tr key={contract.id} className="hover:bg-white/5 transition-colors group">
+                            <td className="px-6 py-5 whitespace-nowrap">
+                              <div className="flex items-center gap-3">
+                                <div className="p-2 bg-[var(--bg-surface)] rounded-lg border border-[var(--border-default)] group-hover:border-primary/50 transition-colors">
+                                  <Code className="h-4 w-4 text-[var(--text-secondary)] group-hover:text-primary" />
+                                </div>
+                                <span className="text-sm font-medium text-[var(--text-primary)]">{contract.eventName}</span>
+                              </div>
+                            </td>
+                            <td className="px-6 py-5 whitespace-nowrap">
+                              {contract.isPublic ? (
+                                <span className="px-2.5 py-0.5 bg-blue-500/10 text-blue-400 text-[10px] font-bold uppercase rounded-full border border-blue-500/20">Public</span>
+                              ) : (
+                                <span className="px-2.5 py-0.5 bg-gray-500/10 text-gray-400 text-[10px] font-bold uppercase rounded-full border border-gray-500/20">Private</span>
+                              )}
+                            </td>
+                            <td className="px-6 py-5 whitespace-nowrap">
+                              {contract.isActive ? (
+                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-green-500/10 text-green-400 border border-green-500/20 uppercase">
+                                  Active
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-red-500/10 text-red-400 border border-red-500/20 uppercase">
+                                  Inactive
+                                </span>
+                              )}
+                            </td>
+                            <td className="px-6 py-5 whitespace-nowrap">
+                              <div className="flex items-center gap-2 text-[var(--text-secondary)]">
+                                <Calendar className="h-3.5 w-3.5" />
+                                <span className="text-xs">{new Date(contract.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
+                              </div>
+                            </td>
+                            <td className="px-6 py-5 whitespace-nowrap text-right">
+                              <div className="flex items-center justify-end gap-3">
+                                <button
+                                  onClick={() => openEditEvent(contract)}
+                                  className="text-[var(--action-primary)] hover:text-[var(--action-primary-hover)] inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider transition-colors"
+                                  title="Edit Contract"
+                                >
+                                  <Edit className="h-4 w-4" />
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteEvent(contract.id)}
+                                  className="text-red-500 hover:text-red-600 inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider transition-colors"
+                                  title="Delete Contract"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {eventSubTab === 'subscribe' && (
+              <div className="space-y-4">
+                <div className="flex justify-between items-center">
+                  <h3 className="text-md font-medium text-[var(--text-primary)]">Your Subscriptions</h3>
+                  <button
+                    onClick={() => setEventSubscribeModalOpen(true)}
+                    className="flex items-center gap-2 px-3 py-1.5 border border-[var(--border-default)] text-[var(--text-primary)] rounded-lg text-sm font-medium hover:bg-[var(--bg-hover)]"
+                  >
+                    <Search className="h-4 w-4" />
+                    Browse Public Events
+                  </button>
+                </div>
+
+                {mySubscriptionsLoading ? (
+                  <div className="flex items-center justify-center py-12">
+                    <div className="text-[var(--text-secondary)]">Loading subscriptions...</div>
+                  </div>
+                ) : mySubscriptions.length === 0 ? (
+                  <div className="rounded-xl border border-[var(--border-default)] bg-white/5 min-h-[300px] flex flex-col items-center justify-center p-8 text-center">
+                    <div className="p-4 bg-[var(--bg-surface)] rounded-full border border-[var(--border-default)] mb-4">
+                      <Lock className="h-8 w-8 text-[var(--text-secondary)] opacity-50" />
+                    </div>
+                    <h4 className="text-[var(--text-primary)] font-medium mb-1">No subscriptions yet</h4>
+                    <p className="text-[var(--text-secondary)] text-sm max-w-[300px]">
+                      You haven't subscribed to any events yet. Start by browsing available events.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="overflow-hidden rounded-xl border border-[var(--border-default)]">
+                    <table className="min-w-full divide-y divide-[var(--border-default)]">
+                      <thead>
+                        <tr>
+                          <th className="px-6 py-4 text-left text-[10px] font-bold text-[var(--text-secondary)] uppercase tracking-wider">Event</th>
+                          <th className="px-6 py-4 text-left text-[10px] font-bold text-[var(--text-secondary)] uppercase tracking-wider">Source Service</th>
+                          <th className="px-6 py-4 text-left text-[10px] font-bold text-[var(--text-secondary)] uppercase tracking-wider">Webhook</th>
+                          <th className="px-6 py-4 text-left text-[10px] font-bold text-[var(--text-secondary)] uppercase tracking-wider">Status</th>
+                          <th className="px-6 py-4 text-right text-[10px] font-bold text-[var(--text-secondary)] uppercase tracking-wider">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-[var(--border-default)]">
+                        {mySubscriptions.map((sub) => (
+                          <tr key={sub.id} className="hover:bg-white/5 transition-colors group">
+                            <td className="px-6 py-5 whitespace-nowrap">
+                              <div className="flex items-center gap-3">
+                                <div className="p-2 bg-blue-500/10 rounded-lg border border-blue-500/20">
+                                  <Globe className="h-4 w-4 text-blue-400" />
+                                </div>
+                                <span className="text-sm font-medium text-[var(--text-primary)]">{sub.contract?.eventName}</span>
+                              </div>
+                            </td>
+                            <td className="px-6 py-5 whitespace-nowrap">
+                              <span className="text-xs font-bold text-[var(--text-secondary)] uppercase tracking-tight">{sub.contract?.app?.appId}</span>
+                            </td>
+                            <td className="px-6 py-5 whitespace-nowrap">
+                              {sub.webhookUrl ? (
+                                <div className="flex items-center gap-1.5 text-[var(--text-secondary)]">
+                                  <Link2 className="h-3.5 w-3.5" />
+                                  <span className="text-xs truncate max-w-[150px]" title={sub.webhookUrl}>{sub.webhookUrl}</span>
+                                </div>
+                              ) : (
+                                <span className="text-[10px] text-gray-400 italic">WebSocket Only</span>
+                              )}
+                            </td>
+                            <td className="px-6 py-5 whitespace-nowrap">
+                              {sub.status === 'approved' ? (
+                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-green-500/10 text-green-400 border border-green-500/20 uppercase">
+                                  Active
+                                </span>
+                              ) : sub.status === 'pending' ? (
+                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-yellow-500/10 text-yellow-400 border border-yellow-500/20 uppercase">
+                                  Pending
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-red-500/10 text-red-400 border border-red-500/20 uppercase">
+                                  {sub.status}
+                                </span>
+                              )}
+                            </td>
+                            <td className="px-6 py-5 whitespace-nowrap text-right">
+                              <div className="flex items-center justify-end gap-3">
+                                <button
+                                  onClick={() => openEditSubscription(sub)}
+                                  className="text-primary hover:text-primary/80 text-xs font-bold uppercase tracking-wider transition-colors"
+                                >
+                                  Edit
+                                </button>
+                                <button className="text-red-400 hover:text-red-300 text-xs font-bold uppercase tracking-wider transition-colors">
+                                  Unsubscribe
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {eventSubTab === 'requests' && (
+              <div className="space-y-4">
+                <h3 className="text-md font-medium text-[var(--text-primary)]">Subscription Requests</h3>
+                <p className="text-sm text-[var(--text-secondary)]">Applications requesting to subscribe to your events.</p>
+
+                {subscriptionRequestsLoading ? (
+                  <div className="flex items-center justify-center py-12">
+                    <div className="text-[var(--text-secondary)]">Loading requests...</div>
+                  </div>
+                ) : subscriptionRequests.length === 0 ? (
+                  <div className="rounded-xl border border-[var(--border-default)] bg-white/5 min-h-[300px] flex flex-col items-center justify-center p-8 text-center">
+                    <div className="p-4 bg-[var(--bg-surface)] rounded-full border border-[var(--border-default)] mb-4">
+                      <CheckCircle className="h-8 w-8 text-[var(--text-secondary)] opacity-50" />
+                    </div>
+                    <h4 className="text-[var(--text-primary)] font-medium mb-1">No subscription requests yet</h4>
+                    <p className="text-[var(--text-secondary)] text-sm max-w-[300px]">
+                      No subscription requests found for your events.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="overflow-hidden rounded-xl border border-[var(--border-default)]">
+                    <table className="min-w-full divide-y divide-[var(--border-default)]">
+                      <thead className="border-b border-[var(--border-default)]">
+                        <tr>
+                          <th className="px-6 py-4 text-left text-[10px] font-bold text-[var(--text-secondary)] uppercase tracking-wider">Subscriber App</th>
+                          <th className="px-6 py-4 text-left text-[10px] font-bold text-[var(--text-secondary)] uppercase tracking-wider">Event Name</th>
+                          <th className="px-6 py-4 text-left text-[10px] font-bold text-[var(--text-secondary)] uppercase tracking-wider">Webhook URL</th>
+                          <th className="px-6 py-4 text-left text-[10px] font-bold text-[var(--text-secondary)] uppercase tracking-wider">Status</th>
+                          <th className="px-6 py-4 text-right text-[10px] font-bold text-[var(--text-secondary)] uppercase tracking-wider">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-[var(--border-default)]">
+                        {subscriptionRequests.map((req) => (
+                          <tr key={req.id} className="hover:bg-white/5 transition-colors group">
+                            <td className="px-6 py-5 whitespace-nowrap">
+                              <div className="flex flex-col">
+                                <span className="text-sm font-bold text-[var(--text-primary)]">{req.app?.appId}</span>
+                                <span className="text-[10px] text-[var(--text-secondary)] uppercase font-medium">{req.app?.orgSlug}</span>
+                              </div>
+                            </td>
+                            <td className="px-6 py-5 whitespace-nowrap">
+                              <span className="text-sm font-medium text-[var(--text-primary)]">{req.contract?.eventName}</span>
+                            </td>
+                            <td className="px-6 py-5 whitespace-nowrap">
+                              <span className="text-xs text-[var(--text-secondary)] font-mono">{req.webhookUrl || 'WebSocket Only'}</span>
+                            </td>
+                            <td className="px-6 py-5 whitespace-nowrap">
+                              {req.status === 'approved' ? (
+                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-green-500/10 text-green-400 border border-green-500/20 uppercase">
+                                  {req.status}
+                                </span>
+                              ) : req.status === 'rejected' ? (
+                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-red-500/10 text-red-400 border border-red-500/20 uppercase">
+                                  {req.status}
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/10 text-amber-400 border border-amber-500/20 uppercase">
+                                  {req.status}
+                                </span>
+                              )}
+                            </td>
+                            <td className="px-6 py-5 whitespace-nowrap text-right">
+                              {req.status === 'pending' && (
+                                <div className="flex items-center justify-end gap-2">
+                                  <button
+                                    onClick={() => handleUpdateSubscriptionStatus(req.id, 'approved')}
+                                    className="px-3 py-1 bg-[var(--action-primary)] text-white text-[10px] font-bold rounded hover:opacity-90 transition-opacity uppercase"
+                                  >
+                                    Approve
+                                  </button>
+                                  <button
+                                    onClick={() => handleUpdateSubscriptionStatus(req.id, 'rejected')}
+                                    className="px-3 py-1 bg-red-500 text-white text-[10px] font-bold rounded hover:opacity-90 transition-opacity uppercase"
+                                  >
+                                    Reject
+                                  </button>
+                                </div>
+                              )}
+                              {req.status === 'approved' && (
+                                <div className="flex items-center justify-end gap-2">
+                                  <button
+                                    onClick={() => handleUpdateSubscriptionStatus(req.id, 'pending')}
+                                    className="text-[var(--text-secondary)] hover:text-amber-500 text-[10px] font-bold uppercase tracking-wider transition-colors"
+                                    title="Suspend and set to pending"
+                                  >
+                                    Set to Pending
+                                  </button>
+                                  <span className="text-[var(--border-default)]">|</span>
+                                  <button
+                                    onClick={() => handleUpdateSubscriptionStatus(req.id, 'rejected')}
+                                    className="text-red-400 hover:text-red-500 text-[10px] font-bold uppercase tracking-wider transition-colors"
+                                    title="Reject and block access"
+                                  >
+                                    Reject
+                                  </button>
+                                </div>
+                              )}
+                              {req.status === 'rejected' && (
+                                <button
+                                  onClick={() => handleUpdateSubscriptionStatus(req.id, 'pending')}
+                                  className="text-[var(--text-secondary)] hover:text-[var(--text-primary)] text-[10px] font-bold uppercase tracking-wider transition-colors"
+                                >
+                                  Reset to Pending
+                                </button>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {eventSubTab === 'log' && (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-md font-medium text-[var(--text-primary)]">Event Logs</h3>
+                    <p className="text-sm text-[var(--text-secondary)]">Event history and logs for this application.</p>
+                  </div>
+                </div>
+
+                {eventLogsLoading ? (
+                  <div className="flex items-center justify-center py-12">
+                    <div className="text-[var(--text-secondary)]">Loading logs...</div>
+                  </div>
+                ) : eventLogs.length === 0 ? (
+                  <div className="rounded-xl border border-[var(--border-default)] bg-white/5 min-h-[300px] flex flex-col items-center justify-center p-8 text-center">
+                    <div className="p-4 bg-[var(--bg-surface)] rounded-full border border-[var(--border-default)] mb-4">
+                      <History className="h-8 w-8 text-[var(--text-secondary)] opacity-50" />
+                    </div>
+                    <h4 className="text-[var(--text-primary)] font-medium mb-1">No event logs yet</h4>
+                    <p className="text-[var(--text-secondary)] text-sm max-w-[300px]">
+                      Event history and logs will appear here once events are broadcasted or received.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="overflow-hidden rounded-xl border border-[var(--border-default)]">
+                    <table className="min-w-full divide-y divide-[var(--border-default)]">
+                      <thead className="border-b border-[var(--border-default)]">
+                        <tr>
+                          <th className="px-6 py-4 text-left text-[10px] font-bold text-[var(--text-secondary)] uppercase tracking-wider">Type</th>
+                          <th className="px-6 py-4 text-left text-[10px] font-bold text-[var(--text-secondary)] uppercase tracking-wider">Event Name</th>
+                          <th className="px-6 py-4 text-left text-[10px] font-bold text-[var(--text-secondary)] uppercase tracking-wider">Status</th>
+                          <th className="px-6 py-4 text-left text-[10px] font-bold text-[var(--text-secondary)] uppercase tracking-wider">Target/Response</th>
+                          <th className="px-6 py-4 text-left text-[10px] font-bold text-[var(--text-secondary)] uppercase tracking-wider">Time</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-[var(--border-default)]">
+                        {eventLogs.map((log) => (
+                          <tr key={log.id} className="hover:bg-white/5 transition-colors group">
+                            <td className="px-6 py-5 whitespace-nowrap">
+                              {log.type === 'broadcast' ? (
+                                <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-blue-500/10 text-blue-400 text-[10px] font-bold uppercase border border-blue-500/20">
+                                  <Activity className="h-3 w-3" />
+                                  Broadcast
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-purple-500/10 text-purple-400 text-[10px] font-bold uppercase border border-purple-500/20">
+                                  <Link2 className="h-3 w-3" />
+                                  Delivery
+                                </span>
+                              )}
+                            </td>
+                            <td className="px-6 py-5 whitespace-nowrap">
+                              <span className="text-sm font-medium text-[var(--text-primary)]">{log.eventName}</span>
+                            </td>
+                            <td className="px-6 py-5 whitespace-nowrap">
+                              {log.status === 'success' ? (
+                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-green-500/10 text-green-400 border border-green-500/20 uppercase">
+                                  Success
+                                </span>
+                              ) : log.status === 'failed' ? (
+                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-red-500/10 text-red-400 border border-red-500/20 uppercase">
+                                  Failed
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/10 text-amber-400 border border-amber-500/20 uppercase">
+                                  {log.status}
+                                </span>
+                              )}
+                            </td>
+                            <td className="px-6 py-5 whitespace-nowrap">
+                              <div className="flex flex-col gap-1">
+                                {log.targetUrl && (
+                                  <span className="text-[10px] text-[var(--text-secondary)] font-mono truncate max-w-[200px]" title={log.targetUrl}>
+                                    {log.targetUrl}
+                                  </span>
+                                )}
+                                {log.responseTimeMs && (
+                                  <span className="text-[10px] text-gray-500 italic">
+                                    Response: {log.responseTimeMs}ms
+                                  </span>
+                                )}
+                                {log.errorDetails && log.status === 'failed' && (
+                                  <span className="text-[10px] text-red-400/80 italic truncate max-w-[200px]" title={log.errorDetails}>
+                                    Error: {log.errorDetails}
+                                  </span>
+                                )}
+                              </div>
+                            </td>
+                            <td className="px-6 py-5 whitespace-nowrap">
+                              <div className="flex items-center gap-2 text-[var(--text-secondary)]">
+                                <Clock className="h-3.5 w-3.5" />
+                                <span className="text-xs">
+                                  {new Date(log.createdAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                                </span>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Product Modal */}
@@ -1431,6 +2119,33 @@ export default function AppDetailPage() {
           onSuccess={() => {
             // Optionally refresh users or show success message
           }}
+        />
+      )}
+
+      {/* Event Register Modal */}
+      {app && (
+        <EventRegisterModal
+          isOpen={eventRegisterModalOpen}
+          onClose={() => {
+            setEventRegisterModalOpen(false);
+            setEditingEvent(null);
+          }}
+          onSubmit={handleEventRegister}
+          appId={app.appId}
+          initialData={editingEvent}
+        />
+      )}
+
+      {/* Event Subscribe Modal */}
+      {app && (
+        <EventSubscribeModal
+          isOpen={eventSubscribeModalOpen}
+          onClose={() => {
+            setEventSubscribeModalOpen(false);
+            setEditingSubscription(null);
+          }}
+          onSubmit={handleEventSubscribe}
+          initialData={editingSubscription}
         />
       )}
     </div>

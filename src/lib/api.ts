@@ -26,6 +26,7 @@ import type {
   ClientApp,
   CreateClientAppRequest,
   AppUser,
+  Notification,
 } from '@/types';
 
 const AUTH_API_BASE = process.env.NEXT_PUBLIC_AUTH_API || 'https://auth.bagdja.com';
@@ -439,4 +440,353 @@ export function logout(): void {
   }
   // Redirect handled by component
 }
+
+// --- Infrastructure / Event Service API ---
+
+const EVENT_API_BASE = process.env.NEXT_PUBLIC_EVENT_API || 'http://localhost:4085';
+
+/**
+ * Get all registered applications in the event hub
+ */
+export async function getInfraApps(): Promise<any[]> {
+  const clientToken = await ensureClientToken();
+  const userToken = getAccessToken();
+  
+  const response = await fetch(`${EVENT_API_BASE}/registry/apps`, {
+    headers: {
+      'x-api-key': clientToken,
+      'Authorization': userToken ? `Bearer ${userToken}` : '',
+    },
+  });
+  
+  if (!response.ok) throw new Error('Failed to fetch infra apps');
+  return response.json();
+}
+
+/**
+ * Get all event contracts in the event hub
+ */
+export async function getInfraContracts(): Promise<any[]> {
+  const clientToken = await ensureClientToken();
+  const userToken = getAccessToken();
+  
+  const response = await fetch(`${EVENT_API_BASE}/registry/contracts`, {
+    headers: {
+      'x-api-key': clientToken,
+      'Authorization': userToken ? `Bearer ${userToken}` : '',
+    },
+  });
+  
+  if (!response.ok) throw new Error('Failed to fetch infra contracts');
+  return response.json();
+}
+
+/**
+ * Register a new app in the event hub registry
+ */
+export async function registerAppInHub(data: {
+  orgId: string;
+  orgSlug: string;
+  appId: string;
+  appSlug: string;
+  publicKey?: string;
+}): Promise<any> {
+  const clientToken = await ensureClientToken();
+  const userToken = getAccessToken();
+
+  const response = await fetch(`${EVENT_API_BASE}/registry/apps`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': clientToken,
+      'Authorization': userToken ? `Bearer ${userToken}` : '',
+    },
+    body: JSON.stringify(data),
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ message: 'Failed to register app in hub' }));
+    throw new Error(error.message || 'Failed to register app in hub');
+  }
+  return response.json();
+}
+
+/**
+ * Create an event contract for an app
+ */
+export async function createEventContract(appId: string, data: {
+  eventName: string;
+  schema: any;
+  isPublic?: boolean;
+}): Promise<any> {
+  const clientToken = await ensureClientToken();
+  const userToken = getAccessToken();
+
+  const response = await fetch(`${EVENT_API_BASE}/registry/apps/${appId}/contracts`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': clientToken,
+      'Authorization': userToken ? `Bearer ${userToken}` : '',
+    },
+    body: JSON.stringify(data),
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ message: 'Failed to create event contract' }));
+    throw new Error(error.message || 'Failed to create event contract');
+  }
+  return response.json();
+}
+
+/**
+ * Get event contracts for a specific app
+ */
+export async function getAppContracts(appId: string): Promise<any[]> {
+  const clientToken = await ensureClientToken();
+  const userToken = getAccessToken();
+
+  const response = await fetch(`${EVENT_API_BASE}/registry/contracts?appId=${appId}`, {
+    headers: {
+      'x-api-key': clientToken,
+      'Authorization': userToken ? `Bearer ${userToken}` : '',
+    },
+  });
+
+  if (!response.ok) throw new Error('Failed to fetch app contracts');
+  return response.json();
+}
+
+/**
+ * Update an existing event contract
+ */
+export async function updateEventContract(contractId: string, data: {
+  eventName?: string;
+  schema?: any;
+  isPublic?: boolean;
+  isActive?: boolean;
+}): Promise<any> {
+  const clientToken = await ensureClientToken();
+  const userToken = getAccessToken();
+
+  const response = await fetch(`${EVENT_API_BASE}/registry/contracts/${contractId}`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': clientToken,
+      'Authorization': userToken ? `Bearer ${userToken}` : '',
+    },
+    body: JSON.stringify(data),
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ message: 'Failed to update event contract' }));
+    throw new Error(error.message || 'Failed to update event contract');
+  }
+  return response.json();
+}
+
+/**
+ * Delete an event contract
+ */
+export async function deleteEventContract(contractId: string): Promise<any> {
+  const clientToken = await ensureClientToken();
+  const userToken = getAccessToken();
+
+  const response = await fetch(`${EVENT_API_BASE}/registry/contracts/${contractId}`, {
+    method: 'DELETE',
+    headers: {
+      'x-api-key': clientToken,
+      'Authorization': userToken ? `Bearer ${userToken}` : '',
+    },
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ message: 'Failed to delete event contract' }));
+    throw new Error(error.message || 'Failed to delete event contract');
+  }
+  return response.json();
+}
+
+
+
+/**
+ * Get event logs for the current app
+ */
+export async function getEventLogs(appId?: string): Promise<any[]> {
+  const clientToken = await ensureClientToken();
+  const userToken = getAccessToken();
+  
+  const url = appId 
+    ? `${EVENT_API_BASE}/broadcast/logs?appId=${appId}`
+    : `${EVENT_API_BASE}/broadcast/logs`;
+
+  const response = await fetch(url, {
+    headers: {
+      'x-api-key': clientToken,
+      'Authorization': userToken ? `Bearer ${userToken}` : '',
+    },
+  });
+  
+  if (!response.ok) throw new Error('Failed to fetch event logs');
+  return response.json();
+}
+
+/**
+ * Get available events for subscription
+ */
+export async function getAvailableEvents(): Promise<any[]> {
+  const clientToken = await ensureClientToken();
+  const userToken = getAccessToken();
+  
+  const response = await fetch(`${EVENT_API_BASE}/subscriptions/available-events`, {
+    headers: {
+      'x-api-key': clientToken,
+      'Authorization': userToken ? `Bearer ${userToken}` : '',
+    },
+  });
+  
+  if (!response.ok) throw new Error('Failed to fetch available events');
+  return response.json();
+}
+
+/**
+ * Subscribe to an event
+ */
+export async function subscribeToEvent(contractId: string, webhookUrl?: string): Promise<any> {
+  const clientToken = await ensureClientToken();
+  const userToken = getAccessToken();
+  
+  const response = await fetch(`${EVENT_API_BASE}/subscriptions/subscribe`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': clientToken,
+      'Authorization': userToken ? `Bearer ${userToken}` : '',
+    },
+    body: JSON.stringify({ contractId, webhookUrl }),
+  });
+  
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ message: 'Failed to subscribe' }));
+    throw new Error(error.message || 'Failed to subscribe');
+  }
+  return response.json();
+}
+
+/**
+ * Get pending subscription requests for events owned by the current app
+ */
+export async function getSubscriptionRequests(appId?: string): Promise<any[]> {
+  const clientToken = await ensureClientToken();
+  const userToken = getAccessToken();
+  
+  const url = appId 
+    ? `${EVENT_API_BASE}/subscriptions/requests?appId=${appId}`
+    : `${EVENT_API_BASE}/subscriptions/requests`;
+
+  const response = await fetch(url, {
+    headers: {
+      'x-api-key': clientToken,
+      'Authorization': userToken ? `Bearer ${userToken}` : '',
+    },
+  });
+  
+  if (!response.ok) throw new Error('Failed to fetch subscription requests');
+  return response.json();
+}
+
+/**
+ * Get current app's subscriptions
+ */
+export async function getMyAppSubscriptions(appId?: string): Promise<any[]> {
+  const clientToken = await ensureClientToken();
+  const userToken = getAccessToken();
+  
+  const url = appId 
+    ? `${EVENT_API_BASE}/subscriptions/my-subscriptions?appId=${appId}`
+    : `${EVENT_API_BASE}/subscriptions/my-subscriptions`;
+
+  const response = await fetch(url, {
+    headers: {
+      'x-api-key': clientToken,
+      'Authorization': userToken ? `Bearer ${userToken}` : '',
+    },
+  });
+  
+  if (!response.ok) throw new Error('Failed to fetch my subscriptions');
+  return response.json();
+}
+
+/**
+ * Update an existing subscription
+ */
+export async function updateMySubscription(subscriptionId: string, webhookUrl?: string): Promise<any> {
+  const clientToken = await ensureClientToken();
+  const userToken = getAccessToken();
+  
+  const response = await fetch(`${EVENT_API_BASE}/subscriptions/my-subscriptions/${subscriptionId}`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': clientToken,
+      'Authorization': userToken ? `Bearer ${userToken}` : '',
+    },
+    body: JSON.stringify({ webhookUrl }),
+  });
+  
+  if (!response.ok) throw new Error('Failed to update subscription');
+  return response.json();
+}
+
+/**
+ * Update subscription status
+ */
+export async function updateSubscriptionStatus(subscriptionId: string, status: string): Promise<any> {
+  const clientToken = await ensureClientToken();
+  const userToken = getAccessToken();
+  
+  const response = await fetch(`${EVENT_API_BASE}/subscriptions/${subscriptionId}/status`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': clientToken,
+      'Authorization': userToken ? `Bearer ${userToken}` : '',
+    },
+    body: JSON.stringify({ status }),
+  });
+  
+  if (!response.ok) throw new Error('Failed to update subscription status');
+  return response.json();
+}
+
+/**
+ * Get current user notifications
+ */
+export async function getNotifications(params?: { limit?: number; offset?: number }): Promise<Notification[]> {
+  const searchParams = new URLSearchParams();
+  if (params?.limit !== undefined) searchParams.set('limit', String(params.limit));
+  if (params?.offset !== undefined) searchParams.set('offset', String(params.offset));
+  const qs = searchParams.toString();
+  return apiRequest<Notification[]>(`/auth/notifications${qs ? `?${qs}` : ''}`);
+}
+
+/**
+ * Mark notification as read
+ */
+export async function markNotificationAsRead(id: string): Promise<Notification> {
+  return apiRequest<Notification>(`/auth/notifications/${id}/read`, {
+    method: 'PATCH',
+  });
+}
+
+/**
+ * Delete notification
+ */
+export async function deleteNotification(id: string): Promise<{ success: boolean }> {
+  return apiRequest<{ success: boolean }>(`/auth/notifications/${id}`, {
+    method: 'DELETE',
+  });
+}
+
 
