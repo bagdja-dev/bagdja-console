@@ -5,6 +5,7 @@ import { logout, getOrganizations } from '@/lib/api';
 import { useRouter, usePathname } from 'next/navigation';
 import { Building, Wallet } from 'lucide-react';
 import type { Organization } from '@/types';
+import { NotificationDropdown } from './NotificationDropdown';
 
 interface TopbarProps {
   userEmail?: string;
@@ -118,8 +119,8 @@ export function Topbar({ userEmail, username, profilePicture }: TopbarProps) {
 
     // Dispatch custom event to notify all components to refresh
     if (typeof window !== 'undefined') {
-      window.dispatchEvent(new CustomEvent('organizationChanged', { 
-        detail: { organizationId: org.id } 
+      window.dispatchEvent(new CustomEvent('organizationChanged', {
+        detail: { organizationId: org.id }
       }));
     }
 
@@ -189,11 +190,10 @@ export function Topbar({ userEmail, username, profilePicture }: TopbarProps) {
                         key={org.id}
                         type="button"
                         onClick={() => handleSelectOrganization(org)}
-                        className={`block w-full px-4 py-2 text-left text-sm ${
-                          activeOrganization.id === org.id
+                        className={`block w-full px-4 py-2 text-left text-sm ${activeOrganization.id === org.id
                             ? 'bg-[var(--bg-hover)] text-[var(--action-primary)]'
                             : 'text-[var(--text-primary)] hover:bg-[var(--bg-hover)]'
-                        }`}
+                          }`}
                       >
                         <div className="flex items-center justify-between">
                           <span className="truncate">{org.name}</span>
@@ -213,6 +213,11 @@ export function Topbar({ userEmail, username, profilePicture }: TopbarProps) {
                 </div>
               )}
             </div>
+          )}
+
+          {/* Notification Bell */}
+          {(username || userEmail) && (
+            <NotificationDropdown />
           )}
 
           {/* User Profile Dropdown */}
@@ -354,9 +359,9 @@ export function Topbar({ userEmail, username, profilePicture }: TopbarProps) {
                       <span>Sign out</span>
                     </button>
                   </div>
-          </div>
-            )}
-          </div>
+                </div>
+              )}
+            </div>
           )}
         </div>
       </div>

@@ -3,10 +3,10 @@
 import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { usePathname, useRouter } from 'next/navigation';
-import { 
-  LayoutDashboard, 
-  Mail, 
-  Plus, 
+import {
+  LayoutDashboard,
+  Mail,
+  Plus,
   List,
   ChevronRight,
   Menu,
@@ -16,10 +16,15 @@ import {
   Package,
   CreditCard,
   Wallet,
-  Settings
+  Settings,
+  ShieldCheck,
+  Server,
+  Activity
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Tooltip } from './Tooltip';
+import { getOrganizations } from '@/lib/api';
+import type { Organization } from '@/types';
 
 interface MenuItem {
   id: string;
@@ -27,6 +32,7 @@ interface MenuItem {
   icon: React.ComponentType<{ className?: string }>;
   href?: string;
   children?: MenuItem[];
+  isSystemOnly?: boolean;
 }
 
 const menuItems: MenuItem[] = [
@@ -112,6 +118,20 @@ const menuItems: MenuItem[] = [
       },
     ],
   },
+  {
+    id: 'infrastructure',
+    label: 'Infrastructure',
+    icon: ShieldCheck,
+    isSystemOnly: true,
+    children: [
+      {
+        id: 'infra-settings',
+        label: 'Infra Settings',
+        icon: Settings,
+        href: '/infrastructure/settings',
+      },
+    ],
+  },
 ];
 
 interface SidebarProps {
@@ -122,14 +142,35 @@ interface SidebarProps {
 export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
+  const [isSystemAdmin, setIsSystemAdmin] = useState(false);
   // Track manually collapsed items (user has explicitly collapsed these)
   const manuallyCollapsedRef = useRef<Set<string>>(new Set());
   const previousPathnameRef = useRef<string>(pathname);
 
+  // Check if user is system admin
+  useEffect(() => {
+    async function checkSystemAdmin() {
+      try {
+        const orgs = await getOrganizations();
+        // User is system admin if they are an "Owner" in a System Organization
+        const hasSystemOwnerRole = orgs.some(org => 
+          org.isSystemOrg && (org.role?.slug === 'owner' || org.role?.name === 'Owner')
+        );
+        setIsSystemAdmin(hasSystemOwnerRole);
+      } catch (error) {
+        console.error('Failed to check system admin status:', error);
+      }
+    }
+    checkSystemAdmin();
+  }, []);
+
+  // Filter menu items based on system admin status
+  const visibleMenuItems = menuItems.filter(item => !item.isSystemOnly || isSystemAdmin);
+
   // Initialize expanded items based on active pathname (only once on mount)
   const getInitialExpanded = () => {
     const expanded: string[] = [];
-    menuItems.forEach((item) => {
+    visibleMenuItems.forEach((item) => {
       if (item.children) {
         const hasActive = item.children.some(child => {
           const href = child.href;
@@ -161,7 +202,7 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
     previousPathnameRef.current = pathname;
 
     const shouldBeExpanded: string[] = [];
-    menuItems.forEach((item) => {
+    visibleMenuItems.forEach((item) => {
       if (item.children) {
         const hasActive = item.children.some(child => {
           const href = child.href;
@@ -188,7 +229,7 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
       });
       return merged;
     });
-  }, [pathname]);
+  }, [pathname, visibleMenuItems]);
 
   // Close popup when clicking outside (only when sidebar is collapsed)
   useEffect(() => {
@@ -239,7 +280,7 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
   const toggleExpanded = (itemId: string) => {
     setExpandedItems((prev) => {
       const isCurrentlyExpanded = prev.includes(itemId);
-      
+
       if (isCurrentlyExpanded) {
         // User is collapsing - remember this choice
         manuallyCollapsedRef.current.add(itemId);
@@ -262,12 +303,12 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
     if (!href) return false;
     // Exact match first
     if (pathname === href) return true;
-    
+
     // For child items, only exact match (no prefix matching to avoid conflicts)
     if (isChild) {
       return pathname === href;
     }
-    
+
     // For parent items, check if pathname starts with href + '/' 
     // but only if the next segment exists (to avoid matching child routes)
     if (pathname.startsWith(href + '/')) {
@@ -277,11 +318,14 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
       // This means it's a direct child route
       return pathSegments.length === hrefSegments.length + 1;
     }
-    
+
     return false;
   };
 
   const renderMenuItem = (item: MenuItem, level = 0) => {
+    // Only render if user is system admin or item is not system-only
+    if (item.isSystemOnly && !isSystemAdmin) return null;
+
     const Icon = item.icon;
     const hasChildren = item.children && item.children.length > 0;
     const isExpanded = expandedItems.includes(item.id);
@@ -293,10 +337,10 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
       if (hasChildren) {
         const isItemHovered = hoveredItemId === item.id;
         const shouldShowPopup = isExpanded || isItemHovered;
-        
+
         const updatePopupPosition = (buttonElement: HTMLButtonElement | null) => {
           if (!buttonElement) return;
-          
+
           const rect = buttonElement.getBoundingClientRect();
           // Align first child item top dengan button top
           // Popup structure: border (2px) + padding (8px) + first child item
@@ -304,16 +348,16 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
           const popupBorder = 2; // border-2
           const popupPadding = 8; // p-2 = 8px
           const offsetToFirstChild = popupBorder + popupPadding;
-          
+
           setPopupPosition({
             top: rect.top - offsetToFirstChild, // Adjust agar first child item top sejajar dengan button top
             left: rect.right + 8, // 0.5rem = 8px spacing from sidebar
           });
         };
-        
+
         return (
           <div key={item.id}>
-            <div 
+            <div
               className="relative"
               onMouseEnter={() => {
                 if (hoverTimeoutRef.current) {
@@ -370,14 +414,14 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
                 <Icon className="w-5 h-5" />
               </button>
             </div>
-            
+
             {shouldShowPopup && popupPosition && typeof window !== 'undefined' && createPortal(
-              <div 
+              <div
                 ref={(el) => {
                   popupRefs.current[item.id] = el;
                 }}
                 className="fixed bg-[var(--bg-surface)] border-2 border-[var(--border-default)] rounded-lg shadow-2xl p-2 space-y-1"
-                style={{ 
+                style={{
                   zIndex: 999999,
                   pointerEvents: 'auto',
                   minWidth: '12rem',
@@ -504,8 +548,8 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
         'h-full bg-[var(--bg-sidebar)] border-r border-[var(--border-default)] transition-all duration-300 flex flex-col',
         isCollapsed ? 'w-16' : 'w-64'
       )}
-      style={{ 
-        position: 'relative', 
+      style={{
+        position: 'relative',
         overflow: isCollapsed ? 'visible' : 'hidden',
         zIndex: 100,
         isolation: 'isolate'

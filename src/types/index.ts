@@ -49,6 +49,7 @@ export interface Organization {
   slug?: string;
   description?: string;
   isActive: boolean;
+  isSystemOrg?: boolean;
   logo?: string;
   contactEmail?: string;
   createdAt?: Date;
@@ -88,6 +89,10 @@ export interface ClientApp {
   updatedAt: Date;
   lastUsedAt?: Date;
   userId: string;
+  organizationId: string;
+  orgSlug?: string;
+  appSlug?: string;
+  isCoreService?: boolean;
   app_secret?: string; // Only returned once during creation/regeneration
 }
 
@@ -318,7 +323,7 @@ export interface Subscription {
   updatedAt: Date;
 }
 
-// App User Types
+// App User Types (Response from API)
 export interface AppUser {
   id: string;
   email: string;
@@ -328,5 +333,17 @@ export interface AppUser {
   lastActivity: Date;
   status: 'Active' | 'Inactive';
   transactionCount: number;
+}
+
+export interface Notification {
+  id: string;
+  userId: string;
+  title: string;
+  message: string;
+  type: string;
+  data?: any;
+  isRead: boolean;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
