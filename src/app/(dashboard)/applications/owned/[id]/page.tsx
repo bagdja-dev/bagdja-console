@@ -1762,7 +1762,7 @@ export default function AppDetailPage() {
                     className="flex items-center gap-2 px-3 py-1.5 border border-[var(--border-default)] text-[var(--text-primary)] rounded-lg text-sm font-medium hover:bg-[var(--bg-hover)]"
                   >
                     <Search className="h-4 w-4" />
-                    Browse Public Events
+                    Browse Events
                   </button>
                 </div>
 
@@ -2060,7 +2060,14 @@ export default function AppDetailPage() {
                               <div className="flex items-center gap-2 text-[var(--text-secondary)]">
                                 <Clock className="h-3.5 w-3.5" />
                                 <span className="text-xs">
-                                  {new Date(log.createdAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                                  {new Date(log.createdAt).toLocaleString('en-US', {
+                                    year: 'numeric',
+                                    month: 'short',
+                                    day: '2-digit',
+                                    hour: '2-digit',
+                                    minute: '2-digit',
+                                    second: '2-digit',
+                                  })}
                                 </span>
                               </div>
                             </td>
@@ -2151,4 +2158,3 @@ export default function AppDetailPage() {
     </div>
   );
 }
-
