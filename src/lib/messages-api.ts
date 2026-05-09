@@ -88,7 +88,10 @@ export const updateTemplate = (id: string, data: UpdateTemplateRequest) =>
     body: JSON.stringify(data),
   });
 
-export const deleteTemplate = (id: string) =>
-  request<void>(`/messages/templates/${id}`, {
+export const deleteTemplate = (id: string, appId?: string) => {
+  let url = `/messages/templates/${id}`;
+  if (appId) url += `?appId=${appId}`;
+  return request<void>(url, {
     method: 'DELETE',
   });
+};

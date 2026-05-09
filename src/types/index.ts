@@ -384,6 +384,7 @@ export interface MessageTemplate {
 }
 
 export interface CreateTemplateRequest {
+  appId?: string;
   name: string;
   channelType: ChannelType;
   subject?: string;
@@ -391,6 +392,7 @@ export interface CreateTemplateRequest {
 }
 
 export interface UpdateTemplateRequest {
+  appId?: string;
   name?: string;
   subject?: string;
   content?: string;

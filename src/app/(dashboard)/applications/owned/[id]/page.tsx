@@ -135,18 +135,26 @@ export default function AppDetailPage() {
   };
 
   const handleTemplateSubmit = async (data: any) => {
+    if (!app?.appId) return;
+
+    const payload = {
+      ...data,
+      appId: app.appId,
+    };
+
     if (editingTemplate) {
-      await updateTemplate(editingTemplate.id, data);
+      await updateTemplate(editingTemplate.id, payload);
     } else {
-      await createTemplate(data);
+      await createTemplate(payload);
     }
     await refreshTemplates();
   };
 
   const handleDeleteTemplate = async (id: string) => {
     if (!confirm('Are you sure you want to delete this template?')) return;
+    if (!app?.appId) return;
     try {
-      await deleteTemplate(id);
+      await deleteTemplate(id, app.appId);
       await refreshTemplates();
     } catch (err) {
       alert('Failed to delete template');
