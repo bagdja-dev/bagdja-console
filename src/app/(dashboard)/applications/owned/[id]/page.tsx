@@ -8,6 +8,7 @@ import { getProducts, createProduct, updateProduct, deleteProduct } from '@/lib/
 import { getPlans, createPlan, updatePlan, deletePlan } from '@/lib/plans-api';
 import { getLicenses, getPurchasedLicenses, createLicense, updateLicense, deleteLicense } from '@/lib/licenses-api';
 import { getAppSubscriptions } from '@/lib/subscriptions-api';
+import { ChannelType, ProviderType } from '@/types';
 import type { ClientApp, ApiError, Product, Plan, PlanDuration, AppUser, CreateProductRequest, UpdateProductRequest, CreatePlanRequest, UpdatePlanRequest, License, CreateLicenseRequest, UpdateLicenseRequest, LicenseStatus, Subscription, SubscriptionStatus } from '@/types';
 import { ArrowLeft, Package, Mail, Calendar, Users, ShoppingBag, CreditCard, Plus, Edit, Trash2, Key, Copy, Check, Coins, Activity, Shield, CheckCircle, XCircle, Globe, Lock, Code, List, Clock, Search, History, Link2 } from 'lucide-react';
 import ProductModal from '@/components/ProductModal';
@@ -16,6 +17,7 @@ import LicenseModal from '@/components/LicenseModal';
 import DistributePieceModal from '@/components/DistributePieceModal';
 import EventRegisterModal from '@/components/EventRegisterModal';
 import EventSubscribeModal from '@/components/EventSubscribeModal';
+import MessageTemplateModal from '@/components/MessageTemplateModal';
 import {
   getAppContracts,
   createEventContract,
@@ -29,9 +31,19 @@ import {
   updateSubscriptionStatus,
   getEventLogs
 } from '@/lib/api';
+import {
+  getChannelSettings,
+  setupChannel,
+  testConnection,
+  getTemplates,
+  createTemplate,
+  updateTemplate,
+  deleteTemplate
+} from '@/lib/messages-api';
 
-type TabType = 'users' | 'product' | 'plan' | 'license' | 'subscriptions' | 'events';
+type TabType = 'users' | 'product' | 'plan' | 'license' | 'subscriptions' | 'events' | 'messaging';
 type EventSubTab = 'broadcast' | 'subscribe' | 'requests' | 'log';
+type MessagingSubTab = 'setup' | 'templates' | 'logs';
 
 export default function AppDetailPage() {
   const params = useParams();
@@ -97,6 +109,63 @@ export default function AppDetailPage() {
   const [editingSubscription, setEditingSubscription] = useState<any>(null);
   const [mySubscriptions, setMySubscriptions] = useState<any[]>([]);
   const [mySubscriptionsLoading, setMySubscriptionsLoading] = useState(false);
+
+  // Messaging state
+  const [activeChannel, setActiveChannel] = useState<ChannelType | null>(null);
+  const [messagingSubTab, setMessagingSubTab] = useState<MessagingSubTab>('setup');
+  const [channelSettings, setChannelSettings] = useState<any[]>([]);
+  const [templates, setTemplates] = useState<any[]>([]);
+  const [templatesLoading, setTemplatesLoading] = useState(false);
+  const [templateModalOpen, setTemplateModalOpen] = useState(false);
+  const [editingTemplate, setEditingTemplate] = useState<any>(null);
+  const [messagingLoading, setMessagingLoading] = useState(false);
+
+  // Messaging methods
+  const refreshTemplates = async () => {
+    if (!app?.appId || !activeChannel) return;
+    try {
+      setTemplatesLoading(true);
+      const data = await getTemplates(app.appId, activeChannel);
+      setTemplates(data);
+    } catch (err) {
+      console.error('Failed to fetch templates:', err);
+    } finally {
+      setTemplatesLoading(false);
+    }
+  };
+
+  const handleTemplateSubmit = async (data: any) => {
+    if (!app?.appId) return;
+
+    const payload = {
+      ...data,
+      appId: app.appId,
+    };
+
+    if (editingTemplate) {
+      await updateTemplate(editingTemplate.id, payload);
+    } else {
+      await createTemplate(payload);
+    }
+    await refreshTemplates();
+  };
+
+  const handleDeleteTemplate = async (id: string) => {
+    if (!confirm('Are you sure you want to delete this template?')) return;
+    if (!app?.appId) return;
+    try {
+      await deleteTemplate(id, app.appId);
+      await refreshTemplates();
+    } catch (err) {
+      alert('Failed to delete template');
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'messaging' && messagingSubTab === 'templates' && activeChannel) {
+      refreshTemplates();
+    }
+  }, [activeTab, messagingSubTab, activeChannel]);
 
   useEffect(() => {
     const fetchApp = async () => {
@@ -899,6 +968,18 @@ export default function AppDetailPage() {
             <div className="flex items-center gap-2">
               <Activity className="h-4 w-4" />
               Event
+            </div>
+          </button>
+          <button
+            onClick={() => setActiveTab('messaging')}
+            className={`pb-4 px-1 border-b-2 font-medium text-sm transition-colors ${activeTab === 'messaging'
+              ? 'border-[var(--action-primary)] text-[var(--action-primary)]'
+              : 'border-transparent text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+              }`}
+          >
+            <div className="flex items-center gap-2">
+              <Mail className="h-4 w-4" />
+              Messaging
             </div>
           </button>
         </nav>
@@ -2081,6 +2162,280 @@ export default function AppDetailPage() {
             )}
           </div>
         )}
+
+        {/* Messaging Tab */}
+        {activeTab === 'messaging' && (
+          <div className="p-6">
+            <div className="mb-6 flex items-center justify-between">
+              <div>
+                <h2 className="text-lg font-semibold text-[var(--text-primary)]">
+                  {activeChannel ? `${activeChannel.charAt(0).toUpperCase() + activeChannel.slice(1)} Channel` : 'Messaging Service'}
+                </h2>
+                <p className="text-sm text-[var(--text-secondary)] mt-1">
+                  {activeChannel
+                    ? `Manage ${activeChannel} settings, templates, and delivery logs.`
+                    : 'Select a communication channel to configure and manage.'}
+                </p>
+              </div>
+              {activeChannel && (
+                <button
+                  onClick={() => setActiveChannel(null)}
+                  className="flex items-center gap-2 px-3 py-1.5 text-xs font-bold uppercase tracking-wider text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
+                >
+                  <ArrowLeft className="h-4 w-4" />
+                  Back to Channels
+                </button>
+              )}
+            </div>
+
+            {!activeChannel ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {/* Email Channel Card */}
+                <button
+                  onClick={() => {
+                    setActiveChannel(ChannelType.EMAIL);
+                    setMessagingSubTab('setup');
+                  }}
+                  className="p-6 rounded-xl border border-[var(--border-default)] bg-white/5 hover:border-[var(--action-primary)] transition-all text-left group"
+                >
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="p-2 bg-blue-500/10 rounded-lg border border-blue-500/20 group-hover:bg-blue-500/20 transition-colors">
+                      <Mail className="h-6 w-6 text-blue-400" />
+                    </div>
+                    <span className="font-bold text-[var(--text-primary)]">Email</span>
+                  </div>
+                  <p className="text-sm text-[var(--text-secondary)] mb-4 leading-relaxed">
+                    Send transactional emails using Bagdja default or your custom SMTP/Provider.
+                  </p>
+                  <div className="flex items-center text-xs font-bold text-[var(--action-primary)] uppercase tracking-widest">
+                    Configure <ArrowLeft className="ml-2 h-3 w-3 rotate-180" />
+                  </div>
+                </button>
+
+                {/* WhatsApp Channel Card (Coming Soon) */}
+                <div className="p-6 rounded-xl border border-[var(--border-default)] bg-white/5 opacity-50 cursor-not-allowed">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="p-2 bg-green-500/10 rounded-lg border border-green-500/20">
+                      <Globe className="h-6 w-6 text-green-400" />
+                    </div>
+                    <span className="font-bold text-[var(--text-primary)]">WhatsApp</span>
+                  </div>
+                  <p className="text-sm text-[var(--text-secondary)] mb-4 leading-relaxed">
+                    Direct messaging via WhatsApp API. Coming soon as part of infrastructure update.
+                  </p>
+                  <span className="text-[10px] font-bold text-gray-500 uppercase">Coming Soon</span>
+                </div>
+
+                {/* SMS Channel Card (Coming Soon) */}
+                <div className="p-6 rounded-xl border border-[var(--border-default)] bg-white/5 opacity-50 cursor-not-allowed">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="p-2 bg-amber-500/10 rounded-lg border border-amber-500/20">
+                      <Mail className="h-6 w-6 text-amber-400" />
+                    </div>
+                    <span className="font-bold text-[var(--text-primary)]">SMS</span>
+                  </div>
+                  <p className="text-sm text-[var(--text-secondary)] mb-4 leading-relaxed">
+                    Global SMS delivery for OTP and alerts. Coming soon.
+                  </p>
+                  <span className="text-[10px] font-bold text-gray-500 uppercase">Coming Soon</span>
+                </div>
+              </div>
+            ) : (
+              <>
+                {/* Sub-tabs for the Active Channel */}
+                <div className="flex items-center gap-1 p-1 bg-white/5 rounded-lg w-fit mb-8">
+                  <button
+                    onClick={() => setMessagingSubTab('setup')}
+                    className={`px-6 py-2 text-xs font-bold uppercase tracking-wider rounded-md transition-all ${messagingSubTab === 'setup'
+                      ? 'bg-[var(--action-primary)] text-white shadow-lg'
+                      : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-white/5'
+                      }`}
+                  >
+                    Setup
+                  </button>
+                  <button
+                    onClick={() => setMessagingSubTab('templates')}
+                    className={`px-6 py-2 text-xs font-bold uppercase tracking-wider rounded-md transition-all ${messagingSubTab === 'templates'
+                      ? 'bg-[var(--action-primary)] text-white shadow-lg'
+                      : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-white/5'
+                      }`}
+                  >
+                    Templates
+                  </button>
+                  <button
+                    onClick={() => setMessagingSubTab('logs')}
+                    className={`px-6 py-2 text-xs font-bold uppercase tracking-wider rounded-md transition-all ${messagingSubTab === 'logs'
+                      ? 'bg-[var(--action-primary)] text-white shadow-lg'
+                      : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-white/5'
+                      }`}
+                  >
+                    Logs
+                  </button>
+                </div>
+
+                {/* Channel Content */}
+                <div className="space-y-6">
+                  {messagingSubTab === 'setup' && (
+                    <div className="max-w-2xl">
+                      <div className="p-8 rounded-xl border border-[var(--border-default)] bg-white/5">
+                        <div className="flex items-center justify-between mb-8">
+                          <div className="flex items-center gap-4">
+                            <div className="p-3 bg-[var(--action-primary)]/10 rounded-xl">
+                              {activeChannel === ChannelType.EMAIL ? <Mail className="h-6 w-6 text-[var(--action-primary)]" /> : <Globe className="h-6 w-6 text-[var(--action-primary)]" />}
+                            </div>
+                            <div>
+                              <h3 className="text-lg font-bold text-[var(--text-primary)]">Provider Configuration</h3>
+                              <p className="text-xs text-[var(--text-secondary)]">Choose how your {activeChannel}s are delivered.</p>
+                            </div>
+                          </div>
+                          <span className="px-3 py-1 bg-green-500/10 text-green-400 text-[10px] font-black uppercase rounded-full border border-green-500/20">
+                            System Default
+                          </span>
+                        </div>
+
+                        <div className="space-y-6">
+                          <div className="p-4 rounded-lg bg-[var(--bg-surface)] border border-[var(--border-default)] flex items-start gap-4">
+                            <Shield className="h-5 w-5 text-green-500 mt-0.5" />
+                            <div>
+                              <p className="text-sm font-bold text-[var(--text-primary)]">Using Bagdja Infrastructure</p>
+                              <p className="text-xs text-[var(--text-secondary)] leading-relaxed">
+                                Your application is currently using the shared Bagdja messaging service (noreply@bagdja.com).
+                                No setup required.
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="pt-4 border-t border-[var(--border-default)]">
+                            <button
+                              className="w-full py-3 px-4 rounded-xl bg-white/5 border border-[var(--border-default)] text-[var(--text-primary)] text-sm font-bold uppercase hover:bg-white/10 transition-all flex items-center justify-center gap-2"
+                            >
+                              <Code className="h-4 w-4" />
+                              Configure Custom {activeChannel === ChannelType.EMAIL ? 'SMTP' : 'Provider'}
+                            </button>
+                            <p className="text-[10px] text-[var(--text-secondary)] text-center mt-4">
+                              Switch to your own provider for custom branding and higher limits.
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {messagingSubTab === 'templates' && (
+                    <div className="space-y-6">
+                      <div className="flex justify-between items-center">
+                        <h3 className="text-md font-bold text-[var(--text-primary)] uppercase tracking-wider">{activeChannel} Templates</h3>
+                        <button
+                          onClick={() => {
+                            setEditingTemplate(null);
+                            setTemplateModalOpen(true);
+                          }}
+                          className="flex items-center gap-2 px-4 py-2 bg-[var(--action-primary)] text-white text-xs font-bold rounded-lg hover:shadow-lg transition-all uppercase"
+                        >
+                          <Plus className="h-4 w-4" />
+                          New Template
+                        </button>
+                      </div>
+
+                      {templatesLoading ? (
+                        <div className="flex items-center justify-center py-12">
+                          <div className="text-[var(--text-secondary)]">Loading templates...</div>
+                        </div>
+                      ) : templates.length === 0 ? (
+                        <div className="rounded-2xl border border-[var(--border-default)] bg-white/5 min-h-[300px] flex flex-col items-center justify-center p-12 text-center">
+                          <div className="p-5 bg-[var(--bg-surface)] rounded-2xl border border-[var(--border-default)] mb-6 shadow-inner">
+                            <Code className="h-10 w-10 text-[var(--text-secondary)] opacity-30" />
+                          </div>
+                          <h4 className="text-[var(--text-primary)] font-bold mb-2 text-lg">No {activeChannel} templates yet</h4>
+                          <p className="text-[var(--text-secondary)] text-sm max-w-[350px] leading-relaxed">
+                            Define your {activeChannel} templates using Handlebars syntax.
+                            These can be triggered via the Message API.
+                          </p>
+                        </div>
+                      ) : (
+                        <div className="overflow-hidden rounded-xl border border-[var(--border-default)] bg-white/5">
+                          <table className="w-full text-left border-collapse">
+                            <thead>
+                              <tr className="border-b border-[var(--border-default)] bg-white/5">
+                                <th className="px-6 py-4 text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wider">Template Name</th>
+                                <th className="px-6 py-4 text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wider">Subject</th>
+                                <th className="px-6 py-4 text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wider">Last Updated</th>
+                                <th className="px-6 py-4 text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wider text-right">Actions</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-[var(--border-default)]">
+                              {templates.map((tpl) => (
+                                <tr key={tpl.id} className="hover:bg-white/5 transition-colors group">
+                                  <td className="px-6 py-4">
+                                    <div className="flex items-center gap-3">
+                                      <div className="p-2 bg-primary/10 rounded-lg text-primary">
+                                        <Code className="h-4 w-4" />
+                                      </div>
+                                      <span className="font-bold text-[var(--text-primary)]">{tpl.name}</span>
+                                    </div>
+                                  </td>
+                                  <td className="px-6 py-4">
+                                    <span className="text-sm text-[var(--text-secondary)] italic truncate max-w-[300px] block">
+                                      {tpl.subject || '-'}
+                                    </span>
+                                  </td>
+                                  <td className="px-6 py-4">
+                                    <span className="text-xs text-[var(--text-secondary)] font-mono">
+                                      {new Date(tpl.updatedAt).toLocaleDateString('en-GB', {
+                                        day: '2-digit',
+                                        month: '2-digit',
+                                        year: 'numeric',
+                                        hour: '2-digit',
+                                        minute: '2-digit'
+                                      })}
+                                    </span>
+                                  </td>
+                                  <td className="px-6 py-4 text-right">
+                                    <div className="flex justify-end gap-2">
+                                      <button
+                                        onClick={() => {
+                                          setEditingTemplate(tpl);
+                                          setTemplateModalOpen(true);
+                                        }}
+                                        className="p-2 text-[var(--text-secondary)] hover:text-primary hover:bg-primary/10 rounded-lg transition-all"
+                                        title="Edit Template"
+                                      >
+                                        <Edit className="h-4 w-4" />
+                                      </button>
+                                      <button
+                                        onClick={() => handleDeleteTemplate(tpl.id)}
+                                        className="p-2 text-[var(--text-secondary)] hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-all"
+                                        title="Delete Template"
+                                      >
+                                        <Trash2 className="h-4 w-4" />
+                                      </button>
+                                    </div>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {messagingSubTab === 'logs' && (
+                    <div className="rounded-2xl border border-[var(--border-default)] bg-white/5 min-h-[400px] flex flex-col items-center justify-center p-12 text-center">
+                      <div className="p-5 bg-[var(--bg-surface)] rounded-2xl border border-[var(--border-default)] mb-6 shadow-inner">
+                        <History className="h-10 w-10 text-[var(--text-secondary)] opacity-30" />
+                      </div>
+                      <h4 className="text-[var(--text-primary)] font-bold mb-2 text-lg">No delivery history</h4>
+                      <p className="text-[var(--text-secondary)] text-sm max-w-[350px] leading-relaxed">
+                        Once your application starts sending {activeChannel}s, the detailed delivery logs and status will appear here.
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Product Modal */}
@@ -2153,6 +2508,20 @@ export default function AppDetailPage() {
           }}
           onSubmit={handleEventSubscribe}
           initialData={editingSubscription}
+        />
+      )}
+
+      {/* Message Template Modal */}
+      {app && activeChannel && (
+        <MessageTemplateModal
+          isOpen={templateModalOpen}
+          onClose={() => {
+            setTemplateModalOpen(false);
+            setEditingTemplate(null);
+          }}
+          onSubmit={handleTemplateSubmit}
+          channelType={activeChannel}
+          initialData={editingTemplate}
         />
       )}
     </div>

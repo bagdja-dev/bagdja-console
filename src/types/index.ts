@@ -347,3 +347,66 @@ export interface Notification {
   updatedAt: Date;
 }
 
+// Message Service Types
+export enum ChannelType {
+  EMAIL = 'email',
+  WHATSAPP = 'whatsapp',
+  SMS = 'sms',
+}
+
+export enum ProviderType {
+  SYSTEM = 'system',
+  SMTP = 'smtp',
+  SENDGRID = 'sendgrid',
+  MAILGUN = 'mailgun',
+}
+
+export interface ChannelSetting {
+  id: string;
+  appId: string;
+  channelType: ChannelType;
+  providerType: ProviderType;
+  config: any;
+  isActive: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface MessageTemplate {
+  id: string;
+  appId: string;
+  name: string;
+  channelType: ChannelType;
+  subject?: string;
+  content: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface CreateTemplateRequest {
+  appId?: string;
+  name: string;
+  channelType: ChannelType;
+  subject?: string;
+  content: string;
+}
+
+export interface UpdateTemplateRequest {
+  appId?: string;
+  name?: string;
+  subject?: string;
+  content?: string;
+}
+
+export interface SetupChannelRequest {
+  channelType: ChannelType;
+  providerType: ProviderType;
+  config: any;
+}
+
+export interface TestConnectionRequest {
+  to: string;
+  providerType: ProviderType;
+  config: any;
+}
+
