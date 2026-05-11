@@ -653,7 +653,7 @@ export async function getAvailableEvents(): Promise<any[]> {
 /**
  * Subscribe to an event
  */
-export async function subscribeToEvent(contractId: string, webhookUrl?: string): Promise<any> {
+export async function subscribeToEvent(contractId: string, webhookUrl?: string, appId?: string): Promise<any> {
   const clientToken = await ensureClientToken();
   const userToken = getAccessToken();
   
@@ -664,7 +664,7 @@ export async function subscribeToEvent(contractId: string, webhookUrl?: string):
       'x-api-key': clientToken,
       'Authorization': userToken ? `Bearer ${userToken}` : '',
     },
-    body: JSON.stringify({ contractId, webhookUrl }),
+    body: JSON.stringify({ contractId, webhookUrl, appId }),
   });
   
   if (!response.ok) {

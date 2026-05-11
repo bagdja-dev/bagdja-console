@@ -412,11 +412,20 @@ export default function AppDetailPage() {
     fetchLogs();
   }, [activeTab, eventSubTab, app?.appId]);
 
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-US', {
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 2,
-    }).format(amount) + ' BP';
+  const formatCurrency = (amount: number, currency: string = 'IDR') => {
+    try {
+      return new Intl.NumberFormat('en-US', {
+        style: 'currency',
+        currency: currency,
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 2,
+      }).format(amount);
+    } catch (err) {
+      return new Intl.NumberFormat('en-US', {
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 2,
+      }).format(amount) + ' ' + currency;
+    }
   };
 
   const getProductTypeLabel = (type: string): string => {
@@ -560,7 +569,7 @@ export default function AppDetailPage() {
       if (editingSubscription) {
         await updateMySubscription(editingSubscription.id, webhookUrl);
       } else {
-        await subscribeToEvent(contractId, webhookUrl);
+        await subscribeToEvent(contractId, webhookUrl, app.appId);
       }
 
       // Refresh list
@@ -1087,9 +1096,9 @@ export default function AppDetailPage() {
           <div className="p-6">
             <div className="mb-4 flex items-center justify-between">
               <div>
-                <h2 className="text-lg font-semibold text-[var(--text-primary)]">Digital Products</h2>
+                <h2 className="text-lg font-semibold text-[var(--text-primary)]">Products</h2>
                 <p className="text-sm text-[var(--text-secondary)] mt-1">
-                  Available digital products in this application
+                  Available products in this application
                 </p>
               </div>
               <button
@@ -1122,6 +1131,9 @@ export default function AppDetailPage() {
                         Product Name
                       </th>
                       <th className="text-left py-3 px-4 text-sm font-medium text-[var(--text-secondary)]">
+                        Product ID
+                      </th>
+                      <th className="text-left py-3 px-4 text-sm font-medium text-[var(--text-secondary)]">
                         Type
                       </th>
                       <th className="text-left py-3 px-4 text-sm font-medium text-[var(--text-secondary)]">
@@ -1144,11 +1156,38 @@ export default function AppDetailPage() {
                         <td className="py-3 px-4 text-sm font-medium text-[var(--text-primary)]">
                           {product.name}
                         </td>
+                        <td className="py-3 px-4 text-sm font-mono text-[var(--text-secondary)]">
+                          <div className="flex items-center gap-1">
+                            <span className="truncate max-w-[120px]" title={product.id}>
+                              {product.id}
+                            </span>
+                            <button
+                              onClick={() => {
+                                navigator.clipboard.writeText(product.id);
+                                setCopiedKey(product.id);
+                                setTimeout(() => setCopiedKey(null), 2000);
+                              }}
+                              className="p-1 hover:text-[var(--action-primary)] transition-colors"
+                            >
+                              {copiedKey === product.id ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+                            </button>
+                          </div>
+                        </td>
                         <td className="py-3 px-4 text-sm text-[var(--text-secondary)]">
                           {getProductTypeLabel(product.type)}
                         </td>
                         <td className="py-3 px-4 text-sm text-[var(--text-primary)]">
-                          {formatCurrency(Number(product.price))}
+                          {product.prices && product.prices.length > 0 ? (
+                            <div className="space-y-0.5">
+                              {product.prices.map((p) => (
+                                <div key={p.currency} className="whitespace-nowrap">
+                                  {formatCurrency(p.price, p.currency)}
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            formatCurrency(Number(product.price), 'IDR')
+                          )}
                         </td>
                         <td className="py-3 px-4 text-sm text-[var(--text-secondary)]">
                           {product.metadata ? (
@@ -1264,7 +1303,7 @@ export default function AppDetailPage() {
                           {plan.name}
                         </td>
                         <td className="py-3 px-4 text-sm text-[var(--text-primary)]">
-                          {formatCurrency(Number(plan.price))}
+                          {formatCurrency(Number(plan.price), 'IDR')}
                         </td>
                         <td className="py-3 px-4 text-sm text-[var(--text-secondary)]">
                           {getDurationLabel(plan.duration, plan.durationValue)}
@@ -1463,7 +1502,7 @@ export default function AppDetailPage() {
                                 {license.maxUsers}
                               </td>
                               <td className="py-3 px-4 text-sm text-[var(--text-primary)]">
-                                {formatCurrency(Number(license.price))}
+                                {formatCurrency(Number(license.price), 'IDR')}
                               </td>
                               <td className="py-3 px-4">
                                 <span className={`px-2 py-1 rounded text-xs font-medium ${getLicenseStatusColor(license.status)}`}>
