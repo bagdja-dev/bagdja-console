@@ -277,6 +277,8 @@ export interface Product {
   metadata: Record<string, any> | null;
   status: ProductStatus;
   isActive: boolean;
+  isDynamic: boolean;
+  prices?: { currency: string; price: number }[];
   createdAt: Date;
   updatedAt: Date;
 }
@@ -290,6 +292,8 @@ export interface CreateProductRequest {
   metadata?: Record<string, any>;
   status?: ProductStatus;
   isActive?: boolean;
+  isDynamic?: boolean;
+  prices?: { currency: string; price: number }[];
 }
 
 export interface UpdateProductRequest {
@@ -301,6 +305,8 @@ export interface UpdateProductRequest {
   metadata?: Record<string, any>;
   status?: ProductStatus;
   isActive?: boolean;
+  isDynamic?: boolean;
+  prices?: { currency: string; price: number }[];
 }
 
 // Subscription Types
