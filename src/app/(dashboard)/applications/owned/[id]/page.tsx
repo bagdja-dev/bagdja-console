@@ -8,9 +8,9 @@ import { getProducts, createProduct, updateProduct, deleteProduct } from '@/lib/
 import { getPlans, createPlan, updatePlan, deletePlan } from '@/lib/plans-api';
 import { getLicenses, getPurchasedLicenses, createLicense, updateLicense, deleteLicense } from '@/lib/licenses-api';
 import { getAppSubscriptions } from '@/lib/subscriptions-api';
-import { ChannelType, ProviderType } from '@/types';
+import { ChannelType } from '@/types';
 import type { ClientApp, ApiError, Product, Plan, PlanDuration, AppUser, CreateProductRequest, UpdateProductRequest, CreatePlanRequest, UpdatePlanRequest, License, CreateLicenseRequest, UpdateLicenseRequest, LicenseStatus, Subscription, SubscriptionStatus } from '@/types';
-import { ArrowLeft, Package, Mail, Calendar, Users, ShoppingBag, CreditCard, Plus, Edit, Trash2, Key, Copy, Check, Coins, Activity, Shield, CheckCircle, XCircle, Globe, Lock, Code, List, Clock, Search, History, Link2, X, ChevronUp, ChevronDown, SlidersHorizontal, Filter } from 'lucide-react';
+import { ArrowLeft, Package, Mail, Calendar, Users, ShoppingBag, CreditCard, Plus, Edit, Trash2, Key, Copy, Check, Coins, Activity, Shield, CheckCircle, Globe, Code, List, Clock, History, Link2, X } from 'lucide-react';
 import DataGrid from '@/components/DataGrid';
 import ProductModal from '@/components/ProductModal';
 import PlanModal from '@/components/PlanModal';
@@ -21,7 +21,6 @@ import EventSubscribeModal from '@/components/EventSubscribeModal';
 import MessageTemplateModal from '@/components/MessageTemplateModal';
 import { useLayout } from '@/context/LayoutContext';
 import {
-  getAppContracts,
   getInfraContracts,
   createEventContract,
   registerAppInHub,
@@ -36,9 +35,6 @@ import {
   getEventLogs
 } from '@/lib/api';
 import {
-  getChannelSettings,
-  setupChannel,
-  testConnection,
   getTemplates,
   createTemplate,
   updateTemplate,
@@ -166,12 +162,10 @@ export default function AppDetailPage() {
   // Messaging state
   const [activeChannel, setActiveChannel] = useState<ChannelType | null>(null);
   const [messagingSubTab, setMessagingSubTab] = useState<MessagingSubTab>('setup');
-  const [channelSettings, setChannelSettings] = useState<any[]>([]);
   const [templates, setTemplates] = useState<any[]>([]);
   const [templatesLoading, setTemplatesLoading] = useState(false);
   const [templateModalOpen, setTemplateModalOpen] = useState(false);
   const [editingTemplate, setEditingTemplate] = useState<any>(null);
-  const [messagingLoading, setMessagingLoading] = useState(false);
 
   // Messaging methods
   const refreshTemplates = async () => {
@@ -1758,9 +1752,9 @@ export default function AppDetailPage() {
                 <div className="flex items-center gap-2 justify-center">
                   <CheckCircle className="h-4 w-4" />
                   Subscriber Request
-                  {subscriptionRequests.filter(r => r.status === 'PENDING').length > 0 && (
+                  {subscriptionRequests.filter((r: any) => r.status === 'PENDING').length > 0 && (
                     <span className="ml-1 px-1.5 py-0.5 bg-red-500 text-white text-[10px] rounded-full">
-                      {subscriptionRequests.filter(r => r.status === 'PENDING').length}
+                      {subscriptionRequests.filter((r: any) => r.status === 'PENDING').length}
                     </span>
                   )}
                 </div>
