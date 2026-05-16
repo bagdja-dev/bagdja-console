@@ -343,8 +343,8 @@ export default function AppDetailPage() {
 
       try {
         setSubscriptionRequestsLoading(true);
-        const data = await getSubscriptionRequests(app.appId);
-        setSubscriptionRequests(data);
+        const res = await getSubscriptionRequests(app.appId);
+        setSubscriptionRequests(res.data || []);
       } catch (err) {
         console.error('Failed to fetch subscription requests:', err);
       } finally {
@@ -541,9 +541,12 @@ export default function AppDetailPage() {
     if (!app?.appId) return;
     try {
       await updateSubscriptionStatus(subId, status);
-      // Refresh list
-      const data = await getSubscriptionRequests(app.appId);
-      setSubscriptionRequests(data);
+      // Refresh grid by triggering refreshContracts state
+      setRefreshContracts(prev => prev + 1);
+
+      // Also update the local state for current count/notifications if needed
+      const res = await getSubscriptionRequests(app.appId);
+      setSubscriptionRequests(res.data || []);
     } catch (err: any) {
       alert(err.message || 'Failed to update status');
     }
@@ -1934,118 +1937,123 @@ export default function AppDetailPage() {
             )}
 
             {eventSubTab === 'requests' && (
-              <div className="space-y-4">
-                <h3 className="text-md font-medium text-[var(--text-primary)]">Subscription Requests</h3>
-                <p className="text-sm text-[var(--text-secondary)]">Applications requesting to subscribe to your events.</p>
-
-                {subscriptionRequestsLoading ? (
-                  <div className="flex items-center justify-center py-12">
-                    <div className="text-[var(--text-secondary)]">Loading requests...</div>
-                  </div>
-                ) : subscriptionRequests.length === 0 ? (
-                  <div className="rounded-xl border border-[var(--border-default)] bg-white/5 min-h-[300px] flex flex-col items-center justify-center p-8 text-center">
-                    <div className="p-4 bg-[var(--bg-surface)] rounded-full border border-[var(--border-default)] mb-4">
-                      <CheckCircle className="h-8 w-8 text-[var(--text-secondary)] opacity-50" />
-                    </div>
-                    <h4 className="text-[var(--text-primary)] font-medium mb-1">No subscription requests yet</h4>
-                    <p className="text-[var(--text-secondary)] text-sm max-w-[300px]">
-                      No subscription requests found for your events.
-                    </p>
-                  </div>
-                ) : (
-                  <div className="overflow-hidden rounded-xl border border-[var(--border-default)]">
-                    <table className="min-w-full divide-y divide-[var(--border-default)]">
-                      <thead className="border-b border-[var(--border-default)]">
-                        <tr>
-                          <th className="px-6 py-4 text-left text-[10px] font-bold text-[var(--text-secondary)] uppercase tracking-wider">Subscriber App</th>
-                          <th className="px-6 py-4 text-left text-[10px] font-bold text-[var(--text-secondary)] uppercase tracking-wider">Event Name</th>
-                          <th className="px-6 py-4 text-left text-[10px] font-bold text-[var(--text-secondary)] uppercase tracking-wider">Webhook URL</th>
-                          <th className="px-6 py-4 text-left text-[10px] font-bold text-[var(--text-secondary)] uppercase tracking-wider">Status</th>
-                          <th className="px-6 py-4 text-right text-[10px] font-bold text-[var(--text-secondary)] uppercase tracking-wider">Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-[var(--border-default)]">
-                        {subscriptionRequests.map((req) => (
-                          <tr key={req.id} className="hover:bg-white/5 transition-colors group">
-                            <td className="px-6 py-5 whitespace-nowrap">
-                              <div className="flex flex-col">
-                                <span className="text-sm font-bold text-[var(--text-primary)]">{req.app?.appId}</span>
-                                <span className="text-[10px] text-[var(--text-secondary)] uppercase font-medium">{req.app?.orgSlug}</span>
-                              </div>
-                            </td>
-                            <td className="px-6 py-5 whitespace-nowrap">
-                              <span className="text-sm font-medium text-[var(--text-primary)]">{req.contract?.eventName}</span>
-                            </td>
-                            <td className="px-6 py-5 whitespace-nowrap">
-                              <span className="text-xs text-[var(--text-secondary)] font-mono">{req.webhookUrl || 'WebSocket Only'}</span>
-                            </td>
-                            <td className="px-6 py-5 whitespace-nowrap">
-                              {req.status === 'approved' ? (
-                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-green-500/10 text-green-400 border border-green-500/20 uppercase">
-                                  {req.status}
-                                </span>
-                              ) : req.status === 'rejected' ? (
-                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-red-500/10 text-red-400 border border-red-500/20 uppercase">
-                                  {req.status}
-                                </span>
-                              ) : (
-                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/10 text-amber-400 border border-amber-500/20 uppercase">
-                                  {req.status}
-                                </span>
-                              )}
-                            </td>
-                            <td className="px-6 py-5 whitespace-nowrap text-right">
-                              {req.status === 'pending' && (
-                                <div className="flex items-center justify-end gap-2">
-                                  <button
-                                    onClick={() => handleUpdateSubscriptionStatus(req.id, 'approved')}
-                                    className="px-3 py-1 bg-[var(--action-primary)] text-white text-[10px] font-bold rounded hover:opacity-90 transition-opacity uppercase"
-                                  >
-                                    Approve
-                                  </button>
-                                  <button
-                                    onClick={() => handleUpdateSubscriptionStatus(req.id, 'rejected')}
-                                    className="px-3 py-1 bg-red-500 text-white text-[10px] font-bold rounded hover:opacity-90 transition-opacity uppercase"
-                                  >
-                                    Reject
-                                  </button>
-                                </div>
-                              )}
-                              {req.status === 'approved' && (
-                                <div className="flex items-center justify-end gap-2">
-                                  <button
-                                    onClick={() => handleUpdateSubscriptionStatus(req.id, 'pending')}
-                                    className="text-[var(--text-secondary)] hover:text-amber-500 text-[10px] font-bold uppercase tracking-wider transition-colors"
-                                    title="Suspend and set to pending"
-                                  >
-                                    Set to Pending
-                                  </button>
-                                  <span className="text-[var(--border-default)]">|</span>
-                                  <button
-                                    onClick={() => handleUpdateSubscriptionStatus(req.id, 'rejected')}
-                                    className="text-red-400 hover:text-red-500 text-[10px] font-bold uppercase tracking-wider transition-colors"
-                                    title="Reject and block access"
-                                  >
-                                    Reject
-                                  </button>
-                                </div>
-                              )}
-                              {req.status === 'rejected' && (
-                                <button
-                                  onClick={() => handleUpdateSubscriptionStatus(req.id, 'pending')}
-                                  className="text-[var(--text-secondary)] hover:text-[var(--text-primary)] text-[10px] font-bold uppercase tracking-wider transition-colors"
-                                >
-                                  Reset to Pending
-                                </button>
-                              )}
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </div>
+              <DataGrid
+                title="Subscription Requests"
+                description="Applications requesting to subscribe to your events."
+                fetchData={(params) => getSubscriptionRequests(app?.appId, params)}
+                refreshTrigger={refreshContracts}
+                columns={[
+                  {
+                    key: 'subscriberApp',
+                    label: 'Subscriber App',
+                    render: (_, row) => (
+                      <div className="flex flex-col">
+                        <span className="text-sm font-bold text-[var(--text-primary)]">{row.app?.appId}</span>
+                        <span className="text-[10px] text-[var(--text-secondary)] uppercase font-medium">{row.app?.orgSlug}</span>
+                      </div>
+                    )
+                  },
+                  {
+                    key: 'eventName',
+                    label: 'Event Name',
+                    render: (_, row) => (
+                      <span className="text-sm font-medium text-[var(--text-primary)]">{row.contract?.eventName}</span>
+                    )
+                  },
+                  {
+                    key: 'webhookUrl',
+                    label: 'Webhook URL',
+                    render: (val) => (
+                      <span className="text-xs text-[var(--text-secondary)] font-mono">{val || 'WebSocket Only'}</span>
+                    )
+                  },
+                  {
+                    key: 'status',
+                    label: 'Status',
+                    sortable: true,
+                    render: (val) => (
+                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase border ${val === 'approved'
+                        ? 'bg-green-500/10 text-green-400 border-green-500/20'
+                        : val === 'rejected'
+                          ? 'bg-red-500/10 text-red-400 border-red-500/20'
+                          : 'bg-amber-500/10 text-amber-400 border-amber-500/20'
+                        }`}>
+                        {val}
+                      </span>
+                    )
+                  },
+                  {
+                    key: 'actions',
+                    label: 'Actions',
+                    render: (_, row) => (
+                      <div className="flex items-center justify-end gap-2" onClick={(e) => e.stopPropagation()}>
+                        {row.status === 'pending' && (
+                          <>
+                            <button
+                              onClick={() => handleUpdateSubscriptionStatus(row.id, 'approved')}
+                              className="px-3 py-1 bg-[var(--action-primary)] text-white text-[10px] font-bold rounded hover:opacity-90 transition-opacity uppercase"
+                            >
+                              Approve
+                            </button>
+                            <button
+                              onClick={() => handleUpdateSubscriptionStatus(row.id, 'rejected')}
+                              className="px-3 py-1 bg-red-500 text-white text-[10px] font-bold rounded hover:opacity-90 transition-opacity uppercase"
+                            >
+                              Reject
+                            </button>
+                          </>
+                        )}
+                        {row.status === 'approved' && (
+                          <>
+                            <button
+                              onClick={() => handleUpdateSubscriptionStatus(row.id, 'pending')}
+                              className="text-[var(--text-secondary)] hover:text-amber-500 text-[10px] font-bold uppercase tracking-wider transition-colors"
+                              title="Suspend and set to pending"
+                            >
+                              Suspend
+                            </button>
+                            <span className="text-[var(--border-default)]">|</span>
+                            <button
+                              onClick={() => handleUpdateSubscriptionStatus(row.id, 'rejected')}
+                              className="text-red-400 hover:text-red-500 text-[10px] font-bold uppercase tracking-wider transition-colors"
+                              title="Reject and block access"
+                            >
+                              Reject
+                            </button>
+                          </>
+                        )}
+                        {row.status === 'rejected' && (
+                          <button
+                            onClick={() => handleUpdateSubscriptionStatus(row.id, 'pending')}
+                            className="text-[var(--text-secondary)] hover:text-[var(--text-primary)] text-[10px] font-bold uppercase tracking-wider transition-colors"
+                          >
+                            Reset to Pending
+                          </button>
+                        )}
+                      </div>
+                    )
+                  }
+                ]}
+                filterFields={[
+                  { key: 'eventName', label: 'Event Name', type: 'text', placeholder: 'e.g. payment.paid' },
+                  { key: 'subscriberAppId', label: 'Subscriber App', type: 'text', placeholder: 'App ID slug' },
+                  {
+                    key: 'status',
+                    label: 'Status',
+                    type: 'select',
+                    options: [
+                      { label: 'Approved', value: 'approved' },
+                      { label: 'Pending', value: 'pending' },
+                      { label: 'Rejected', value: 'rejected' }
+                    ]
+                  }
+                ]}
+                emptyState={{
+                  title: "No subscription requests yet",
+                  description: "Applications requesting to subscribe to your events.",
+                  icon: <CheckCircle className="h-8 w-8 text-[var(--text-secondary)] opacity-50" />
+                }}
+              />
             )}
 
             {eventSubTab === 'log' && (
