@@ -27,12 +27,20 @@ export interface FilterField {
   placeholder?: string;
 }
 
+export interface GridAction {
+  label: string;
+  icon?: React.ReactNode;
+  onClick: () => void;
+  variant?: 'primary' | 'secondary' | 'danger' | 'ghost';
+}
+
 interface DataGridProps {
   title: string;
   description?: string;
   columns: GridColumn[];
   fetchData: (params: any) => Promise<{ data: any[]; meta: any }>;
   filterFields?: FilterField[];
+  actions?: GridAction[];
   onRowClick?: (row: any) => void;
   emptyState?: {
     title: string;
@@ -48,6 +56,7 @@ const DataGrid: React.FC<DataGridProps> = ({
   columns,
   fetchData,
   filterFields = [],
+  actions = [],
   onRowClick,
   emptyState,
   refreshTrigger
@@ -313,6 +322,25 @@ const DataGrid: React.FC<DataGridProps> = ({
                 </div>
               )}
             </div>
+
+            {/* Custom Actions */}
+            {actions.map((action, index) => (
+              <button
+                key={index}
+                onClick={action.onClick}
+                className={`flex items-center gap-2 px-3 py-2.5 rounded-xl text-sm font-bold uppercase tracking-wider transition-all whitespace-nowrap shadow-lg pointer-events-auto ${action.variant === 'danger'
+                  ? 'bg-red-500 text-white shadow-red-500/20 hover:bg-red-600'
+                  : action.variant === 'secondary'
+                    ? 'bg-white/5 text-[var(--text-primary)] border border-[var(--border-default)] hover:bg-white/10'
+                    : action.variant === 'ghost'
+                      ? 'text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-white/5'
+                      : 'bg-primary text-white shadow-primary/20 hover:scale-[1.02] active:scale-[0.98]'
+                  }`}
+              >
+                {action.icon}
+                {action.label && <span className="hidden sm:inline">{action.label}</span>}
+              </button>
+            ))}
           </div>
         </div>
 

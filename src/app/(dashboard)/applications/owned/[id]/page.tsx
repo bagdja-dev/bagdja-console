@@ -1763,6 +1763,14 @@ export default function AppDetailPage() {
                 description="Manage events that this application broadcasts to the hub."
                 fetchData={(params) => getInfraContracts({ ...params, filter: { ...params.filter, appId: app?.appId } })}
                 refreshTrigger={refreshContracts}
+                actions={[
+                  {
+                    label: '',
+                    icon: <Plus className="h-4 w-4" />,
+                    onClick: () => setEventRegisterModalOpen(true),
+                    variant: 'secondary'
+                  }
+                ]}
                 columns={[
                   {
                     key: 'eventName',
