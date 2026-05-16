@@ -48,6 +48,8 @@ interface DataGridProps {
     icon?: React.ReactNode;
   };
   refreshTrigger?: any;
+  isScrollable?: boolean;
+  fullHeight?: boolean;
 }
 
 const DataGrid: React.FC<DataGridProps> = ({
@@ -59,7 +61,9 @@ const DataGrid: React.FC<DataGridProps> = ({
   actions = [],
   onRowClick,
   emptyState,
-  refreshTrigger
+  refreshTrigger,
+  isScrollable = false,
+  fullHeight = false
 }) => {
   const [data, setData] = useState<any[]>([]);
   const [meta, setMeta] = useState<any>(null);
@@ -75,6 +79,12 @@ const DataGrid: React.FC<DataGridProps> = ({
   const [isFilterPanelOpen, setIsFilterPanelOpen] = useState(false);
   const [isSettingsPanelOpen, setIsSettingsPanelOpen] = useState(false);
   const [visibleColumns, setVisibleColumns] = useState<Record<string, boolean>>({});
+  const [localIsScrollable, setLocalIsScrollable] = useState(isScrollable);
+
+  // Sync local scrollable state with prop
+  useEffect(() => {
+    setLocalIsScrollable(isScrollable);
+  }, [isScrollable]);
 
   // Initialize visible columns
   useEffect(() => {
@@ -124,9 +134,9 @@ const DataGrid: React.FC<DataGridProps> = ({
   };
 
   return (
-    <div className="space-y-4">
+    <div className={`flex flex-col space-y-4 ${fullHeight ? 'flex-1 h-full min-h-0' : ''}`}>
       {/* Header & Controls */}
-      <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-4 flex-shrink-0">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
             <h3 className="text-md font-medium text-[var(--text-primary)]">{title}</h3>
@@ -309,6 +319,23 @@ const DataGrid: React.FC<DataGridProps> = ({
                         ))}
                       </div>
                     </div>
+
+                    {/* Scrollable Toggle */}
+                    <div className="space-y-3 pt-4 border-t border-[var(--border-default)]">
+                      <label className="text-[10px] font-bold text-[var(--text-secondary)] uppercase px-1 tracking-widest">Layout Options</label>
+                      <label className="flex items-center justify-between p-2 rounded-lg hover:bg-white/5 cursor-pointer transition-colors group">
+                        <span className="text-sm text-[var(--text-primary)] group-hover:text-primary transition-colors">Scrollable Table</span>
+                        <div className="relative inline-flex items-center cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={localIsScrollable}
+                            onChange={() => setLocalIsScrollable(!localIsScrollable)}
+                            className="sr-only peer"
+                          />
+                          <div className="w-9 h-5 bg-white/10 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-primary"></div>
+                        </div>
+                      </label>
+                    </div>
                   </div>
 
                   <div className="mt-6 pt-4 border-t border-[var(--border-default)]">
@@ -420,10 +447,10 @@ const DataGrid: React.FC<DataGridProps> = ({
           )}
         </div>
       ) : (
-        <div className="space-y-4">
-          <div className="overflow-hidden rounded-xl border border-[var(--border-default)]">
+        <div className={`flex flex-col min-h-0 ${fullHeight ? 'flex-1 h-full min-h-0' : ''}`}>
+          <div className={`rounded-xl border border-[var(--border-default)] ${localIsScrollable ? 'overflow-auto scrollbar-thin flex-1' : 'overflow-hidden'}`}>
             <table className="min-w-full divide-y divide-[var(--border-default)]">
-              <thead className="border-b border-[var(--border-default)]">
+              <thead className={`border-b border-[var(--border-default)] bg-[var(--bg-surface)] ${localIsScrollable ? 'sticky top-0 z-[5]' : ''}`}>
                 <tr>
                   {columns.filter(col => visibleColumns[col.key] !== false).map((col) => {
                     const [sortKey, sortDir] = sort.split(':');
@@ -433,7 +460,7 @@ const DataGrid: React.FC<DataGridProps> = ({
                       <th
                         key={col.key}
                         onClick={() => col.sortable && handleSort(col.key)}
-                        className={`px-6 py-4 text-left text-[10px] font-bold text-[var(--text-secondary)] uppercase tracking-wider transition-colors group ${col.sortable ? 'cursor-pointer hover:bg-white/5' : ''}`}
+                        className={`px-6 py-4 text-left text-[10px] font-bold text-[var(--text-secondary)] uppercase tracking-wider transition-colors group ${col.sortable ? 'cursor-pointer hover:bg-white/5' : ''} ${localIsScrollable ? 'bg-[var(--bg-surface)]' : ''}`}
                       >
                         <div className="flex items-center gap-1">
                           {col.label}
@@ -473,45 +500,52 @@ const DataGrid: React.FC<DataGridProps> = ({
           </div>
 
           {/* Pagination */}
-          {meta && meta.totalPages > 1 && (
-            <div className="flex items-center justify-between px-2 py-4">
+          {meta && (
+            <div className="flex items-center justify-between px-2 py-4 flex-shrink-0 border-t border-[var(--border-default)] mt-2">
               <div className="text-sm text-[var(--text-secondary)]">
                 Showing <span className="font-medium text-[var(--text-primary)]">{(meta.currentPage - 1) * meta.itemsPerPage + 1}</span> to <span className="font-medium text-[var(--text-primary)]">{Math.min(meta.currentPage * meta.itemsPerPage, meta.totalItems)}</span> of <span className="font-medium text-[var(--text-primary)]">{meta.totalItems}</span> entries
               </div>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => setPage(p => Math.max(1, p - 1))}
-                  disabled={meta.currentPage === 1}
-                  className="px-4 py-2 bg-white/5 border border-[var(--border-default)] rounded-xl text-sm font-medium text-[var(--text-primary)] disabled:opacity-30 disabled:cursor-not-allowed hover:bg-white/10 transition-all"
-                >
-                  Previous
-                </button>
-                <div className="flex items-center gap-1">
-                  {Array.from({ length: Math.min(5, meta.totalPages) }, (_, i) => {
-                    const pageNum = i + 1;
-                    return (
-                      <button
-                        key={pageNum}
-                        onClick={() => setPage(pageNum)}
-                        className={`w-10 h-10 rounded-xl text-sm font-medium transition-all ${meta.currentPage === pageNum
-                          ? 'bg-primary text-white shadow-lg shadow-primary/20'
-                          : 'bg-white/5 text-[var(--text-secondary)] hover:bg-white/10'
-                          }`}
-                      >
-                        {pageNum}
-                      </button>
-                    );
-                  })}
-                  {meta.totalPages > 5 && <span className="text-[var(--text-secondary)] px-2">...</span>}
-                </div>
-                <button
-                  onClick={() => setPage(p => Math.min(meta.totalPages, p + 1))}
-                  disabled={meta.currentPage === meta.totalPages}
-                  className="px-4 py-2 bg-white/5 border border-[var(--border-default)] rounded-xl text-sm font-medium text-[var(--text-primary)] disabled:opacity-30 disabled:cursor-not-allowed hover:bg-white/10 transition-all"
-                >
-                  Next
-                </button>
-              </div>
+              {(() => {
+                const totalPages = meta.totalPages || Math.ceil(meta.totalItems / meta.itemsPerPage) || 1;
+                if (totalPages <= 1) return null;
+
+                return (
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setPage(p => Math.max(1, p - 1))}
+                      disabled={meta.currentPage === 1}
+                      className="px-4 py-2 bg-white/5 border border-[var(--border-default)] rounded-xl text-sm font-medium text-[var(--text-primary)] disabled:opacity-30 disabled:cursor-not-allowed hover:bg-white/10 transition-all"
+                    >
+                      Previous
+                    </button>
+                    <div className="flex items-center gap-1">
+                      {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                        const pageNum = i + 1;
+                        return (
+                          <button
+                            key={pageNum}
+                            onClick={() => setPage(pageNum)}
+                            className={`w-10 h-10 rounded-xl text-sm font-medium transition-all ${meta.currentPage === pageNum
+                              ? 'bg-primary text-white shadow-lg shadow-primary/20'
+                              : 'bg-white/5 text-[var(--text-secondary)] hover:bg-white/10'
+                              }`}
+                          >
+                            {pageNum}
+                          </button>
+                        );
+                      })}
+                      {totalPages > 5 && <span className="text-[var(--text-secondary)] px-2">...</span>}
+                    </div>
+                    <button
+                      onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+                      disabled={meta.currentPage === totalPages}
+                      className="px-4 py-2 bg-white/5 border border-[var(--border-default)] rounded-xl text-sm font-medium text-[var(--text-primary)] disabled:opacity-30 disabled:cursor-not-allowed hover:bg-white/10 transition-all"
+                    >
+                      Next
+                    </button>
+                  </div>
+                );
+              })()}
             </div>
           )}
         </div>

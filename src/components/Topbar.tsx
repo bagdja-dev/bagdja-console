@@ -6,6 +6,7 @@ import { useRouter, usePathname } from 'next/navigation';
 import { Building, Wallet } from 'lucide-react';
 import type { Organization } from '@/types';
 import { NotificationDropdown } from './NotificationDropdown';
+import { useLayout } from '@/context/LayoutContext';
 
 interface TopbarProps {
   userEmail?: string;
@@ -16,6 +17,16 @@ interface TopbarProps {
 export function Topbar({ userEmail, username, profilePicture }: TopbarProps) {
   const router = useRouter();
   const pathname = usePathname();
+  const [topbarContent, setTopbarContent] = useState<React.ReactNode | null>(null);
+
+  useEffect(() => {
+    const handleUpdate = (event: any) => {
+      setTopbarContent(event.detail);
+    };
+    window.addEventListener('updateTopbarContent', handleUpdate);
+    return () => window.removeEventListener('updateTopbarContent', handleUpdate);
+  }, []);
+
   const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [activeOrganization, setActiveOrganization] = useState<Organization | null>(null);
   const [isOrgDropdownOpen, setIsOrgDropdownOpen] = useState(false);
@@ -161,7 +172,12 @@ export function Topbar({ userEmail, username, profilePicture }: TopbarProps) {
 
   return (
     <header className="w-full border-b border-[var(--border-default)] bg-[var(--bg-surface)]">
-      <div className="flex h-16 items-center justify-end px-4 sm:px-6 lg:px-8">
+      <div className="flex h-16 items-center justify-between px-4 sm:px-6 lg:px-8">
+        {/* Contextual Content Slot */}
+        <div className="flex-1 flex items-center min-w-0">
+          {topbarContent}
+        </div>
+
         <div className="flex items-center gap-4">
           {/* Organization Dropdown */}
           {!loading && activeOrganization && (
@@ -191,8 +207,8 @@ export function Topbar({ userEmail, username, profilePicture }: TopbarProps) {
                         type="button"
                         onClick={() => handleSelectOrganization(org)}
                         className={`block w-full px-4 py-2 text-left text-sm ${activeOrganization.id === org.id
-                            ? 'bg-[var(--bg-hover)] text-[var(--action-primary)]'
-                            : 'text-[var(--text-primary)] hover:bg-[var(--bg-hover)]'
+                          ? 'bg-[var(--bg-hover)] text-[var(--action-primary)]'
+                          : 'text-[var(--text-primary)] hover:bg-[var(--bg-hover)]'
                           }`}
                       >
                         <div className="flex items-center justify-between">

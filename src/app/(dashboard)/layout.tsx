@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { getProfile, getOrganizations } from '@/lib/api';
 import { MainLayout } from '@/components/MainLayout';
+import { LayoutProvider } from '@/context/LayoutContext';
 import type { User, ApiError } from '@/types';
 
 export default function DashboardLayout({
@@ -29,7 +30,7 @@ export default function DashboardLayout({
           if (organizations && organizations.length > 0) {
             // Check if there's already an active organization in sessionStorage
             const activeOrgId = sessionStorage.getItem('activeOrganizationId');
-            
+
             // If no active org or active org is not in the list, set first organization as active
             if (!activeOrgId || !organizations.some(org => org.id === activeOrgId)) {
               const firstOrg = organizations[0];
@@ -69,6 +70,12 @@ export default function DashboardLayout({
     );
   }
 
-  return <MainLayout userEmail={user?.email} username={user?.username} profilePicture={user?.profilePicture}>{children}</MainLayout>;
+  return (
+    <LayoutProvider>
+      <MainLayout userEmail={user?.email} username={user?.username} profilePicture={user?.profilePicture}>
+        {children}
+      </MainLayout>
+    </LayoutProvider>
+  );
 }
 

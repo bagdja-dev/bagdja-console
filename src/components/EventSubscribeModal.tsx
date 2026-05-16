@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { X, Globe, Lock, Clock, AlertCircle, Link2, FileText, Search } from 'lucide-react';
+import { X, Globe, Lock, Clock, AlertCircle, Link2, FileText, Search, Copy, Check } from 'lucide-react';
 import { Input } from '@/ui/input';
 import { Button } from '@/ui/button';
 import { getAvailableEvents } from '@/lib/api';
@@ -16,6 +16,7 @@ interface EventSubscribeModalProps {
     contractId: string;
     webhookUrl?: string;
     eventName: string;
+    contract?: any;
   };
 }
 
@@ -27,6 +28,7 @@ export default function EventSubscribeModal({ isOpen, onClose, onSubmit, initial
   const [selectedContract, setSelectedContract] = useState<any | null>(null);
   const [webhookUrl, setWebhookUrl] = useState('');
   const [viewingContract, setViewingContract] = useState<any | null>(null);
+  const [copiedSchema, setCopiedSchema] = useState(false);
 
   useEffect(() => {
     if (isOpen) {
@@ -60,6 +62,16 @@ export default function EventSubscribeModal({ isOpen, onClose, onSubmit, initial
     }
   };
 
+  const handleCopySchema = async (schema: any) => {
+    try {
+      await navigator.clipboard.writeText(JSON.stringify(schema, null, 2));
+      setCopiedSchema(true);
+      setTimeout(() => setCopiedSchema(false), 2000);
+    } catch (err) {
+      console.error('Failed to copy schema:', err);
+    }
+  };
+
   if (!isOpen) return null;
 
   return (
@@ -81,18 +93,18 @@ export default function EventSubscribeModal({ isOpen, onClose, onSubmit, initial
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-6 space-y-6">
+        <div className="flex-1 flex flex-col min-h-0 p-6 space-y-6">
           {error && (
-            <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-xl flex items-start gap-3 text-red-600 text-sm">
+            <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-xl flex items-start gap-3 text-red-600 text-sm flex-shrink-0">
               <AlertCircle className="h-5 w-5 shrink-0" />
               <p>{error}</p>
             </div>
           )}
 
           {!selectedContractId || initialData ? (
-            <div className="space-y-4">
+            <div className="flex-1 flex flex-col min-h-0 space-y-4">
               {initialData ? (
-                <div className="p-4 bg-amber-500/5 rounded-xl border border-amber-500/10 flex items-center justify-between">
+                <div className="p-4 bg-amber-500/5 rounded-xl border border-amber-500/10 flex items-center justify-between flex-shrink-0">
                   <div className="flex items-center gap-3">
                     <Clock className="h-5 w-5 text-amber-500" />
                     <div>
@@ -102,12 +114,24 @@ export default function EventSubscribeModal({ isOpen, onClose, onSubmit, initial
                       </h4>
                     </div>
                   </div>
+                  {initialData.contract && (
+                    <button
+                      type="button"
+                      onClick={() => setViewingContract(initialData.contract)}
+                      className="text-xs font-bold text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:underline flex items-center gap-2"
+                    >
+                      <FileText className="h-4 w-4" />
+                      View Contract
+                    </button>
+                  )}
                 </div>
               ) : (
                 <DataGrid
                   title="Available Events"
                   description="Browse and select events available for subscription."
                   fetchData={getAvailableEvents}
+                  isScrollable={true}
+                  fullHeight={true}
                   onRowClick={(row) => {
                     setSelectedContractId(row.id);
                     setSelectedContract(row);
@@ -306,11 +330,20 @@ export default function EventSubscribeModal({ isOpen, onClose, onSubmit, initial
               <div className="rounded-xl border border-[var(--border-default)] bg-white/5 overflow-hidden">
                 <div className="px-4 py-3 border-b border-[var(--border-default)] flex items-center justify-between">
                   <span className="text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wider">Schema</span>
-                  <span className="text-[10px] text-[var(--text-secondary)] font-mono">
-                    {viewingContract.id}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] text-[var(--text-secondary)] font-mono">
+                      {viewingContract.id}
+                    </span>
+                    <button
+                      onClick={() => handleCopySchema(viewingContract.schema)}
+                      className="p-1.5 hover:bg-white/10 rounded-lg transition-colors text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                      title="Copy Schema"
+                    >
+                      {copiedSchema ? <Check className="h-3.5 w-3.5 text-green-500" /> : <Copy className="h-3.5 w-3.5" />}
+                    </button>
+                  </div>
                 </div>
-                <pre className="p-4 text-xs text-[var(--text-primary)] font-mono overflow-x-auto leading-relaxed">
+                <pre className="p-4 text-xs text-[var(--text-primary)] font-mono overflow-x-auto leading-relaxed scrollbar-thin">
                   {JSON.stringify(viewingContract.schema ?? {}, null, 2)}
                 </pre>
               </div>

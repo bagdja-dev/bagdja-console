@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { getClientApps, getAppUsers } from '@/lib/api';
@@ -19,6 +19,7 @@ import DistributePieceModal from '@/components/DistributePieceModal';
 import EventRegisterModal from '@/components/EventRegisterModal';
 import EventSubscribeModal from '@/components/EventSubscribeModal';
 import MessageTemplateModal from '@/components/MessageTemplateModal';
+import { useLayout } from '@/context/LayoutContext';
 import {
   getAppContracts,
   getInfraContracts,
@@ -52,11 +53,65 @@ export default function AppDetailPage() {
   const params = useParams();
   const router = useRouter();
   const appId = params?.id as string;
+  const { setTopbarContent } = useLayout();
+  const headerRef = useRef<HTMLDivElement>(null);
 
   const [app, setApp] = useState<ClientApp | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<TabType>('users');
+
+  // Contextual Topbar Logic
+  const isHeaderVisibleRef = useRef(true);
+
+  useEffect(() => {
+    if (!app) return;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        const currentlyVisible = entry.isIntersecting;
+
+        // Only update if visibility status changed to avoid unnecessary events
+        if (currentlyVisible !== isHeaderVisibleRef.current) {
+          isHeaderVisibleRef.current = currentlyVisible;
+
+          if (!currentlyVisible) {
+            setTopbarContent(
+              <div className="flex items-center gap-3 animate-in fade-in slide-in-from-left-4 duration-300">
+                <div className="p-1.5 bg-[var(--bg-surface)] rounded-lg border border-[var(--border-default)]">
+                  <Package className="h-4 w-4 text-[var(--action-primary)]" />
+                </div>
+                <div className="flex flex-col">
+                  <h1 className="text-sm font-bold text-[var(--text-primary)] leading-none">{app.appName}</h1>
+                  <div className="flex items-center gap-2 mt-1">
+                    <span className="text-[10px] text-[var(--text-secondary)] font-mono uppercase tracking-tighter">ID: {app.appId}</span>
+                    <span className={`text-[10px] font-bold uppercase px-1 rounded ${app.isActive ? 'text-green-500 bg-green-500/10' : 'text-red-500 bg-red-500/10'}`}>
+                      {app.isActive ? 'Active' : 'Inactive'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            );
+          } else {
+            setTopbarContent(null);
+          }
+        }
+      },
+      {
+        threshold: 0,
+        rootMargin: '-64px 0px 0px 0px'
+      }
+    );
+
+    if (headerRef.current) {
+      observer.observe(headerRef.current);
+    }
+
+    return () => {
+      observer.disconnect();
+      setTopbarContent(null);
+    };
+  }, [app, setTopbarContent]);
 
   // Users state
   const [appUsers, setAppUsers] = useState<AppUser[]>([]);
@@ -527,7 +582,8 @@ export default function AppDetailPage() {
       id: sub.id,
       contractId: sub.contractId,
       webhookUrl: sub.webhookUrl,
-      eventName: sub.contract?.eventName
+      eventName: sub.contract?.eventName,
+      contract: sub.contract
     });
     setEventSubscribeModalOpen(true);
   };
@@ -786,18 +842,20 @@ export default function AppDetailPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="flex flex-col min-h-full space-y-6">
       {/* Back Button */}
-      <Link
-        href="/applications/owned"
-        className="inline-flex items-center text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
-      >
-        <ArrowLeft className="mr-2 h-4 w-4" />
-        Back to Apps
-      </Link>
+      <div className="flex-shrink-0">
+        <Link
+          href="/applications/owned"
+          className="inline-flex items-center text-sm text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+        >
+          <ArrowLeft className="mr-2 h-4 w-4" />
+          Back to Apps
+        </Link>
+      </div>
 
       {/* Header Section */}
-      <div className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-surface)] p-6">
+      <div ref={headerRef} className="flex-shrink-0 rounded-lg border border-[var(--border-default)] bg-[var(--bg-surface)] p-6">
         <div className="flex items-start gap-6">
           {/* Logo */}
           <div className="flex-shrink-0">
@@ -858,8 +916,8 @@ export default function AppDetailPage() {
       </div>
 
       {/* Tab Navigation */}
-      <div className="border-b border-[var(--border-default)]">
-        <nav className="flex gap-8">
+      <div className="sticky top-0 z-10 border-b border-[var(--border-default)] bg-[var(--bg-main)] -mx-4 px-4 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8 pt-4">
+        <nav className="flex gap-8 overflow-x-auto no-scrollbar">
           <button
             onClick={() => setActiveTab('users')}
             className={`pb-4 px-1 border-b-2 font-medium text-sm transition-colors ${activeTab === 'users'
@@ -948,7 +1006,7 @@ export default function AppDetailPage() {
       </div>
 
       {/* Tab Content */}
-      <div className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-surface)]">
+      <div className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-surface)] h-[calc(100vh-158px)] overflow-y-auto scrollbar-thin">
         {/* Users Tab */}
         {activeTab === 'users' && (
           <div className="p-6">
@@ -1656,511 +1714,519 @@ export default function AppDetailPage() {
 
         {/* Event Tab */}
         {activeTab === 'events' && (
-          <div className="p-6">
-            <div className="mb-6 flex flex-col gap-4">
-              <div>
-                <h2 className="text-lg font-semibold text-[var(--text-primary)]">Event Management</h2>
-                <p className="text-sm text-[var(--text-secondary)] mt-1">
-                  Manage broadcasting, subscriptions, and logs for this application
-                </p>
-              </div>
+          <div className="p-6 h-full flex flex-col overflow-hidden">
+            <div className="flex-shrink-0 mb-6">
+              <h2 className="text-lg font-semibold text-[var(--text-primary)]">Event Management</h2>
+              <p className="text-sm text-[var(--text-secondary)] mt-1">
+                Manage broadcasting, subscriptions, and logs for this application
+              </p>
+            </div>
 
-              {/* Sub-tabs */}
-              <div className="flex gap-4 border-b border-[var(--border-default)]">
-                <button
-                  onClick={() => setEventSubTab('broadcast')}
-                  className={`pb-2 px-1 border-b-2 text-sm font-medium transition-colors ${eventSubTab === 'broadcast'
-                    ? 'border-[var(--action-primary)] text-[var(--action-primary)]'
-                    : 'border-transparent text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
-                    }`}
-                >
-                  <div className="flex items-center gap-2">
-                    <Globe className="h-4 w-4" />
-                    Broadcast
-                  </div>
-                </button>
-                <button
-                  onClick={() => setEventSubTab('subscribe')}
-                  className={`pb-2 px-1 border-b-2 text-sm font-medium transition-colors ${eventSubTab === 'subscribe'
-                    ? 'border-[var(--action-primary)] text-[var(--action-primary)]'
-                    : 'border-transparent text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
-                    }`}
-                >
-                  <div className="flex items-center gap-2">
-                    <List className="h-4 w-4" />
-                    Subscribe
-                  </div>
-                </button>
-                <button
-                  onClick={() => setEventSubTab('requests')}
-                  className={`pb-2 px-1 border-b-2 text-sm font-medium transition-colors ${eventSubTab === 'requests'
-                    ? 'border-[var(--action-primary)] text-[var(--action-primary)]'
-                    : 'border-transparent text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
-                    }`}
-                >
-                  <div className="flex items-center gap-2 justify-center">
-                    <CheckCircle className="h-4 w-4" />
-                    Subscriber Request
-                    {subscriptionRequests.filter(r => r.status === 'PENDING').length > 0 && (
-                      <span className="ml-1 px-1.5 py-0.5 bg-red-500 text-white text-[10px] rounded-full">
-                        {subscriptionRequests.filter(r => r.status === 'PENDING').length}
-                      </span>
-                    )}
-                  </div>
-                </button>
+            {/* Sub-tabs */}
+            <div className="flex-shrink-0 flex gap-4 border-b border-[var(--border-default)] mb-6">
+              <button
+                onClick={() => setEventSubTab('broadcast')}
+                className={`pb-2 px-1 border-b-2 text-sm font-medium transition-colors ${eventSubTab === 'broadcast'
+                  ? 'border-[var(--action-primary)] text-[var(--action-primary)]'
+                  : 'border-transparent text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+                  }`}
+              >
+                <div className="flex items-center gap-2">
+                  <Globe className="h-4 w-4" />
+                  Broadcast
+                </div>
+              </button>
+              <button
+                onClick={() => setEventSubTab('subscribe')}
+                className={`pb-2 px-1 border-b-2 text-sm font-medium transition-colors ${eventSubTab === 'subscribe'
+                  ? 'border-[var(--action-primary)] text-[var(--action-primary)]'
+                  : 'border-transparent text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+                  }`}
+              >
+                <div className="flex items-center gap-2">
+                  <List className="h-4 w-4" />
+                  Subscribe
+                </div>
+              </button>
+              <button
+                onClick={() => setEventSubTab('requests')}
+                className={`pb-2 px-1 border-b-2 text-sm font-medium transition-colors ${eventSubTab === 'requests'
+                  ? 'border-[var(--action-primary)] text-[var(--action-primary)]'
+                  : 'border-transparent text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+                  }`}
+              >
+                <div className="flex items-center gap-2 justify-center">
+                  <CheckCircle className="h-4 w-4" />
+                  Subscriber Request
+                  {subscriptionRequests.filter(r => r.status === 'PENDING').length > 0 && (
+                    <span className="ml-1 px-1.5 py-0.5 bg-red-500 text-white text-[10px] rounded-full">
+                      {subscriptionRequests.filter(r => r.status === 'PENDING').length}
+                    </span>
+                  )}
+                </div>
+              </button>
 
-                <button
-                  onClick={() => setEventSubTab('log')}
-                  className={`pb-2 px-1 border-b-2 text-sm font-medium transition-colors ${eventSubTab === 'log'
-                    ? 'border-[var(--action-primary)] text-[var(--action-primary)]'
-                    : 'border-transparent text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
-                    }`}
-                >
-                  <div className="flex items-center gap-2">
-                    <History className="h-4 w-4" />
-                    Log
-                  </div>
-                </button>
-              </div>
+              <button
+                onClick={() => setEventSubTab('log')}
+                className={`pb-2 px-1 border-b-2 text-sm font-medium transition-colors ${eventSubTab === 'log'
+                  ? 'border-[var(--action-primary)] text-[var(--action-primary)]'
+                  : 'border-transparent text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+                  }`}
+              >
+                <div className="flex items-center gap-2">
+                  <History className="h-4 w-4" />
+                  Log
+                </div>
+              </button>
             </div>
 
             {/* Sub-tab Content */}
-            {eventSubTab === 'broadcast' && (
-              <DataGrid
-                title="Your Event Contracts"
-                description="Manage events that this application broadcasts to the hub."
-                fetchData={(params) => getInfraContracts({ ...params, filter: { ...params.filter, appId: app?.appId } })}
-                refreshTrigger={refreshContracts}
-                actions={[
-                  {
-                    label: '',
-                    icon: <Plus className="h-4 w-4" />,
-                    onClick: () => setEventRegisterModalOpen(true),
-                    variant: 'secondary'
-                  }
-                ]}
-                columns={[
-                  {
-                    key: 'eventName',
-                    label: 'Event Name',
-                    sortable: true,
-                    render: (val) => (
-                      <div className="flex items-center gap-3">
-                        <div className="p-2 bg-[var(--bg-surface)] rounded-lg border border-[var(--border-default)]">
-                          <Code className="h-4 w-4 text-[var(--text-secondary)]" />
+            <div className="flex-1 min-h-0 flex flex-col">
+              {eventSubTab === 'broadcast' && (
+                <DataGrid
+                  title="Your Event Contracts"
+                  description="Manage events that this application broadcasts to the hub."
+                  fetchData={(params) => getInfraContracts({ ...params, filter: { ...params.filter, appId: app?.appId } })}
+                  refreshTrigger={refreshContracts}
+                  isScrollable={true}
+                  fullHeight={true}
+                  actions={[
+                    {
+                      label: '',
+                      icon: <Plus className="h-4 w-4" />,
+                      onClick: () => setEventRegisterModalOpen(true),
+                      variant: 'secondary'
+                    }
+                  ]}
+                  columns={[
+                    {
+                      key: 'eventName',
+                      label: 'Event Name',
+                      sortable: true,
+                      render: (val) => (
+                        <div className="flex items-center gap-3">
+                          <div className="p-2 bg-[var(--bg-surface)] rounded-lg border border-[var(--border-default)]">
+                            <Code className="h-4 w-4 text-[var(--text-secondary)]" />
+                          </div>
+                          <span className="text-sm font-medium text-[var(--text-primary)]">{val}</span>
                         </div>
-                        <span className="text-sm font-medium text-[var(--text-primary)]">{val}</span>
-                      </div>
-                    )
-                  },
-                  {
-                    key: 'isPublic',
-                    label: 'Privacy',
-                    sortable: true,
-                    render: (val) => val ? (
-                      <span className="px-2.5 py-0.5 bg-blue-500/10 text-blue-400 text-[10px] font-bold uppercase rounded-full border border-blue-500/20">Public</span>
-                    ) : (
-                      <span className="px-2.5 py-0.5 bg-gray-500/10 text-gray-400 text-[10px] font-bold uppercase rounded-full border border-gray-500/20">Private</span>
-                    )
-                  },
-                  {
-                    key: 'isActive',
-                    label: 'Status',
-                    sortable: true,
-                    render: (val) => val ? (
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-green-500/10 text-green-400 border border-green-500/20 uppercase">Active</span>
-                    ) : (
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-red-500/10 text-red-400 border border-red-500/20 uppercase">Inactive</span>
-                    )
-                  },
-                  {
-                    key: 'createdAt',
-                    label: 'Created',
-                    sortable: true,
-                    render: (val) => (
-                      <div className="flex items-center gap-2 text-[var(--text-secondary)]">
-                        <Calendar className="h-3.5 w-3.5" />
-                        <span className="text-xs">{new Date(val).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
-                      </div>
-                    )
-                  },
-                  {
-                    key: 'id',
-                    label: 'Actions',
-                    render: (_, row) => (
-                      <div className="flex items-center justify-end gap-3" onClick={(e) => e.stopPropagation()}>
-                        <button
-                          onClick={() => openEditEvent(row)}
-                          className="text-[var(--action-primary)] hover:text-[var(--action-primary-hover)] inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider transition-colors"
-                          title="Edit Contract"
-                        >
-                          <Edit className="h-4 w-4" />
-                        </button>
-                        <button
-                          onClick={() => handleDeleteEvent(row.id)}
-                          className="text-red-500 hover:text-red-600 inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider transition-colors"
-                          title="Delete Contract"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                      </div>
-                    )
-                  }
-                ]}
-                filterFields={[
-                  { key: 'eventName', label: 'Event Name', type: 'text', placeholder: 'e.g. payment.paid' },
-                  {
-                    key: 'isActive',
-                    label: 'Status',
-                    type: 'select',
-                    options: [
-                      { label: 'Active', value: 'true' },
-                      { label: 'Inactive', value: 'false' }
-                    ]
-                  },
-                  {
-                    key: 'isPublic',
-                    label: 'Privacy',
-                    type: 'select',
-                    options: [
-                      { label: 'Public', value: 'true' },
-                      { label: 'Private', value: 'false' }
-                    ]
-                  }
-                ]}
-                emptyState={{
-                  title: "No event contracts yet",
-                  description: "Manage events that this application broadcasts to the hub. Start by registering your first event contract.",
-                  icon: <Activity className="h-8 w-8 text-[var(--text-secondary)] opacity-50" />
-                }}
-              />
-            )}
+                      )
+                    },
+                    {
+                      key: 'isPublic',
+                      label: 'Privacy',
+                      sortable: true,
+                      render: (val) => val ? (
+                        <span className="px-2.5 py-0.5 bg-blue-500/10 text-blue-400 text-[10px] font-bold uppercase rounded-full border border-blue-500/20">Public</span>
+                      ) : (
+                        <span className="px-2.5 py-0.5 bg-gray-500/10 text-gray-400 text-[10px] font-bold uppercase rounded-full border border-gray-500/20">Private</span>
+                      )
+                    },
+                    {
+                      key: 'isActive',
+                      label: 'Status',
+                      sortable: true,
+                      render: (val) => val ? (
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-green-500/10 text-green-400 border border-green-500/20 uppercase">Active</span>
+                      ) : (
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-red-500/10 text-red-400 border border-red-500/20 uppercase">Inactive</span>
+                      )
+                    },
+                    {
+                      key: 'createdAt',
+                      label: 'Created',
+                      sortable: true,
+                      render: (val) => (
+                        <div className="flex items-center gap-2 text-[var(--text-secondary)]">
+                          <Calendar className="h-3.5 w-3.5" />
+                          <span className="text-xs">{new Date(val).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
+                        </div>
+                      )
+                    },
+                    {
+                      key: 'id',
+                      label: 'Actions',
+                      render: (_, row) => (
+                        <div className="flex items-center justify-end gap-3" onClick={(e) => e.stopPropagation()}>
+                          <button
+                            onClick={() => openEditEvent(row)}
+                            className="text-[var(--action-primary)] hover:text-[var(--action-primary-hover)] inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider transition-colors"
+                            title="Edit Contract"
+                          >
+                            <Edit className="h-4 w-4" />
+                          </button>
+                          <button
+                            onClick={() => handleDeleteEvent(row.id)}
+                            className="text-red-500 hover:text-red-600 inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider transition-colors"
+                            title="Delete Contract"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </div>
+                      )
+                    }
+                  ]}
+                  filterFields={[
+                    { key: 'eventName', label: 'Event Name', type: 'text', placeholder: 'e.g. payment.paid' },
+                    {
+                      key: 'isActive',
+                      label: 'Status',
+                      type: 'select',
+                      options: [
+                        { label: 'Active', value: 'true' },
+                        { label: 'Inactive', value: 'false' }
+                      ]
+                    },
+                    {
+                      key: 'isPublic',
+                      label: 'Privacy',
+                      type: 'select',
+                      options: [
+                        { label: 'Public', value: 'true' },
+                        { label: 'Private', value: 'false' }
+                      ]
+                    }
+                  ]}
+                  emptyState={{
+                    title: "No event contracts yet",
+                    description: "Manage events that this application broadcasts to the hub. Start by registering your first event contract.",
+                    icon: <Activity className="h-8 w-8 text-[var(--text-secondary)] opacity-50" />
+                  }}
+                />
+              )}
 
-            {eventSubTab === 'subscribe' && (
-              <DataGrid
-                title="Your Subscriptions"
-                description="Events that this application is currently subscribed to."
-                fetchData={(params) => getMyAppSubscriptions(app?.appId, params)}
-                refreshTrigger={refreshContracts}
-                actions={[
-                  {
-                    label: '',
-                    icon: <Plus className="h-4 w-4" />,
-                    onClick: () => setEventSubscribeModalOpen(true),
-                    variant: 'secondary'
-                  }
-                ]}
-                columns={[
-                  {
-                    key: 'eventName',
-                    label: 'Event',
-                    sortable: true,
-                    render: (_, row) => (
-                      <div className="flex items-center gap-3">
-                        <div className="p-2 bg-blue-500/10 rounded-lg border border-blue-500/20">
-                          <Globe className="h-4 w-4 text-blue-400" />
+              {eventSubTab === 'subscribe' && (
+                <DataGrid
+                  title="Your Subscriptions"
+                  description="Events that this application is currently subscribed to."
+                  fetchData={(params) => getMyAppSubscriptions(app?.appId, params)}
+                  refreshTrigger={refreshContracts}
+                  isScrollable={true}
+                  fullHeight={true}
+                  actions={[
+                    {
+                      label: '',
+                      icon: <Plus className="h-4 w-4" />,
+                      onClick: () => setEventSubscribeModalOpen(true),
+                      variant: 'secondary'
+                    }
+                  ]}
+                  columns={[
+                    {
+                      key: 'eventName',
+                      label: 'Event',
+                      sortable: true,
+                      render: (_, row) => (
+                        <div className="flex items-center gap-3">
+                          <div className="p-2 bg-blue-500/10 rounded-lg border border-blue-500/20">
+                            <Globe className="h-4 w-4 text-blue-400" />
+                          </div>
+                          <span className="text-sm font-medium text-[var(--text-primary)]">{row.contract?.eventName}</span>
                         </div>
+                      )
+                    },
+                    {
+                      key: 'sourceService',
+                      label: 'Source Service',
+                      render: (_, row) => (
+                        <span className="text-xs font-bold text-[var(--text-secondary)] uppercase tracking-tight">{row.contract?.app?.appId}</span>
+                      )
+                    },
+                    {
+                      key: 'webhookUrl',
+                      label: 'Webhook',
+                      sortable: true,
+                      render: (val) => val ? (
+                        <div className="flex items-center gap-1.5 text-[var(--text-secondary)]">
+                          <Link2 className="h-3.5 w-3.5" />
+                          <span className="text-xs truncate max-w-[150px]" title={val}>{val}</span>
+                        </div>
+                      ) : (
+                        <span className="text-[10px] text-gray-400 italic">WebSocket Only</span>
+                      )
+                    },
+                    {
+                      key: 'status',
+                      label: 'Status',
+                      sortable: true,
+                      render: (val) => (
+                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase border ${val === 'approved'
+                          ? 'bg-green-500/10 text-green-400 border-green-500/20'
+                          : val === 'pending'
+                            ? 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20'
+                            : 'bg-red-500/10 text-red-400 border-red-500/20'
+                          }`}>
+                          {val === 'approved' ? 'Active' : val}
+                        </span>
+                      )
+                    },
+                    {
+                      key: 'id',
+                      label: 'Actions',
+                      render: (_, row) => (
+                        <div className="flex items-center justify-end gap-3" onClick={(e) => e.stopPropagation()}>
+                          <button
+                            onClick={() => openEditSubscription(row)}
+                            className="text-[var(--action-primary)] hover:text-[var(--action-primary-hover)] text-xs font-bold uppercase tracking-wider transition-colors"
+                          >
+                            Edit
+                          </button>
+                          <button
+                            onClick={() => handleUnsubscribe(row.id)}
+                            className="text-red-400 hover:text-red-300 text-xs font-bold uppercase tracking-wider transition-colors"
+                          >
+                            Unsubscribe
+                          </button>
+                        </div>
+                      )
+                    }
+                  ]}
+                  filterFields={[
+                    { key: 'eventName', label: 'Event Name', type: 'text', placeholder: 'e.g. payment.paid' },
+                    {
+                      key: 'status',
+                      label: 'Status',
+                      type: 'select',
+                      options: [
+                        { label: 'Active', value: 'approved' },
+                        { label: 'Pending', value: 'pending' },
+                        { label: 'Rejected', value: 'rejected' }
+                      ]
+                    }
+                  ]}
+                />
+              )}
+
+              {eventSubTab === 'requests' && (
+                <DataGrid
+                  title="Subscription Requests"
+                  description="Applications requesting to subscribe to your events."
+                  fetchData={(params) => getSubscriptionRequests(app?.appId, params)}
+                  refreshTrigger={refreshContracts}
+                  isScrollable={true}
+                  fullHeight={true}
+                  columns={[
+                    {
+                      key: 'subscriberApp',
+                      label: 'Subscriber App',
+                      render: (_, row) => (
+                        <div className="flex flex-col">
+                          <span className="text-sm font-bold text-[var(--text-primary)]">{row.app?.appId}</span>
+                          <span className="text-[10px] text-[var(--text-secondary)] uppercase font-medium">{row.app?.orgSlug}</span>
+                        </div>
+                      )
+                    },
+                    {
+                      key: 'eventName',
+                      label: 'Event Name',
+                      render: (_, row) => (
                         <span className="text-sm font-medium text-[var(--text-primary)]">{row.contract?.eventName}</span>
-                      </div>
-                    )
-                  },
-                  {
-                    key: 'sourceService',
-                    label: 'Source Service',
-                    render: (_, row) => (
-                      <span className="text-xs font-bold text-[var(--text-secondary)] uppercase tracking-tight">{row.contract?.app?.appId}</span>
-                    )
-                  },
-                  {
-                    key: 'webhookUrl',
-                    label: 'Webhook',
-                    sortable: true,
-                    render: (val) => val ? (
-                      <div className="flex items-center gap-1.5 text-[var(--text-secondary)]">
-                        <Link2 className="h-3.5 w-3.5" />
-                        <span className="text-xs truncate max-w-[150px]" title={val}>{val}</span>
-                      </div>
-                    ) : (
-                      <span className="text-[10px] text-gray-400 italic">WebSocket Only</span>
-                    )
-                  },
-                  {
-                    key: 'status',
-                    label: 'Status',
-                    sortable: true,
-                    render: (val) => (
-                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase border ${val === 'approved'
-                        ? 'bg-green-500/10 text-green-400 border-green-500/20'
-                        : val === 'pending'
-                          ? 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20'
-                          : 'bg-red-500/10 text-red-400 border-red-500/20'
-                        }`}>
-                        {val === 'approved' ? 'Active' : val}
-                      </span>
-                    )
-                  },
-                  {
-                    key: 'id',
-                    label: 'Actions',
-                    render: (_, row) => (
-                      <div className="flex items-center justify-end gap-3" onClick={(e) => e.stopPropagation()}>
-                        <button
-                          onClick={() => openEditSubscription(row)}
-                          className="text-[var(--action-primary)] hover:text-[var(--action-primary-hover)] text-xs font-bold uppercase tracking-wider transition-colors"
-                        >
-                          Edit
-                        </button>
-                        <button
-                          onClick={() => handleUnsubscribe(row.id)}
-                          className="text-red-400 hover:text-red-300 text-xs font-bold uppercase tracking-wider transition-colors"
-                        >
-                          Unsubscribe
-                        </button>
-                      </div>
-                    )
-                  }
-                ]}
-                filterFields={[
-                  { key: 'eventName', label: 'Event Name', type: 'text', placeholder: 'e.g. payment.paid' },
-                  {
-                    key: 'status',
-                    label: 'Status',
-                    type: 'select',
-                    options: [
-                      { label: 'Active', value: 'approved' },
-                      { label: 'Pending', value: 'pending' },
-                      { label: 'Rejected', value: 'rejected' }
-                    ]
-                  }
-                ]}
-              />
-            )}
-
-            {eventSubTab === 'requests' && (
-              <DataGrid
-                title="Subscription Requests"
-                description="Applications requesting to subscribe to your events."
-                fetchData={(params) => getSubscriptionRequests(app?.appId, params)}
-                refreshTrigger={refreshContracts}
-                columns={[
-                  {
-                    key: 'subscriberApp',
-                    label: 'Subscriber App',
-                    render: (_, row) => (
-                      <div className="flex flex-col">
-                        <span className="text-sm font-bold text-[var(--text-primary)]">{row.app?.appId}</span>
-                        <span className="text-[10px] text-[var(--text-secondary)] uppercase font-medium">{row.app?.orgSlug}</span>
-                      </div>
-                    )
-                  },
-                  {
-                    key: 'eventName',
-                    label: 'Event Name',
-                    render: (_, row) => (
-                      <span className="text-sm font-medium text-[var(--text-primary)]">{row.contract?.eventName}</span>
-                    )
-                  },
-                  {
-                    key: 'webhookUrl',
-                    label: 'Webhook URL',
-                    render: (val) => (
-                      <span className="text-xs text-[var(--text-secondary)] font-mono">{val || 'WebSocket Only'}</span>
-                    )
-                  },
-                  {
-                    key: 'status',
-                    label: 'Status',
-                    sortable: true,
-                    render: (val) => (
-                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase border ${val === 'approved'
-                        ? 'bg-green-500/10 text-green-400 border-green-500/20'
-                        : val === 'rejected'
-                          ? 'bg-red-500/10 text-red-400 border-red-500/20'
-                          : 'bg-amber-500/10 text-amber-400 border-amber-500/20'
-                        }`}>
-                        {val}
-                      </span>
-                    )
-                  },
-                  {
-                    key: 'actions',
-                    label: 'Actions',
-                    render: (_, row) => (
-                      <div className="flex items-center justify-end gap-2" onClick={(e) => e.stopPropagation()}>
-                        {row.status === 'pending' && (
-                          <>
-                            <button
-                              onClick={() => handleUpdateSubscriptionStatus(row.id, 'approved')}
-                              className="px-3 py-1 bg-[var(--action-primary)] text-white text-[10px] font-bold rounded hover:opacity-90 transition-opacity uppercase"
-                            >
-                              Approve
-                            </button>
-                            <button
-                              onClick={() => handleUpdateSubscriptionStatus(row.id, 'rejected')}
-                              className="px-3 py-1 bg-red-500 text-white text-[10px] font-bold rounded hover:opacity-90 transition-opacity uppercase"
-                            >
-                              Reject
-                            </button>
-                          </>
-                        )}
-                        {row.status === 'approved' && (
-                          <>
+                      )
+                    },
+                    {
+                      key: 'webhookUrl',
+                      label: 'Webhook URL',
+                      render: (val) => (
+                        <span className="text-xs text-[var(--text-secondary)] font-mono">{val || 'WebSocket Only'}</span>
+                      )
+                    },
+                    {
+                      key: 'status',
+                      label: 'Status',
+                      sortable: true,
+                      render: (val) => (
+                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase border ${val === 'approved'
+                          ? 'bg-green-500/10 text-green-400 border-green-500/20'
+                          : val === 'rejected'
+                            ? 'bg-red-500/10 text-red-400 border-red-500/20'
+                            : 'bg-amber-500/10 text-amber-400 border-amber-500/20'
+                          }`}>
+                          {val}
+                        </span>
+                      )
+                    },
+                    {
+                      key: 'actions',
+                      label: 'Actions',
+                      render: (_, row) => (
+                        <div className="flex items-center justify-end gap-2" onClick={(e) => e.stopPropagation()}>
+                          {row.status === 'pending' && (
+                            <>
+                              <button
+                                onClick={() => handleUpdateSubscriptionStatus(row.id, 'approved')}
+                                className="px-3 py-1 bg-[var(--action-primary)] text-white text-[10px] font-bold rounded hover:opacity-90 transition-opacity uppercase"
+                              >
+                                Approve
+                              </button>
+                              <button
+                                onClick={() => handleUpdateSubscriptionStatus(row.id, 'rejected')}
+                                className="px-3 py-1 bg-red-500 text-white text-[10px] font-bold rounded hover:opacity-90 transition-opacity uppercase"
+                              >
+                                Reject
+                              </button>
+                            </>
+                          )}
+                          {row.status === 'approved' && (
+                            <>
+                              <button
+                                onClick={() => handleUpdateSubscriptionStatus(row.id, 'pending')}
+                                className="text-[var(--text-secondary)] hover:text-amber-500 text-[10px] font-bold uppercase tracking-wider transition-colors"
+                                title="Suspend and set to pending"
+                              >
+                                Suspend
+                              </button>
+                              <span className="text-[var(--border-default)]">|</span>
+                              <button
+                                onClick={() => handleUpdateSubscriptionStatus(row.id, 'rejected')}
+                                className="text-red-400 hover:text-red-500 text-[10px] font-bold uppercase tracking-wider transition-colors"
+                                title="Reject and block access"
+                              >
+                                Reject
+                              </button>
+                            </>
+                          )}
+                          {row.status === 'rejected' && (
                             <button
                               onClick={() => handleUpdateSubscriptionStatus(row.id, 'pending')}
-                              className="text-[var(--text-secondary)] hover:text-amber-500 text-[10px] font-bold uppercase tracking-wider transition-colors"
-                              title="Suspend and set to pending"
+                              className="text-[var(--text-secondary)] hover:text-[var(--text-primary)] text-[10px] font-bold uppercase tracking-wider transition-colors"
                             >
-                              Suspend
+                              Reset to Pending
                             </button>
-                            <span className="text-[var(--border-default)]">|</span>
-                            <button
-                              onClick={() => handleUpdateSubscriptionStatus(row.id, 'rejected')}
-                              className="text-red-400 hover:text-red-500 text-[10px] font-bold uppercase tracking-wider transition-colors"
-                              title="Reject and block access"
-                            >
-                              Reject
-                            </button>
-                          </>
-                        )}
-                        {row.status === 'rejected' && (
-                          <button
-                            onClick={() => handleUpdateSubscriptionStatus(row.id, 'pending')}
-                            className="text-[var(--text-secondary)] hover:text-[var(--text-primary)] text-[10px] font-bold uppercase tracking-wider transition-colors"
-                          >
-                            Reset to Pending
-                          </button>
-                        )}
-                      </div>
-                    )
-                  }
-                ]}
-                filterFields={[
-                  { key: 'eventName', label: 'Event Name', type: 'text', placeholder: 'e.g. payment.paid' },
-                  { key: 'subscriberAppId', label: 'Subscriber App', type: 'text', placeholder: 'App ID slug' },
-                  {
-                    key: 'status',
-                    label: 'Status',
-                    type: 'select',
-                    options: [
-                      { label: 'Approved', value: 'approved' },
-                      { label: 'Pending', value: 'pending' },
-                      { label: 'Rejected', value: 'rejected' }
-                    ]
-                  }
-                ]}
-                emptyState={{
-                  title: "No subscription requests yet",
-                  description: "Applications requesting to subscribe to your events.",
-                  icon: <CheckCircle className="h-8 w-8 text-[var(--text-secondary)] opacity-50" />
-                }}
-              />
-            )}
+                          )}
+                        </div>
+                      )
+                    }
+                  ]}
+                  filterFields={[
+                    { key: 'eventName', label: 'Event Name', type: 'text', placeholder: 'e.g. payment.paid' },
+                    { key: 'subscriberAppId', label: 'Subscriber App', type: 'text', placeholder: 'App ID slug' },
+                    {
+                      key: 'status',
+                      label: 'Status',
+                      type: 'select',
+                      options: [
+                        { label: 'Approved', value: 'approved' },
+                        { label: 'Pending', value: 'pending' },
+                        { label: 'Rejected', value: 'rejected' }
+                      ]
+                    }
+                  ]}
+                  emptyState={{
+                    title: "No subscription requests yet",
+                    description: "Applications requesting to subscribe to your events.",
+                    icon: <CheckCircle className="h-8 w-8 text-[var(--text-secondary)] opacity-50" />
+                  }}
+                />
+              )}
 
-            {eventSubTab === 'log' && (
-              <DataGrid
-                title="Event Logs"
-                description="Event history and logs for this application."
-                fetchData={(params) => getEventLogs(app?.appId, params)}
-                columns={[
-                  {
-                    key: 'type',
-                    label: 'Type',
-                    render: (val) => val === 'broadcast' ? (
-                      <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-blue-500/10 text-blue-400 text-[10px] font-bold uppercase border border-blue-500/20">
-                        <Activity className="h-3 w-3" />
-                        Broadcast
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-purple-500/10 text-purple-400 text-[10px] font-bold uppercase border border-purple-500/20">
-                        <Link2 className="h-3 w-3" />
-                        Delivery
-                      </span>
-                    )
-                  },
-                  { key: 'eventName', label: 'Event Name', sortable: true },
-                  {
-                    key: 'status',
-                    label: 'Status',
-                    sortable: true,
-                    render: (val) => val === 'success' ? (
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-green-500/10 text-green-400 border border-green-500/20 uppercase">Success</span>
-                    ) : (
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-red-500/10 text-red-400 border border-red-500/20 uppercase">{val}</span>
-                    )
-                  },
-                  {
-                    key: 'targetUrl',
-                    label: 'Target/Response',
-                    render: (val, row) => (
-                      <div className="flex flex-col gap-1">
-                        {val && (
-                          <span className="text-[10px] text-[var(--text-secondary)] font-mono truncate max-w-[200px]" title={val}>
-                            {val}
-                          </span>
-                        )}
-                        {row.responseTimeMs && (
-                          <span className="text-[10px] text-gray-500 italic">
-                            Response: {row.responseTimeMs}ms
-                          </span>
-                        )}
-                        {row.errorDetails && row.status === 'failed' && (
-                          <span className="text-[10px] text-red-400/80 italic truncate max-w-[200px]" title={row.errorDetails}>
-                            Error: {row.errorDetails}
-                          </span>
-                        )}
-                      </div>
-                    )
-                  },
-                  {
-                    key: 'createdAt',
-                    label: 'Time',
-                    sortable: true,
-                    render: (val) => (
-                      <div className="flex items-center gap-2 text-[var(--text-secondary)]">
-                        <Clock className="h-3.5 w-3.5" />
-                        <span className="text-xs">
-                          {new Date(val).toLocaleString(undefined, {
-                            year: 'numeric',
-                            month: 'short',
-                            day: '2-digit',
-                            hour: '2-digit',
-                            minute: '2-digit',
-                            second: '2-digit',
-                            timeZoneName: 'shortOffset'
-                          })}
+              {eventSubTab === 'log' && (
+                <DataGrid
+                  title="Event Logs"
+                  description="Event history and logs for this application."
+                  fetchData={(params) => getEventLogs(app?.appId, params)}
+                  isScrollable={true}
+                  fullHeight={true}
+                  columns={[
+                    {
+                      key: 'type',
+                      label: 'Type',
+                      render: (val) => val === 'broadcast' ? (
+                        <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-blue-500/10 text-blue-400 text-[10px] font-bold uppercase border border-blue-500/20">
+                          <Activity className="h-3 w-3" />
+                          Broadcast
                         </span>
-                      </div>
-                    )
-                  }
-                ]}
-                filterFields={[
-                  { key: 'eventName', label: 'Event Name', type: 'text', placeholder: 'e.g. payment.paid' },
-                  {
-                    key: 'status',
-                    label: 'Status',
-                    type: 'select',
-                    options: [
-                      { label: 'Success', value: 'success' },
-                      { label: 'Failed', value: 'failed' }
-                    ]
-                  },
-                  {
-                    key: 'type',
-                    label: 'Log Type',
-                    type: 'select',
-                    options: [
-                      { label: 'Broadcast', value: 'broadcast' },
-                      { label: 'Delivery', value: 'delivery' }
-                    ]
-                  },
-                  { key: 'appId', label: 'App Slug', type: 'text', placeholder: 'App ID slug' }
-                ]}
-                onRowClick={(row) => {
-                  setSelectedLog(row);
-                  setLogDetailModalOpen(true);
-                }}
-              />
-            )}
+                      ) : (
+                        <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-purple-500/10 text-purple-400 text-[10px] font-bold uppercase border border-purple-500/20">
+                          <Link2 className="h-3 w-3" />
+                          Delivery
+                        </span>
+                      )
+                    },
+                    { key: 'eventName', label: 'Event Name', sortable: true },
+                    {
+                      key: 'status',
+                      label: 'Status',
+                      sortable: true,
+                      render: (val) => val === 'success' ? (
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-green-500/10 text-green-400 border border-green-500/20 uppercase">Success</span>
+                      ) : (
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-red-500/10 text-red-400 border border-red-500/20 uppercase">{val}</span>
+                      )
+                    },
+                    {
+                      key: 'targetUrl',
+                      label: 'Target/Response',
+                      render: (val, row) => (
+                        <div className="flex flex-col gap-1">
+                          {val && (
+                            <span className="text-[10px] text-[var(--text-secondary)] font-mono truncate max-w-[200px]" title={val}>
+                              {val}
+                            </span>
+                          )}
+                          {row.responseTimeMs && (
+                            <span className="text-[10px] text-gray-500 italic">
+                              Response: {row.responseTimeMs}ms
+                            </span>
+                          )}
+                          {row.errorDetails && row.status === 'failed' && (
+                            <span className="text-[10px] text-red-400/80 italic truncate max-w-[200px]" title={row.errorDetails}>
+                              Error: {row.errorDetails}
+                            </span>
+                          )}
+                        </div>
+                      )
+                    },
+                    {
+                      key: 'createdAt',
+                      label: 'Time',
+                      sortable: true,
+                      render: (val) => (
+                        <div className="flex items-center gap-2 text-[var(--text-secondary)]">
+                          <Clock className="h-3.5 w-3.5" />
+                          <span className="text-xs">
+                            {new Date(val).toLocaleString(undefined, {
+                              year: 'numeric',
+                              month: 'short',
+                              day: '2-digit',
+                              hour: '2-digit',
+                              minute: '2-digit',
+                              second: '2-digit',
+                              timeZoneName: 'shortOffset'
+                            })}
+                          </span>
+                        </div>
+                      )
+                    }
+                  ]}
+                  filterFields={[
+                    { key: 'eventName', label: 'Event Name', type: 'text', placeholder: 'e.g. payment.paid' },
+                    {
+                      key: 'status',
+                      label: 'Status',
+                      type: 'select',
+                      options: [
+                        { label: 'Success', value: 'success' },
+                        { label: 'Failed', value: 'failed' }
+                      ]
+                    },
+                    {
+                      key: 'type',
+                      label: 'Log Type',
+                      type: 'select',
+                      options: [
+                        { label: 'Broadcast', value: 'broadcast' },
+                        { label: 'Delivery', value: 'delivery' }
+                      ]
+                    },
+                    { key: 'appId', label: 'App Slug', type: 'text', placeholder: 'App ID slug' }
+                  ]}
+                  onRowClick={(row) => {
+                    setSelectedLog(row);
+                    setLogDetailModalOpen(true);
+                  }}
+                />
+              )}
+            </div>
           </div>
         )}
 
@@ -2440,202 +2506,218 @@ export default function AppDetailPage() {
       </div>
 
       {/* Product Modal */}
-      {app && (
-        <ProductModal
-          isOpen={productModalOpen}
-          onClose={closeProductModal}
-          onSubmit={handleProductSubmit}
-          product={editingProduct}
-          appId={app.id}
-        />
-      )}
+      {
+        app && (
+          <ProductModal
+            isOpen={productModalOpen}
+            onClose={closeProductModal}
+            onSubmit={handleProductSubmit}
+            product={editingProduct}
+            appId={app.id}
+          />
+        )
+      }
 
       {/* Plan Modal */}
-      {app && (
-        <PlanModal
-          isOpen={planModalOpen}
-          onClose={closePlanModal}
-          onSubmit={handlePlanSubmit}
-          plan={editingPlan}
-          appId={app.id}
-        />
-      )}
+      {
+        app && (
+          <PlanModal
+            isOpen={planModalOpen}
+            onClose={closePlanModal}
+            onSubmit={handlePlanSubmit}
+            plan={editingPlan}
+            appId={app.id}
+          />
+        )
+      }
 
       {/* License Modal */}
-      {app && (
-        <LicenseModal
-          isOpen={licenseModalOpen}
-          onClose={closeLicenseModal}
-          onSubmit={handleLicenseSubmit}
-          license={editingLicense}
-          appId={app.id}
-        />
-      )}
+      {
+        app && (
+          <LicenseModal
+            isOpen={licenseModalOpen}
+            onClose={closeLicenseModal}
+            onSubmit={handleLicenseSubmit}
+            license={editingLicense}
+            appId={app.id}
+          />
+        )
+      }
 
       {/* Distribute BP Modal */}
-      {app && (
-        <DistributePieceModal
-          isOpen={distributePieceModalOpen}
-          onClose={() => setDistributePieceModalOpen(false)}
-          users={appUsers}
-          appId={app.id}
-          onSuccess={() => {
-            // Optionally refresh users or show success message
-          }}
-        />
-      )}
+      {
+        app && (
+          <DistributePieceModal
+            isOpen={distributePieceModalOpen}
+            onClose={() => setDistributePieceModalOpen(false)}
+            users={appUsers}
+            appId={app.id}
+            onSuccess={() => {
+              // Optionally refresh users or show success message
+            }}
+          />
+        )
+      }
 
       {/* Event Register Modal */}
-      {app && (
-        <EventRegisterModal
-          isOpen={eventRegisterModalOpen}
-          onClose={() => {
-            setEventRegisterModalOpen(false);
-            setEditingEvent(null);
-          }}
-          onSubmit={handleEventRegister}
-          appId={app.appId}
-          initialData={editingEvent}
-        />
-      )}
+      {
+        app && (
+          <EventRegisterModal
+            isOpen={eventRegisterModalOpen}
+            onClose={() => {
+              setEventRegisterModalOpen(false);
+              setEditingEvent(null);
+            }}
+            onSubmit={handleEventRegister}
+            appId={app.appId}
+            initialData={editingEvent}
+          />
+        )
+      }
 
       {/* Event Subscribe Modal */}
-      {app && (
-        <EventSubscribeModal
-          isOpen={eventSubscribeModalOpen}
-          onClose={() => {
-            setEventSubscribeModalOpen(false);
-            setEditingSubscription(null);
-          }}
-          onSubmit={handleEventSubscribe}
-          initialData={editingSubscription}
-        />
-      )}
+      {
+        app && (
+          <EventSubscribeModal
+            isOpen={eventSubscribeModalOpen}
+            onClose={() => {
+              setEventSubscribeModalOpen(false);
+              setEditingSubscription(null);
+            }}
+            onSubmit={handleEventSubscribe}
+            initialData={editingSubscription}
+          />
+        )
+      }
 
       {/* Message Template Modal */}
-      {app && activeChannel && (
-        <MessageTemplateModal
-          isOpen={templateModalOpen}
-          onClose={() => {
-            setTemplateModalOpen(false);
-            setEditingTemplate(null);
-          }}
-          onSubmit={handleTemplateSubmit}
-          channelType={activeChannel}
-          initialData={editingTemplate}
-        />
-      )}
+      {
+        app && activeChannel && (
+          <MessageTemplateModal
+            isOpen={templateModalOpen}
+            onClose={() => {
+              setTemplateModalOpen(false);
+              setEditingTemplate(null);
+            }}
+            onSubmit={handleTemplateSubmit}
+            channelType={activeChannel}
+            initialData={editingTemplate}
+          />
+        )
+      }
 
       {/* Event Log Detail Modal */}
-      {logDetailModalOpen && selectedLog && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-          <div className="bg-[var(--bg-surface)] border border-[var(--border-default)] rounded-2xl w-full max-w-3xl max-h-[90vh] overflow-hidden flex flex-col shadow-2xl animate-in fade-in zoom-in duration-200">
-            {/* Modal Header */}
-            <div className="px-6 py-4 border-b border-[var(--border-default)] flex items-center justify-between bg-white/5">
-              <div className="flex items-center gap-3">
-                <div className={`p-2 rounded-lg ${selectedLog.type === 'broadcast' ? 'bg-blue-500/10 text-blue-400' : 'bg-purple-500/10 text-purple-400'}`}>
-                  {selectedLog.type === 'broadcast' ? <Activity className="h-5 w-5" /> : <Link2 className="h-5 w-5" />}
-                </div>
-                <div>
-                  <h3 className="text-lg font-bold text-[var(--text-primary)]">Log Detail</h3>
-                  <p className="text-xs text-[var(--text-secondary)] uppercase font-mono tracking-wider">{selectedLog.id}</p>
-                </div>
-              </div>
-              <button
-                onClick={() => setLogDetailModalOpen(false)}
-                className="p-2 hover:bg-white/10 rounded-full transition-colors text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-
-            {/* Modal Body */}
-            <div className="flex-1 overflow-y-auto p-6 space-y-6">
-              {/* Quick Info Grid */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="p-4 rounded-xl bg-white/5 border border-[var(--border-default)] space-y-1">
-                  <span className="text-[10px] font-bold text-[var(--text-secondary)] uppercase">Event Name</span>
-                  <p className="text-sm font-bold text-[var(--text-primary)]">{selectedLog.eventName}</p>
-                </div>
-                <div className="p-4 rounded-xl bg-white/5 border border-[var(--border-default)] space-y-1">
-                  <span className="text-[10px] font-bold text-[var(--text-secondary)] uppercase">Status</span>
+      {
+        logDetailModalOpen && selectedLog && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+            <div className="bg-[var(--bg-surface)] border border-[var(--border-default)] rounded-2xl w-full max-w-3xl max-h-[90vh] overflow-hidden flex flex-col shadow-2xl animate-in fade-in zoom-in duration-200">
+              {/* Modal Header */}
+              <div className="px-6 py-4 border-b border-[var(--border-default)] flex items-center justify-between bg-white/5">
+                <div className="flex items-center gap-3">
+                  <div className={`p-2 rounded-lg ${selectedLog.type === 'broadcast' ? 'bg-blue-500/10 text-blue-400' : 'bg-purple-500/10 text-purple-400'}`}>
+                    {selectedLog.type === 'broadcast' ? <Activity className="h-5 w-5" /> : <Link2 className="h-5 w-5" />}
+                  </div>
                   <div>
-                    {selectedLog.status === 'success' ? (
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-green-500/10 text-green-400 border border-green-500/20 uppercase">Success</span>
-                    ) : (
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-red-500/10 text-red-400 border border-red-500/20 uppercase">{selectedLog.status}</span>
-                    )}
+                    <h3 className="text-lg font-bold text-[var(--text-primary)]">Log Detail</h3>
+                    <p className="text-xs text-[var(--text-secondary)] uppercase font-mono tracking-wider">{selectedLog.id}</p>
                   </div>
                 </div>
-                <div className="p-4 rounded-xl bg-white/5 border border-[var(--border-default)] space-y-1">
-                  <span className="text-[10px] font-bold text-[var(--text-secondary)] uppercase">Timestamp</span>
-                  <p className="text-sm text-[var(--text-primary)]">
-                    {new Date(selectedLog.createdAt).toLocaleString(undefined, {
-                      year: 'numeric',
-                      month: 'long',
-                      day: '2-digit',
-                      hour: '2-digit',
-                      minute: '2-digit',
-                      second: '2-digit',
-                      timeZoneName: 'shortOffset'
-                    })}
-                  </p>
+                <button
+                  onClick={() => setLogDetailModalOpen(false)}
+                  className="p-2 hover:bg-white/10 rounded-full transition-colors text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              {/* Modal Body */}
+              <div className="flex-1 overflow-y-auto p-6 space-y-6">
+                {/* Quick Info Grid */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="p-4 rounded-xl bg-white/5 border border-[var(--border-default)] space-y-1">
+                    <span className="text-[10px] font-bold text-[var(--text-secondary)] uppercase">Event Name</span>
+                    <p className="text-sm font-bold text-[var(--text-primary)]">{selectedLog.eventName}</p>
+                  </div>
+                  <div className="p-4 rounded-xl bg-white/5 border border-[var(--border-default)] space-y-1">
+                    <span className="text-[10px] font-bold text-[var(--text-secondary)] uppercase">Status</span>
+                    <div>
+                      {selectedLog.status === 'success' ? (
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-green-500/10 text-green-400 border border-green-500/20 uppercase">Success</span>
+                      ) : (
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-red-500/10 text-red-400 border border-red-500/20 uppercase">{selectedLog.status}</span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="p-4 rounded-xl bg-white/5 border border-[var(--border-default)] space-y-1">
+                    <span className="text-[10px] font-bold text-[var(--text-secondary)] uppercase">Timestamp</span>
+                    <p className="text-sm text-[var(--text-primary)]">
+                      {new Date(selectedLog.createdAt).toLocaleString(undefined, {
+                        year: 'numeric',
+                        month: 'long',
+                        day: '2-digit',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                        second: '2-digit',
+                        timeZoneName: 'shortOffset'
+                      })}
+                    </p>
+                  </div>
+                  <div className="p-4 rounded-xl bg-white/5 border border-[var(--border-default)] space-y-1">
+                    <span className="text-[10px] font-bold text-[var(--text-secondary)] uppercase">Response Time</span>
+                    <p className="text-sm text-[var(--text-primary)]">{selectedLog.responseTimeMs ? `${selectedLog.responseTimeMs}ms` : '-'}</p>
+                  </div>
                 </div>
-                <div className="p-4 rounded-xl bg-white/5 border border-[var(--border-default)] space-y-1">
-                  <span className="text-[10px] font-bold text-[var(--text-secondary)] uppercase">Response Time</span>
-                  <p className="text-sm text-[var(--text-primary)]">{selectedLog.responseTimeMs ? `${selectedLog.responseTimeMs}ms` : '-'}</p>
+
+                {/* Target URL (for Deliveries) */}
+                {selectedLog.targetUrl && (
+                  <div className="p-4 rounded-xl bg-white/5 border border-[var(--border-default)] space-y-1">
+                    <span className="text-[10px] font-bold text-[var(--text-secondary)] uppercase">Target Webhook URL</span>
+                    <p className="text-xs font-mono text-[var(--text-primary)] break-all">{selectedLog.targetUrl}</p>
+                  </div>
+                )}
+
+                {/* Error Details */}
+                {selectedLog.errorDetails && (
+                  <div className="p-4 rounded-xl bg-red-500/5 border border-red-500/20 space-y-1">
+                    <span className="text-[10px] font-bold text-red-400 uppercase">Error Details</span>
+                    <p className="text-xs text-red-200/80 italic">{selectedLog.errorDetails}</p>
+                  </div>
+                )}
+
+                {/* Payload Viewer */}
+                <div className="space-y-2">
+                  <span className="text-[10px] font-bold text-[var(--text-secondary)] uppercase px-1">Payload (JSON)</span>
+                  <div className="relative group">
+                    <pre className="p-4 rounded-xl bg-black/40 border border-[var(--border-default)] text-xs font-mono text-blue-300 overflow-x-auto leading-relaxed scrollbar-thin scrollbar-thumb-white/10">
+                      {JSON.stringify(selectedLog.payload, null, 2)}
+                    </pre>
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(JSON.stringify(selectedLog.payload, null, 2));
+                        alert('Payload copied to clipboard');
+                      }}
+                      className="absolute top-2 right-2 p-1.5 bg-white/5 hover:bg-white/10 rounded-lg border border-white/10 text-[var(--text-secondary)] transition-all opacity-0 group-hover:opacity-100"
+                      title="Copy Payload"
+                    >
+                      <Copy className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
                 </div>
               </div>
 
-              {/* Target URL (for Deliveries) */}
-              {selectedLog.targetUrl && (
-                <div className="p-4 rounded-xl bg-white/5 border border-[var(--border-default)] space-y-1">
-                  <span className="text-[10px] font-bold text-[var(--text-secondary)] uppercase">Target Webhook URL</span>
-                  <p className="text-xs font-mono text-[var(--text-primary)] break-all">{selectedLog.targetUrl}</p>
-                </div>
-              )}
-
-              {/* Error Details */}
-              {selectedLog.errorDetails && (
-                <div className="p-4 rounded-xl bg-red-500/5 border border-red-500/20 space-y-1">
-                  <span className="text-[10px] font-bold text-red-400 uppercase">Error Details</span>
-                  <p className="text-xs text-red-200/80 italic">{selectedLog.errorDetails}</p>
-                </div>
-              )}
-
-              {/* Payload Viewer */}
-              <div className="space-y-2">
-                <span className="text-[10px] font-bold text-[var(--text-secondary)] uppercase px-1">Payload (JSON)</span>
-                <div className="relative group">
-                  <pre className="p-4 rounded-xl bg-black/40 border border-[var(--border-default)] text-xs font-mono text-blue-300 overflow-x-auto leading-relaxed scrollbar-thin scrollbar-thumb-white/10">
-                    {JSON.stringify(selectedLog.payload, null, 2)}
-                  </pre>
-                  <button
-                    onClick={() => {
-                      navigator.clipboard.writeText(JSON.stringify(selectedLog.payload, null, 2));
-                      alert('Payload copied to clipboard');
-                    }}
-                    className="absolute top-2 right-2 p-1.5 bg-white/5 hover:bg-white/10 rounded-lg border border-white/10 text-[var(--text-secondary)] transition-all opacity-0 group-hover:opacity-100"
-                    title="Copy Payload"
-                  >
-                    <Copy className="h-3.5 w-3.5" />
-                  </button>
-                </div>
+              {/* Modal Footer */}
+              <div className="px-6 py-4 border-t border-[var(--border-default)] bg-white/5 flex justify-end">
+                <button
+                  onClick={() => setLogDetailModalOpen(false)}
+                  className="px-6 py-2 bg-[var(--bg-surface)] hover:bg-white/5 border border-[var(--border-default)] text-[var(--text-primary)] rounded-xl text-sm font-bold uppercase tracking-wider transition-all"
+                >
+                  Close
+                </button>
               </div>
-            </div>
-
-            {/* Modal Footer */}
-            <div className="px-6 py-4 border-t border-[var(--border-default)] bg-white/5 flex justify-end">
-              <button
-                onClick={() => setLogDetailModalOpen(false)}
-                className="px-6 py-2 bg-[var(--bg-surface)] hover:bg-white/5 border border-[var(--border-default)] text-[var(--text-primary)] rounded-xl text-sm font-bold uppercase tracking-wider transition-all"
-              >
-                Close
-              </button>
             </div>
           </div>
-        </div>
-      )}
+        )
+      }
     </div>
   );
 }

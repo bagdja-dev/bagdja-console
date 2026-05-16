@@ -115,7 +115,7 @@ export default function EventRegisterModal({ isOpen, onClose, onSubmit, appId, i
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-6">
+        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto scrollbar-thin p-6 space-y-6">
           {error && (
             <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-xl flex items-start gap-3 text-red-600 text-sm">
               <AlertCircle className="h-5 w-5 shrink-0" />
@@ -181,7 +181,7 @@ export default function EventRegisterModal({ isOpen, onClose, onSubmit, appId, i
               </div>
               <div className="relative">
                 <textarea
-                  className={`w-full h-64 bg-gray-900 text-green-400 font-mono text-sm p-4 rounded-xl border ${jsonError ? 'border-red-500' : 'border-gray-800'
+                  className={`w-full h-64 bg-gray-900 text-green-400 font-mono text-sm p-4 rounded-xl border scrollbar-thin ${jsonError ? 'border-red-500' : 'border-gray-800'
                     } focus:outline-none focus:ring-2 focus:ring-primary/50`}
                   value={schemaJson}
                   onChange={(e) => setSchemaJson(e.target.value)}

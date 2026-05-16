@@ -44,8 +44,8 @@ export function MainLayout({ children, userEmail, username, profilePicture }: Ma
         <Topbar userEmail={userEmail} username={username} profilePicture={profilePicture} />
 
         {/* Page Content */}
-        <main className="flex-1 overflow-y-auto bg-[var(--bg-main)]">
-          <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+        <main className="flex-1 overflow-y-auto scrollbar-thin bg-[var(--bg-main)]">
+          <div className="w-full px-4 py-8 sm:px-6 lg:px-8">
             {children}
           </div>
         </main>
