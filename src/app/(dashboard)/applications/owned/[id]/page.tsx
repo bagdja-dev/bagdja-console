@@ -10,7 +10,7 @@ import { getLicenses, getPurchasedLicenses, createLicense, updateLicense, delete
 import { getAppSubscriptions } from '@/lib/subscriptions-api';
 import { ChannelType, ProviderType } from '@/types';
 import type { ClientApp, ApiError, Product, Plan, PlanDuration, AppUser, CreateProductRequest, UpdateProductRequest, CreatePlanRequest, UpdatePlanRequest, License, CreateLicenseRequest, UpdateLicenseRequest, LicenseStatus, Subscription, SubscriptionStatus } from '@/types';
-import { ArrowLeft, Package, Mail, Calendar, Users, ShoppingBag, CreditCard, Plus, Edit, Trash2, Key, Copy, Check, Coins, Activity, Shield, CheckCircle, XCircle, Globe, Lock, Code, List, Clock, Search, History, Link2 } from 'lucide-react';
+import { ArrowLeft, Package, Mail, Calendar, Users, ShoppingBag, CreditCard, Plus, Edit, Trash2, Key, Copy, Check, Coins, Activity, Shield, CheckCircle, XCircle, Globe, Lock, Code, List, Clock, Search, History, Link2, X } from 'lucide-react';
 import ProductModal from '@/components/ProductModal';
 import PlanModal from '@/components/PlanModal';
 import LicenseModal from '@/components/LicenseModal';
@@ -103,6 +103,8 @@ export default function AppDetailPage() {
   const [subscriptionRequestsLoading, setSubscriptionRequestsLoading] = useState(false);
   const [eventLogs, setEventLogs] = useState<any[]>([]);
   const [eventLogsLoading, setEventLogsLoading] = useState(false);
+  const [selectedLog, setSelectedLog] = useState<any>(null);
+  const [logDetailModalOpen, setLogDetailModalOpen] = useState(false);
   const [eventRegisterModalOpen, setEventRegisterModalOpen] = useState(false);
   const [eventSubscribeModalOpen, setEventSubscribeModalOpen] = useState(false);
   const [editingEvent, setEditingEvent] = useState<any>(null);
@@ -2125,7 +2127,14 @@ export default function AppDetailPage() {
                       </thead>
                       <tbody className="divide-y divide-[var(--border-default)]">
                         {eventLogs.map((log) => (
-                          <tr key={log.id} className="hover:bg-white/5 transition-colors group">
+                          <tr
+                            key={log.id}
+                            onClick={() => {
+                              setSelectedLog(log);
+                              setLogDetailModalOpen(true);
+                            }}
+                            className="hover:bg-white/5 transition-colors group cursor-pointer"
+                          >
                             <td className="px-6 py-5 whitespace-nowrap">
                               {log.type === 'broadcast' ? (
                                 <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-blue-500/10 text-blue-400 text-[10px] font-bold uppercase border border-blue-500/20">
@@ -2180,13 +2189,14 @@ export default function AppDetailPage() {
                               <div className="flex items-center gap-2 text-[var(--text-secondary)]">
                                 <Clock className="h-3.5 w-3.5" />
                                 <span className="text-xs">
-                                  {new Date(log.createdAt).toLocaleString('en-US', {
+                                  {new Date(log.createdAt).toLocaleString(undefined, {
                                     year: 'numeric',
                                     month: 'short',
                                     day: '2-digit',
                                     hour: '2-digit',
                                     minute: '2-digit',
                                     second: '2-digit',
+                                    timeZoneName: 'shortOffset'
                                   })}
                                 </span>
                               </div>
@@ -2562,6 +2572,117 @@ export default function AppDetailPage() {
           channelType={activeChannel}
           initialData={editingTemplate}
         />
+      )}
+
+      {/* Event Log Detail Modal */}
+      {logDetailModalOpen && selectedLog && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="bg-[var(--bg-surface)] border border-[var(--border-default)] rounded-2xl w-full max-w-3xl max-h-[90vh] overflow-hidden flex flex-col shadow-2xl animate-in fade-in zoom-in duration-200">
+            {/* Modal Header */}
+            <div className="px-6 py-4 border-b border-[var(--border-default)] flex items-center justify-between bg-white/5">
+              <div className="flex items-center gap-3">
+                <div className={`p-2 rounded-lg ${selectedLog.type === 'broadcast' ? 'bg-blue-500/10 text-blue-400' : 'bg-purple-500/10 text-purple-400'}`}>
+                  {selectedLog.type === 'broadcast' ? <Activity className="h-5 w-5" /> : <Link2 className="h-5 w-5" />}
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-[var(--text-primary)]">Log Detail</h3>
+                  <p className="text-xs text-[var(--text-secondary)] uppercase font-mono tracking-wider">{selectedLog.id}</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setLogDetailModalOpen(false)}
+                className="p-2 hover:bg-white/10 rounded-full transition-colors text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="flex-1 overflow-y-auto p-6 space-y-6">
+              {/* Quick Info Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="p-4 rounded-xl bg-white/5 border border-[var(--border-default)] space-y-1">
+                  <span className="text-[10px] font-bold text-[var(--text-secondary)] uppercase">Event Name</span>
+                  <p className="text-sm font-bold text-[var(--text-primary)]">{selectedLog.eventName}</p>
+                </div>
+                <div className="p-4 rounded-xl bg-white/5 border border-[var(--border-default)] space-y-1">
+                  <span className="text-[10px] font-bold text-[var(--text-secondary)] uppercase">Status</span>
+                  <div>
+                    {selectedLog.status === 'success' ? (
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-green-500/10 text-green-400 border border-green-500/20 uppercase">Success</span>
+                    ) : (
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-red-500/10 text-red-400 border border-red-500/20 uppercase">{selectedLog.status}</span>
+                    )}
+                  </div>
+                </div>
+                <div className="p-4 rounded-xl bg-white/5 border border-[var(--border-default)] space-y-1">
+                  <span className="text-[10px] font-bold text-[var(--text-secondary)] uppercase">Timestamp</span>
+                  <p className="text-sm text-[var(--text-primary)]">
+                    {new Date(selectedLog.createdAt).toLocaleString(undefined, {
+                      year: 'numeric',
+                      month: 'long',
+                      day: '2-digit',
+                      hour: '2-digit',
+                      minute: '2-digit',
+                      second: '2-digit',
+                      timeZoneName: 'shortOffset'
+                    })}
+                  </p>
+                </div>
+                <div className="p-4 rounded-xl bg-white/5 border border-[var(--border-default)] space-y-1">
+                  <span className="text-[10px] font-bold text-[var(--text-secondary)] uppercase">Response Time</span>
+                  <p className="text-sm text-[var(--text-primary)]">{selectedLog.responseTimeMs ? `${selectedLog.responseTimeMs}ms` : '-'}</p>
+                </div>
+              </div>
+
+              {/* Target URL (for Deliveries) */}
+              {selectedLog.targetUrl && (
+                <div className="p-4 rounded-xl bg-white/5 border border-[var(--border-default)] space-y-1">
+                  <span className="text-[10px] font-bold text-[var(--text-secondary)] uppercase">Target Webhook URL</span>
+                  <p className="text-xs font-mono text-[var(--text-primary)] break-all">{selectedLog.targetUrl}</p>
+                </div>
+              )}
+
+              {/* Error Details */}
+              {selectedLog.errorDetails && (
+                <div className="p-4 rounded-xl bg-red-500/5 border border-red-500/20 space-y-1">
+                  <span className="text-[10px] font-bold text-red-400 uppercase">Error Details</span>
+                  <p className="text-xs text-red-200/80 italic">{selectedLog.errorDetails}</p>
+                </div>
+              )}
+
+              {/* Payload Viewer */}
+              <div className="space-y-2">
+                <span className="text-[10px] font-bold text-[var(--text-secondary)] uppercase px-1">Payload (JSON)</span>
+                <div className="relative group">
+                  <pre className="p-4 rounded-xl bg-black/40 border border-[var(--border-default)] text-xs font-mono text-blue-300 overflow-x-auto leading-relaxed scrollbar-thin scrollbar-thumb-white/10">
+                    {JSON.stringify(selectedLog.payload, null, 2)}
+                  </pre>
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(JSON.stringify(selectedLog.payload, null, 2));
+                      alert('Payload copied to clipboard');
+                    }}
+                    className="absolute top-2 right-2 p-1.5 bg-white/5 hover:bg-white/10 rounded-lg border border-white/10 text-[var(--text-secondary)] transition-all opacity-0 group-hover:opacity-100"
+                    title="Copy Payload"
+                  >
+                    <Copy className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="px-6 py-4 border-t border-[var(--border-default)] bg-white/5 flex justify-end">
+              <button
+                onClick={() => setLogDetailModalOpen(false)}
+                className="px-6 py-2 bg-[var(--bg-surface)] hover:bg-white/5 border border-[var(--border-default)] text-[var(--text-primary)] rounded-xl text-sm font-bold uppercase tracking-wider transition-all"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
