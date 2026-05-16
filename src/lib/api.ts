@@ -738,15 +738,35 @@ export async function getSubscriptionRequests(appId?: string): Promise<any[]> {
 /**
  * Get current app's subscriptions
  */
-export async function getMyAppSubscriptions(appId?: string): Promise<any[]> {
+export async function getMyAppSubscriptions(
+  appId?: string,
+  params?: {
+    page?: number;
+    size?: number;
+    search?: string;
+    filter?: Record<string, string>;
+    sort?: string;
+  }
+): Promise<{ data: any[]; meta: any }> {
   const clientToken = await ensureClientToken();
   const userToken = getAccessToken();
   
-  const url = appId 
-    ? `${EVENT_API_BASE}/subscriptions/my-subscriptions?appId=${appId}`
-    : `${EVENT_API_BASE}/subscriptions/my-subscriptions`;
+  const queryParams = new URLSearchParams();
+  if (appId) queryParams.append('appId', appId);
+  
+  if (params) {
+    if (params.page) queryParams.append('page', params.page.toString());
+    if (params.size) queryParams.append('size', params.size.toString());
+    if (params.search) queryParams.append('search', params.search);
+    if (params.sort) queryParams.append('sort', params.sort);
+    if (params.filter) {
+      Object.keys(params.filter).forEach(key => {
+        queryParams.append(`filter[${key}]`, params.filter![key]);
+      });
+    }
+  }
 
-  const response = await fetch(url, {
+  const response = await fetch(`${EVENT_API_BASE}/subscriptions/my-subscriptions?${queryParams.toString()}`, {
     headers: {
       'x-api-key': clientToken,
       'Authorization': userToken ? `Bearer ${userToken}` : '',
@@ -775,6 +795,25 @@ export async function updateMySubscription(subscriptionId: string, webhookUrl?: 
   });
   
   if (!response.ok) throw new Error('Failed to update subscription');
+  return response.json();
+}
+
+/**
+ * Delete a subscription
+ */
+export async function deleteMySubscription(subscriptionId: string): Promise<any> {
+  const clientToken = await ensureClientToken();
+  const userToken = getAccessToken();
+  
+  const response = await fetch(`${EVENT_API_BASE}/subscriptions/my-subscriptions/${subscriptionId}`, {
+    method: 'DELETE',
+    headers: {
+      'x-api-key': clientToken,
+      'Authorization': userToken ? `Bearer ${userToken}` : '',
+    },
+  });
+  
+  if (!response.ok) throw new Error('Failed to delete subscription');
   return response.json();
 }
 

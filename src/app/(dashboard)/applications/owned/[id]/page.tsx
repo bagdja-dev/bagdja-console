@@ -29,6 +29,7 @@ import {
   getMyAppSubscriptions,
   subscribeToEvent,
   updateMySubscription,
+  deleteMySubscription,
   getSubscriptionRequests,
   updateSubscriptionStatus,
   getEventLogs
@@ -98,12 +99,6 @@ export default function AppDetailPage() {
   // Events state
   const [eventSubTab, setEventSubTab] = useState<EventSubTab>('broadcast');
   const [refreshContracts, setRefreshContracts] = useState(0);
-  const [infraContracts, setInfraContracts] = useState<any[]>([]);
-  const [infraContractsLoading, setInfraContractsLoading] = useState(false);
-  const [availableEvents, setAvailableEvents] = useState<any[]>([]);
-  const [availableEventsLoading, setAvailableEventsLoading] = useState(false);
-  const [mySubscriptions, setMySubscriptions] = useState<any[]>([]);
-  const [mySubscriptionsLoading, setMySubscriptionsLoading] = useState(false);
   const [subscriptionRequests, setSubscriptionRequests] = useState<any[]>([]);
   const [subscriptionRequestsLoading, setSubscriptionRequestsLoading] = useState(false);
   const [selectedLog, setSelectedLog] = useState<any>(null);
@@ -339,46 +334,7 @@ export default function AppDetailPage() {
     fetchSubscriptions();
   }, [activeTab, app?.id]);
 
-  // Fetch event contracts when events/broadcast tab is active
-  useEffect(() => {
-    const fetchContracts = async () => {
-      if (activeTab !== 'events' || eventSubTab !== 'broadcast' || !app?.appId) return;
 
-      try {
-        setInfraContractsLoading(true);
-        const res = await getInfraContracts({
-          filter: { appId: app.appId },
-          size: 100 // Default to large size for backward compat if not using DataGrid fully yet
-        });
-        setInfraContracts(res.data || []);
-      } catch (err) {
-        console.error('Failed to fetch event contracts:', err);
-      } finally {
-        setInfraContractsLoading(false);
-      }
-    };
-
-    fetchContracts();
-  }, [activeTab, eventSubTab, app?.appId, refreshContracts]);
-
-  // Fetch my subscriptions when events/subscribe tab is active
-  useEffect(() => {
-    const fetchMySubscriptions = async () => {
-      if (activeTab !== 'events' || eventSubTab !== 'subscribe' || !app?.appId) return;
-
-      try {
-        setMySubscriptionsLoading(true);
-        const data = await getMyAppSubscriptions(app.appId);
-        setMySubscriptions(data);
-      } catch (err) {
-        console.error('Failed to fetch my subscriptions:', err);
-      } finally {
-        setMySubscriptionsLoading(false);
-      }
-    };
-
-    fetchMySubscriptions();
-  }, [activeTab, eventSubTab, app?.appId]);
 
   // Fetch subscription requests when events/requests tab is active
   useEffect(() => {
@@ -559,8 +515,7 @@ export default function AppDetailPage() {
       }
 
       // Refresh list
-      const data = await getMyAppSubscriptions(app.appId);
-      setMySubscriptions(data);
+      setRefreshContracts(prev => prev + 1);
       setEditingSubscription(null);
     } catch (err: any) {
       throw new Error(err.message || 'Failed to subscribe');
@@ -591,6 +546,16 @@ export default function AppDetailPage() {
       setSubscriptionRequests(data);
     } catch (err: any) {
       alert(err.message || 'Failed to update status');
+    }
+  };
+
+  const handleUnsubscribe = async (subId: string) => {
+    if (!confirm('Are you sure you want to unsubscribe from this event?')) return;
+    try {
+      await deleteMySubscription(subId);
+      setRefreshContracts(prev => prev + 1);
+    } catch (err: any) {
+      alert(err.message || 'Failed to unsubscribe');
     }
   };
 
@@ -1869,103 +1834,103 @@ export default function AppDetailPage() {
             )}
 
             {eventSubTab === 'subscribe' && (
-              <div className="space-y-4">
-                <div className="flex justify-between items-center">
-                  <h3 className="text-md font-medium text-[var(--text-primary)]">Your Subscriptions</h3>
-                  <button
-                    onClick={() => setEventSubscribeModalOpen(true)}
-                    className="flex items-center gap-2 px-3 py-1.5 border border-[var(--border-default)] text-[var(--text-primary)] rounded-lg text-sm font-medium hover:bg-[var(--bg-hover)]"
-                  >
-                    <Search className="h-4 w-4" />
-                    Browse Events
-                  </button>
-                </div>
-
-                {mySubscriptionsLoading ? (
-                  <div className="flex items-center justify-center py-12">
-                    <div className="text-[var(--text-secondary)]">Loading subscriptions...</div>
-                  </div>
-                ) : mySubscriptions.length === 0 ? (
-                  <div className="rounded-xl border border-[var(--border-default)] bg-white/5 min-h-[300px] flex flex-col items-center justify-center p-8 text-center">
-                    <div className="p-4 bg-[var(--bg-surface)] rounded-full border border-[var(--border-default)] mb-4">
-                      <Lock className="h-8 w-8 text-[var(--text-secondary)] opacity-50" />
-                    </div>
-                    <h4 className="text-[var(--text-primary)] font-medium mb-1">No subscriptions yet</h4>
-                    <p className="text-[var(--text-secondary)] text-sm max-w-[300px]">
-                      You haven't subscribed to any events yet. Start by browsing available events.
-                    </p>
-                  </div>
-                ) : (
-                  <div className="overflow-hidden rounded-xl border border-[var(--border-default)]">
-                    <table className="min-w-full divide-y divide-[var(--border-default)]">
-                      <thead>
-                        <tr>
-                          <th className="px-6 py-4 text-left text-[10px] font-bold text-[var(--text-secondary)] uppercase tracking-wider">Event</th>
-                          <th className="px-6 py-4 text-left text-[10px] font-bold text-[var(--text-secondary)] uppercase tracking-wider">Source Service</th>
-                          <th className="px-6 py-4 text-left text-[10px] font-bold text-[var(--text-secondary)] uppercase tracking-wider">Webhook</th>
-                          <th className="px-6 py-4 text-left text-[10px] font-bold text-[var(--text-secondary)] uppercase tracking-wider">Status</th>
-                          <th className="px-6 py-4 text-right text-[10px] font-bold text-[var(--text-secondary)] uppercase tracking-wider">Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-[var(--border-default)]">
-                        {mySubscriptions.map((sub) => (
-                          <tr key={sub.id} className="hover:bg-white/5 transition-colors group">
-                            <td className="px-6 py-5 whitespace-nowrap">
-                              <div className="flex items-center gap-3">
-                                <div className="p-2 bg-blue-500/10 rounded-lg border border-blue-500/20">
-                                  <Globe className="h-4 w-4 text-blue-400" />
-                                </div>
-                                <span className="text-sm font-medium text-[var(--text-primary)]">{sub.contract?.eventName}</span>
-                              </div>
-                            </td>
-                            <td className="px-6 py-5 whitespace-nowrap">
-                              <span className="text-xs font-bold text-[var(--text-secondary)] uppercase tracking-tight">{sub.contract?.app?.appId}</span>
-                            </td>
-                            <td className="px-6 py-5 whitespace-nowrap">
-                              {sub.webhookUrl ? (
-                                <div className="flex items-center gap-1.5 text-[var(--text-secondary)]">
-                                  <Link2 className="h-3.5 w-3.5" />
-                                  <span className="text-xs truncate max-w-[150px]" title={sub.webhookUrl}>{sub.webhookUrl}</span>
-                                </div>
-                              ) : (
-                                <span className="text-[10px] text-gray-400 italic">WebSocket Only</span>
-                              )}
-                            </td>
-                            <td className="px-6 py-5 whitespace-nowrap">
-                              {sub.status === 'approved' ? (
-                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-green-500/10 text-green-400 border border-green-500/20 uppercase">
-                                  Active
-                                </span>
-                              ) : sub.status === 'pending' ? (
-                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-yellow-500/10 text-yellow-400 border border-yellow-500/20 uppercase">
-                                  Pending
-                                </span>
-                              ) : (
-                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-red-500/10 text-red-400 border border-red-500/20 uppercase">
-                                  {sub.status}
-                                </span>
-                              )}
-                            </td>
-                            <td className="px-6 py-5 whitespace-nowrap text-right">
-                              <div className="flex items-center justify-end gap-3">
-                                <button
-                                  onClick={() => openEditSubscription(sub)}
-                                  className="text-primary hover:text-primary/80 text-xs font-bold uppercase tracking-wider transition-colors"
-                                >
-                                  Edit
-                                </button>
-                                <button className="text-red-400 hover:text-red-300 text-xs font-bold uppercase tracking-wider transition-colors">
-                                  Unsubscribe
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </div>
+              <DataGrid
+                title="Your Subscriptions"
+                description="Events that this application is currently subscribed to."
+                fetchData={(params) => getMyAppSubscriptions(app?.appId, params)}
+                refreshTrigger={refreshContracts}
+                actions={[
+                  {
+                    label: 'Browse Events',
+                    icon: <Search className="h-4 w-4" />,
+                    onClick: () => setEventSubscribeModalOpen(true),
+                    variant: 'secondary'
+                  }
+                ]}
+                columns={[
+                  {
+                    key: 'eventName',
+                    label: 'Event',
+                    sortable: true,
+                    render: (_, row) => (
+                      <div className="flex items-center gap-3">
+                        <div className="p-2 bg-blue-500/10 rounded-lg border border-blue-500/20">
+                          <Globe className="h-4 w-4 text-blue-400" />
+                        </div>
+                        <span className="text-sm font-medium text-[var(--text-primary)]">{row.contract?.eventName}</span>
+                      </div>
+                    )
+                  },
+                  {
+                    key: 'sourceService',
+                    label: 'Source Service',
+                    render: (_, row) => (
+                      <span className="text-xs font-bold text-[var(--text-secondary)] uppercase tracking-tight">{row.contract?.app?.appId}</span>
+                    )
+                  },
+                  {
+                    key: 'webhookUrl',
+                    label: 'Webhook',
+                    sortable: true,
+                    render: (val) => val ? (
+                      <div className="flex items-center gap-1.5 text-[var(--text-secondary)]">
+                        <Link2 className="h-3.5 w-3.5" />
+                        <span className="text-xs truncate max-w-[150px]" title={val}>{val}</span>
+                      </div>
+                    ) : (
+                      <span className="text-[10px] text-gray-400 italic">WebSocket Only</span>
+                    )
+                  },
+                  {
+                    key: 'status',
+                    label: 'Status',
+                    sortable: true,
+                    render: (val) => (
+                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase border ${val === 'approved'
+                        ? 'bg-green-500/10 text-green-400 border-green-500/20'
+                        : val === 'pending'
+                          ? 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20'
+                          : 'bg-red-500/10 text-red-400 border-red-500/20'
+                        }`}>
+                        {val === 'approved' ? 'Active' : val}
+                      </span>
+                    )
+                  },
+                  {
+                    key: 'id',
+                    label: 'Actions',
+                    render: (_, row) => (
+                      <div className="flex items-center justify-end gap-3" onClick={(e) => e.stopPropagation()}>
+                        <button
+                          onClick={() => openEditSubscription(row)}
+                          className="text-[var(--action-primary)] hover:text-[var(--action-primary-hover)] text-xs font-bold uppercase tracking-wider transition-colors"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => handleUnsubscribe(row.id)}
+                          className="text-red-400 hover:text-red-300 text-xs font-bold uppercase tracking-wider transition-colors"
+                        >
+                          Unsubscribe
+                        </button>
+                      </div>
+                    )
+                  }
+                ]}
+                filterFields={[
+                  { key: 'eventName', label: 'Event Name', type: 'text', placeholder: 'e.g. payment.paid' },
+                  {
+                    key: 'status',
+                    label: 'Status',
+                    type: 'select',
+                    options: [
+                      { label: 'Active', value: 'approved' },
+                      { label: 'Pending', value: 'pending' },
+                      { label: 'Rejected', value: 'rejected' }
+                    ]
+                  }
+                ]}
+              />
             )}
 
             {eventSubTab === 'requests' && (
