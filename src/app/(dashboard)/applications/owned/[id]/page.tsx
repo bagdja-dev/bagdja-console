@@ -1841,8 +1841,8 @@ export default function AppDetailPage() {
                 refreshTrigger={refreshContracts}
                 actions={[
                   {
-                    label: 'Browse Events',
-                    icon: <Search className="h-4 w-4" />,
+                    label: '',
+                    icon: <Plus className="h-4 w-4" />,
                     onClick: () => setEventSubscribeModalOpen(true),
                     variant: 'secondary'
                   }

@@ -1,10 +1,11 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { X, Search, Globe, Lock, CheckCircle, Clock, AlertCircle, Link2, FileText } from 'lucide-react';
+import { X, Globe, Lock, Clock, AlertCircle, Link2, FileText, Search } from 'lucide-react';
 import { Input } from '@/ui/input';
 import { Button } from '@/ui/button';
 import { getAvailableEvents } from '@/lib/api';
+import DataGrid from './DataGrid';
 
 interface EventSubscribeModalProps {
   isOpen: boolean;
@@ -19,47 +20,30 @@ interface EventSubscribeModalProps {
 }
 
 export default function EventSubscribeModal({ isOpen, onClose, onSubmit, initialData }: EventSubscribeModalProps) {
-  const [availableEvents, setAvailableEvents] = useState<any[]>([]);
-  const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [search, setSearch] = useState('');
 
   const [selectedContractId, setSelectedContractId] = useState<string | null>(null);
+  const [selectedContract, setSelectedContract] = useState<any | null>(null);
   const [webhookUrl, setWebhookUrl] = useState('');
   const [viewingContract, setViewingContract] = useState<any | null>(null);
 
   useEffect(() => {
     if (isOpen) {
-      fetchEvents();
       if (initialData) {
         setSelectedContractId(initialData.contractId);
         setWebhookUrl(initialData.webhookUrl || '');
+        // Note: selectedContract object will be null until we find it or if we're editing
+        // But since we use initialData.eventName, it's fine for the UI
       } else {
         setSelectedContractId(null);
+        setSelectedContract(null);
         setWebhookUrl('');
       }
       setViewingContract(null);
       setError(null);
     }
   }, [isOpen, initialData]);
-
-  const fetchEvents = async () => {
-    try {
-      setLoading(true);
-      const data = await getAvailableEvents();
-      setAvailableEvents(data);
-    } catch (err: any) {
-      setError('Failed to load available events');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const filteredEvents = availableEvents.filter(event =>
-    event.eventName.toLowerCase().includes(search.toLowerCase()) ||
-    event.app?.appId.toLowerCase().includes(search.toLowerCase())
-  );
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -78,13 +62,9 @@ export default function EventSubscribeModal({ isOpen, onClose, onSubmit, initial
 
   if (!isOpen) return null;
 
-  const selectedContract = selectedContractId
-    ? availableEvents.find((e) => e.id === selectedContractId)
-    : null;
-
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-      <div className="bg-[var(--bg-surface)] rounded-2xl border border-[var(--border-default)] w-full max-w-2xl shadow-2xl animate-in fade-in zoom-in duration-200 flex flex-col max-h-[90vh]">
+      <div className="bg-[var(--bg-surface)] rounded-2xl border border-[var(--border-default)] w-full max-w-4xl shadow-2xl animate-in fade-in zoom-in duration-200 flex flex-col max-h-[90vh]">
         <div className="flex items-center justify-between p-6 border-b border-[var(--border-default)]">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-blue-500/10 rounded-lg text-blue-600">
@@ -124,70 +104,79 @@ export default function EventSubscribeModal({ isOpen, onClose, onSubmit, initial
                   </div>
                 </div>
               ) : (
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-                  <Input
-                    placeholder="Search events or services..."
-                    className="pl-10"
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                  />
-                </div>
-              )}
-
-              {!initialData && (
-                <div className="grid grid-cols-1 gap-3">
-                  {loading ? (
-                    <div className="text-center py-12 text-[var(--text-secondary)] text-sm italic">Searching for events...</div>
-                  ) : filteredEvents.length === 0 ? (
-                    <div className="text-center py-12 text-[var(--text-secondary)] text-sm italic">No events found</div>
-                  ) : (
-                    filteredEvents.map((event) => (
-                      <div
-                        key={event.id}
-                        onClick={() => setSelectedContractId(event.id)}
-                        role="button"
-                        tabIndex={0}
-                        className="flex items-center justify-between p-4 rounded-xl border border-[var(--border-default)] hover:border-primary/50 hover:bg-primary/5 transition-all text-left group cursor-pointer"
-                      >
-                        <div className="flex items-center gap-3">
-                          <div className="p-2 bg-[var(--bg-surface)] rounded-lg border border-[var(--border-default)] group-hover:border-primary/30">
-                            {event.isPublic ? (
-                              <Globe className="h-4 w-4 text-blue-500" />
-                            ) : (
-                              <Lock className="h-4 w-4 text-amber-500" />
-                            )}
-                          </div>
-                          <div>
-                            <h4 className="text-sm font-bold text-[var(--text-primary)]">{event.eventName}</h4>
-                            <p className="text-[10px] text-[var(--text-secondary)] uppercase font-bold tracking-tight">
-                              Service: {event.app?.appId}
-                            </p>
-                          </div>
+                <DataGrid
+                  title="Available Events"
+                  description="Browse and select events available for subscription."
+                  fetchData={getAvailableEvents}
+                  onRowClick={(row) => {
+                    setSelectedContractId(row.id);
+                    setSelectedContract(row);
+                  }}
+                  columns={[
+                    {
+                      key: 'eventName',
+                      label: 'Event Name',
+                      sortable: true,
+                      render: (val, row) => (
+                        <div className="flex flex-col">
+                          <span className="font-bold text-[var(--text-primary)]">{val}</span>
+                          <span className="text-[10px] text-[var(--text-secondary)] uppercase tracking-tight">ID: {row.id.split('-')[0]}...</span>
                         </div>
-                        <div className="flex items-center gap-2">
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setViewingContract(event);
-                            }}
-                            className="inline-flex items-center gap-1.5 text-[10px] font-bold text-[var(--text-secondary)] hover:text-[var(--text-primary)] border border-[var(--border-default)] hover:border-primary/30 px-2 py-1 rounded-lg bg-[var(--bg-surface)]"
-                          >
-                            <FileText className="h-3.5 w-3.5" />
-                            View Contract
-                          </button>
-                          {event.isPublic ? (
-                            <span className="text-[10px] font-bold text-green-600 bg-green-50 px-2 py-0.5 rounded border border-green-100 uppercase">Public</span>
-                          ) : (
-                            <span className="text-[10px] font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded border border-amber-100 uppercase">Private</span>
-                          )}
-                          <CheckCircle className="h-4 w-4 text-gray-200 group-hover:text-primary transition-colors" />
+                      )
+                    },
+                    {
+                      key: 'appId',
+                      label: 'Service',
+                      sortable: true,
+                      render: (_, row) => (
+                        <div className="flex flex-col">
+                          <span className="text-xs font-bold text-[var(--text-primary)] uppercase tracking-tighter">{row.app?.appId}</span>
+                          <span className="text-[10px] text-[var(--text-secondary)] uppercase">{row.app?.orgSlug}</span>
                         </div>
-                      </div>
-                    ))
-                  )}
-                </div>
+                      )
+                    },
+                    {
+                      key: 'isPublic',
+                      label: 'Privacy',
+                      sortable: true,
+                      render: (val) => val ? (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-blue-500/10 text-blue-500 text-[10px] font-bold uppercase border border-blue-500/20">
+                          <Globe className="h-3 w-3" /> Public
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-amber-500/10 text-amber-500 text-[10px] font-bold uppercase border border-amber-500/20">
+                          <Lock className="h-3 w-3" /> Private
+                        </span>
+                      )
+                    },
+                    {
+                      key: 'actions',
+                      label: 'Action',
+                      render: (_, row) => (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setViewingContract(row);
+                          }}
+                          className="inline-flex items-center gap-1.5 text-[10px] font-bold text-[var(--text-secondary)] hover:text-[var(--text-primary)] border border-[var(--border-default)] hover:border-primary/30 px-2 py-1 rounded-lg bg-[var(--bg-surface)]"
+                        >
+                          <FileText className="h-3.5 w-3.5" />
+                          View Contract
+                        </button>
+                      )
+                    }
+                  ]}
+                  filterFields={[
+                    { key: 'eventName', label: 'Event Name', type: 'text', placeholder: 'e.g. user.created' },
+                    { key: 'appId', label: 'Service Slug', type: 'text', placeholder: 'e.g. auth-service' }
+                  ]}
+                  emptyState={{
+                    title: "No events available",
+                    description: "No events were found that you can subscribe to.",
+                    icon: <Globe className="h-8 w-8 text-[var(--text-secondary)] opacity-50" />
+                  }}
+                />
               )}
 
               {initialData && (
@@ -234,7 +223,10 @@ export default function EventSubscribeModal({ isOpen, onClose, onSubmit, initial
                   </button>
                   <button
                     type="button"
-                    onClick={() => setSelectedContractId(null)}
+                    onClick={() => {
+                      setSelectedContractId(null);
+                      setSelectedContract(null);
+                    }}
                     className="text-xs font-bold text-primary hover:underline"
                   >
                     Change
@@ -335,3 +327,4 @@ export default function EventSubscribeModal({ isOpen, onClose, onSubmit, initial
     </div>
   );
 }
+
