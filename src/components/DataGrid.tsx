@@ -1,13 +1,15 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { 
-  Search, 
-  SlidersHorizontal, 
-  Filter, 
-  X, 
-  ChevronUp, 
-  ChevronDown, 
+import {
+  Search,
+  SlidersHorizontal,
+  Filter,
+  X,
+  ChevronUp,
+  ChevronDown,
   History,
-  Clock
+  Clock,
+  Settings,
+  CheckCircle2
 } from 'lucide-react';
 
 export interface GridColumn {
@@ -53,7 +55,7 @@ const DataGrid: React.FC<DataGridProps> = ({
   const [data, setData] = useState<any[]>([]);
   const [meta, setMeta] = useState<any>(null);
   const [loading, setLoading] = useState(false);
-  
+
   // Grid State
   const [page, setPage] = useState(1);
   const [size, setSize] = useState(20);
@@ -62,6 +64,17 @@ const DataGrid: React.FC<DataGridProps> = ({
   const [tempFilter, setTempFilter] = useState<Record<string, string>>({});
   const [sort, setSort] = useState('createdAt:desc');
   const [isFilterPanelOpen, setIsFilterPanelOpen] = useState(false);
+  const [isSettingsPanelOpen, setIsSettingsPanelOpen] = useState(false);
+  const [visibleColumns, setVisibleColumns] = useState<Record<string, boolean>>({});
+
+  // Initialize visible columns
+  useEffect(() => {
+    const initialVisible: Record<string, boolean> = {};
+    columns.forEach(col => {
+      initialVisible[col.key] = true;
+    });
+    setVisibleColumns(initialVisible);
+  }, [columns]);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -111,8 +124,8 @@ const DataGrid: React.FC<DataGridProps> = ({
             {description && <p className="text-sm text-[var(--text-secondary)]">{description}</p>}
           </div>
 
-          <div className="flex items-center gap-3">
-            <div className="relative group">
+          <div className="flex items-center gap-2 w-full md:w-auto">
+            <div className="relative flex-1 md:w-[300px] group">
               <div className="relative flex items-center">
                 <Search className="absolute left-3 h-4 w-4 text-[var(--text-secondary)]" />
                 <input
@@ -123,13 +136,14 @@ const DataGrid: React.FC<DataGridProps> = ({
                     setSearch(e.target.value);
                     setPage(1);
                   }}
-                  className="pl-9 pr-12 py-2.5 bg-white/5 border border-[var(--border-default)] rounded-xl text-sm text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-primary/50 w-full md:w-[300px] transition-all"
+                  className="pl-9 pr-12 py-2.5 bg-white/5 border border-[var(--border-default)] rounded-xl text-sm text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-primary/50 w-full transition-all"
                 />
                 {filterFields.length > 0 && (
                   <button
                     onClick={() => {
                       setTempFilter(filter);
                       setIsFilterPanelOpen(!isFilterPanelOpen);
+                      setIsSettingsPanelOpen(false);
                     }}
                     className={`absolute right-2 p-1.5 rounded-lg transition-all ${isFilterPanelOpen ? 'bg-primary text-white' : 'text-[var(--text-secondary)] hover:bg-white/10'}`}
                     title="Advanced Filters"
@@ -141,7 +155,7 @@ const DataGrid: React.FC<DataGridProps> = ({
 
               {/* Filter Popover */}
               {isFilterPanelOpen && (
-                <div className="absolute right-0 top-full mt-2 z-50 w-full md:w-[450px] bg-[var(--bg-surface)] border border-[var(--border-default)] rounded-2xl shadow-2xl p-6 animate-in fade-in slide-in-from-top-2 duration-200">
+                <div className="absolute right-0 md:right-auto md:left-0 top-full mt-2 z-50 w-[calc(100vw-2rem)] md:w-[450px] bg-[var(--bg-surface)] border border-[var(--border-default)] rounded-2xl shadow-2xl p-6 animate-in fade-in slide-in-from-top-2 duration-200">
                   <div className="flex items-center justify-between mb-6">
                     <h4 className="text-sm font-bold text-[var(--text-primary)] flex items-center gap-2">
                       <Filter className="h-4 w-4 text-primary" />
@@ -152,7 +166,7 @@ const DataGrid: React.FC<DataGridProps> = ({
                     </button>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-4 mb-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
                     {filterFields.map((field) => (
                       <div key={field.key} className="space-y-2">
                         <label className="text-[10px] font-bold text-[var(--text-secondary)] uppercase px-1">{field.label}</label>
@@ -214,6 +228,91 @@ const DataGrid: React.FC<DataGridProps> = ({
                 </div>
               )}
             </div>
+
+            {/* Settings Trigger */}
+            <div className="relative flex-shrink-0">
+              <button
+                onClick={() => {
+                  setIsSettingsPanelOpen(!isSettingsPanelOpen);
+                  setIsFilterPanelOpen(false);
+                }}
+                className={`p-2.5 rounded-xl border border-[var(--border-default)] transition-all ${isSettingsPanelOpen ? 'bg-primary text-white border-primary' : 'bg-white/5 text-[var(--text-secondary)] hover:bg-white/10'}`}
+                title="Grid Settings"
+              >
+                <Settings className={`h-4 w-4 ${isSettingsPanelOpen ? 'animate-spin-slow' : ''}`} />
+              </button>
+
+              {/* Settings Popover */}
+              {isSettingsPanelOpen && (
+                <div className="absolute right-0 top-full mt-2 z-50 w-[300px] bg-[var(--bg-surface)] border border-[var(--border-default)] rounded-2xl shadow-2xl p-6 animate-in fade-in slide-in-from-top-2 duration-200">
+                  <div className="flex items-center justify-between mb-6">
+                    <h4 className="text-sm font-bold text-[var(--text-primary)] flex items-center gap-2">
+                      <Settings className="h-4 w-4 text-primary" />
+                      Grid Settings
+                    </h4>
+                    <button onClick={() => setIsSettingsPanelOpen(false)} className="text-[var(--text-secondary)] hover:text-[var(--text-primary)]">
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
+
+                  <div className="space-y-6">
+                    {/* Column Visibility */}
+                    <div className="space-y-3">
+                      <label className="text-[10px] font-bold text-[var(--text-secondary)] uppercase px-1 tracking-widest">Show/Hide Columns</label>
+                      <div className="space-y-2 max-h-[200px] overflow-y-auto pr-2 scrollbar-thin">
+                        {columns.map(col => (
+                          <label key={col.key} className="flex items-center justify-between p-2 rounded-lg hover:bg-white/5 cursor-pointer transition-colors group">
+                            <span className="text-sm text-[var(--text-primary)] group-hover:text-primary transition-colors">{col.label}</span>
+                            <div className="relative inline-flex items-center cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={visibleColumns[col.key] !== false}
+                                onChange={() => {
+                                  setVisibleColumns(prev => ({
+                                    ...prev,
+                                    [col.key]: !prev[col.key]
+                                  }));
+                                }}
+                                className="sr-only peer"
+                              />
+                              <div className="w-9 h-5 bg-white/10 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-primary"></div>
+                            </div>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Page Size */}
+                    <div className="space-y-3 pt-4 border-t border-[var(--border-default)]">
+                      <label className="text-[10px] font-bold text-[var(--text-secondary)] uppercase px-1 tracking-widest">Rows per page</label>
+                      <div className="grid grid-cols-4 gap-2">
+                        {[10, 20, 50, 100].map(v => (
+                          <button
+                            key={v}
+                            onClick={() => {
+                              setSize(v);
+                              setPage(1);
+                            }}
+                            className={`py-2 rounded-lg text-xs font-bold transition-all ${size === v ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'bg-white/5 text-[var(--text-secondary)] hover:bg-white/10 border border-transparent'}`}
+                          >
+                            {v}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mt-6 pt-4 border-t border-[var(--border-default)]">
+                    <button
+                      onClick={() => setIsSettingsPanelOpen(false)}
+                      className="w-full py-2.5 bg-primary text-white rounded-xl text-xs font-bold uppercase tracking-wider shadow-lg shadow-primary/20 hover:scale-[1.02] active:scale-[0.98] transition-all"
+                    >
+                      Apply Settings
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
@@ -234,10 +333,10 @@ const DataGrid: React.FC<DataGridProps> = ({
             {Object.entries(filter).map(([key, value]) => {
               if (!value) return null;
               const field = filterFields.find(f => f.key === key);
-              const displayValue = field?.type === 'select' 
+              const displayValue = field?.type === 'select'
                 ? field.options?.find(o => o.value === value)?.label || value
                 : value;
-              
+
               return (
                 <div key={key} className="flex items-center gap-1.5 px-3 py-1.5 bg-white/5 border border-[var(--border-default)] rounded-full text-xs text-[var(--text-primary)] font-medium group transition-all hover:bg-white/10">
                   <span className="text-[var(--text-secondary)] capitalize">{field?.label || key}:</span>
@@ -298,7 +397,7 @@ const DataGrid: React.FC<DataGridProps> = ({
             <table className="min-w-full divide-y divide-[var(--border-default)]">
               <thead className="border-b border-[var(--border-default)]">
                 <tr>
-                  {columns.map((col) => {
+                  {columns.filter(col => visibleColumns[col.key] !== false).map((col) => {
                     const [sortKey, sortDir] = sort.split(':');
                     const isSorted = sortKey === col.key;
 
@@ -332,7 +431,7 @@ const DataGrid: React.FC<DataGridProps> = ({
                     onClick={() => onRowClick?.(row)}
                     className={`transition-colors ${onRowClick ? 'hover:bg-white/5 cursor-pointer' : ''}`}
                   >
-                    {columns.map((col) => (
+                    {columns.filter(col => visibleColumns[col.key] !== false).map((col) => (
                       <td key={col.key} className="px-6 py-5 whitespace-nowrap">
                         {col.render ? col.render(row[col.key], row) : (
                           <span className="text-sm text-[var(--text-primary)]">{row[col.key]}</span>
@@ -366,11 +465,10 @@ const DataGrid: React.FC<DataGridProps> = ({
                       <button
                         key={pageNum}
                         onClick={() => setPage(pageNum)}
-                        className={`w-10 h-10 rounded-xl text-sm font-medium transition-all ${
-                          meta.currentPage === pageNum
-                            ? 'bg-primary text-white shadow-lg shadow-primary/20'
-                            : 'bg-white/5 text-[var(--text-secondary)] hover:bg-white/10'
-                        }`}
+                        className={`w-10 h-10 rounded-xl text-sm font-medium transition-all ${meta.currentPage === pageNum
+                          ? 'bg-primary text-white shadow-lg shadow-primary/20'
+                          : 'bg-white/5 text-[var(--text-secondary)] hover:bg-white/10'
+                          }`}
                       >
                         {pageNum}
                       </button>

@@ -21,6 +21,7 @@ import EventSubscribeModal from '@/components/EventSubscribeModal';
 import MessageTemplateModal from '@/components/MessageTemplateModal';
 import {
   getAppContracts,
+  getInfraContracts,
   createEventContract,
   registerAppInHub,
   updateEventContract,
@@ -96,6 +97,7 @@ export default function AppDetailPage() {
 
   // Events state
   const [eventSubTab, setEventSubTab] = useState<EventSubTab>('broadcast');
+  const [refreshContracts, setRefreshContracts] = useState(0);
   const [infraContracts, setInfraContracts] = useState<any[]>([]);
   const [infraContractsLoading, setInfraContractsLoading] = useState(false);
   const [availableEvents, setAvailableEvents] = useState<any[]>([]);
@@ -344,17 +346,20 @@ export default function AppDetailPage() {
 
       try {
         setInfraContractsLoading(true);
-        const data = await getAppContracts(app.appId);
-        setInfraContracts(data);
+        const res = await getInfraContracts({
+          filter: { appId: app.appId },
+          size: 100 // Default to large size for backward compat if not using DataGrid fully yet
+        });
+        setInfraContracts(res.data || []);
       } catch (err) {
-        console.error('Failed to fetch contracts:', err);
+        console.error('Failed to fetch event contracts:', err);
       } finally {
         setInfraContractsLoading(false);
       }
     };
 
     fetchContracts();
-  }, [activeTab, eventSubTab, app?.appId]);
+  }, [activeTab, eventSubTab, app?.appId, refreshContracts]);
 
   // Fetch my subscriptions when events/subscribe tab is active
   useEffect(() => {
@@ -537,8 +542,7 @@ export default function AppDetailPage() {
       }
 
       // 3. Refresh list
-      const updatedContracts = await getAppContracts(app.appId);
-      setInfraContracts(updatedContracts);
+      setRefreshContracts(prev => prev + 1);
       setEditingEvent(null);
     } catch (err: any) {
       throw new Error(err.message || 'Failed to process event');
@@ -598,8 +602,7 @@ export default function AppDetailPage() {
     try {
       await deleteEventContract(id);
       // Refresh list
-      const updatedContracts = await getAppContracts(app!.appId);
-      setInfraContracts(updatedContracts);
+      setRefreshContracts(prev => prev + 1);
     } catch (err: any) {
       alert(err.message || 'Failed to delete event');
     }
@@ -1755,104 +1758,106 @@ export default function AppDetailPage() {
 
             {/* Sub-tab Content */}
             {eventSubTab === 'broadcast' && (
-              <div className="space-y-4">
-                <div className="flex justify-between items-center">
-                  <h3 className="text-md font-medium text-[var(--text-primary)]">Your Event Contracts</h3>
-                  <button
-                    onClick={() => setEventRegisterModalOpen(true)}
-                    className="flex items-center gap-2 px-3 py-1.5 bg-[var(--action-primary)] text-white rounded-lg text-sm font-medium hover:opacity-90"
-                  >
-                    <Plus className="h-4 w-4" />
-                    Register Event
-                  </button>
-                </div>
-
-                {infraContractsLoading ? (
-                  <div className="flex items-center justify-center py-12">
-                    <div className="text-[var(--text-secondary)]">Loading contracts...</div>
-                  </div>
-                ) : infraContracts.length === 0 ? (
-                  <div className="rounded-xl border border-[var(--border-default)] bg-white/5 min-h-[300px] flex flex-col items-center justify-center p-8 text-center">
-                    <div className="p-4 bg-[var(--bg-surface)] rounded-full border border-[var(--border-default)] mb-4">
-                      <Activity className="h-8 w-8 text-[var(--text-secondary)] opacity-50" />
-                    </div>
-                    <h4 className="text-[var(--text-primary)] font-medium mb-1">No event contracts yet</h4>
-                    <p className="text-[var(--text-secondary)] text-sm max-w-[300px]">
-                      Manage events that this application broadcasts to the hub. Start by registering your first event contract.
-                    </p>
-                  </div>
-                ) : (
-                  <div className="overflow-hidden rounded-xl border border-[var(--border-default)]">
-                    <table className="min-w-full divide-y divide-[var(--border-default)]">
-                      <thead>
-                        <tr>
-                          <th className="px-6 py-4 text-left text-[10px] font-bold text-[var(--text-secondary)] uppercase tracking-wider">Event Name</th>
-                          <th className="px-6 py-4 text-left text-[10px] font-bold text-[var(--text-secondary)] uppercase tracking-wider">Privacy</th>
-                          <th className="px-6 py-4 text-left text-[10px] font-bold text-[var(--text-secondary)] uppercase tracking-wider">Status</th>
-                          <th className="px-6 py-4 text-left text-[10px] font-bold text-[var(--text-secondary)] uppercase tracking-wider">Created</th>
-                          <th className="px-6 py-4 text-right text-[10px] font-bold text-[var(--text-secondary)] uppercase tracking-wider">Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-[var(--border-default)]">
-                        {infraContracts.map((contract) => (
-                          <tr key={contract.id} className="hover:bg-white/5 transition-colors group">
-                            <td className="px-6 py-5 whitespace-nowrap">
-                              <div className="flex items-center gap-3">
-                                <div className="p-2 bg-[var(--bg-surface)] rounded-lg border border-[var(--border-default)] group-hover:border-primary/50 transition-colors">
-                                  <Code className="h-4 w-4 text-[var(--text-secondary)] group-hover:text-primary" />
-                                </div>
-                                <span className="text-sm font-medium text-[var(--text-primary)]">{contract.eventName}</span>
-                              </div>
-                            </td>
-                            <td className="px-6 py-5 whitespace-nowrap">
-                              {contract.isPublic ? (
-                                <span className="px-2.5 py-0.5 bg-blue-500/10 text-blue-400 text-[10px] font-bold uppercase rounded-full border border-blue-500/20">Public</span>
-                              ) : (
-                                <span className="px-2.5 py-0.5 bg-gray-500/10 text-gray-400 text-[10px] font-bold uppercase rounded-full border border-gray-500/20">Private</span>
-                              )}
-                            </td>
-                            <td className="px-6 py-5 whitespace-nowrap">
-                              {contract.isActive ? (
-                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-green-500/10 text-green-400 border border-green-500/20 uppercase">
-                                  Active
-                                </span>
-                              ) : (
-                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-red-500/10 text-red-400 border border-red-500/20 uppercase">
-                                  Inactive
-                                </span>
-                              )}
-                            </td>
-                            <td className="px-6 py-5 whitespace-nowrap">
-                              <div className="flex items-center gap-2 text-[var(--text-secondary)]">
-                                <Calendar className="h-3.5 w-3.5" />
-                                <span className="text-xs">{new Date(contract.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
-                              </div>
-                            </td>
-                            <td className="px-6 py-5 whitespace-nowrap text-right">
-                              <div className="flex items-center justify-end gap-3">
-                                <button
-                                  onClick={() => openEditEvent(contract)}
-                                  className="text-[var(--action-primary)] hover:text-[var(--action-primary-hover)] inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider transition-colors"
-                                  title="Edit Contract"
-                                >
-                                  <Edit className="h-4 w-4" />
-                                </button>
-                                <button
-                                  onClick={() => handleDeleteEvent(contract.id)}
-                                  className="text-red-500 hover:text-red-600 inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider transition-colors"
-                                  title="Delete Contract"
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </div>
+              <DataGrid
+                title="Your Event Contracts"
+                description="Manage events that this application broadcasts to the hub."
+                fetchData={(params) => getInfraContracts({ ...params, filter: { ...params.filter, appId: app?.appId } })}
+                refreshTrigger={refreshContracts}
+                columns={[
+                  {
+                    key: 'eventName',
+                    label: 'Event Name',
+                    sortable: true,
+                    render: (val) => (
+                      <div className="flex items-center gap-3">
+                        <div className="p-2 bg-[var(--bg-surface)] rounded-lg border border-[var(--border-default)]">
+                          <Code className="h-4 w-4 text-[var(--text-secondary)]" />
+                        </div>
+                        <span className="text-sm font-medium text-[var(--text-primary)]">{val}</span>
+                      </div>
+                    )
+                  },
+                  {
+                    key: 'isPublic',
+                    label: 'Privacy',
+                    sortable: true,
+                    render: (val) => val ? (
+                      <span className="px-2.5 py-0.5 bg-blue-500/10 text-blue-400 text-[10px] font-bold uppercase rounded-full border border-blue-500/20">Public</span>
+                    ) : (
+                      <span className="px-2.5 py-0.5 bg-gray-500/10 text-gray-400 text-[10px] font-bold uppercase rounded-full border border-gray-500/20">Private</span>
+                    )
+                  },
+                  {
+                    key: 'isActive',
+                    label: 'Status',
+                    sortable: true,
+                    render: (val) => val ? (
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-green-500/10 text-green-400 border border-green-500/20 uppercase">Active</span>
+                    ) : (
+                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-red-500/10 text-red-400 border border-red-500/20 uppercase">Inactive</span>
+                    )
+                  },
+                  {
+                    key: 'createdAt',
+                    label: 'Created',
+                    sortable: true,
+                    render: (val) => (
+                      <div className="flex items-center gap-2 text-[var(--text-secondary)]">
+                        <Calendar className="h-3.5 w-3.5" />
+                        <span className="text-xs">{new Date(val).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
+                      </div>
+                    )
+                  },
+                  {
+                    key: 'id',
+                    label: 'Actions',
+                    render: (_, row) => (
+                      <div className="flex items-center justify-end gap-3" onClick={(e) => e.stopPropagation()}>
+                        <button
+                          onClick={() => openEditEvent(row)}
+                          className="text-[var(--action-primary)] hover:text-[var(--action-primary-hover)] inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider transition-colors"
+                          title="Edit Contract"
+                        >
+                          <Edit className="h-4 w-4" />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteEvent(row.id)}
+                          className="text-red-500 hover:text-red-600 inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider transition-colors"
+                          title="Delete Contract"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
+                    )
+                  }
+                ]}
+                filterFields={[
+                  { key: 'eventName', label: 'Event Name', type: 'text', placeholder: 'e.g. payment.paid' },
+                  {
+                    key: 'isActive',
+                    label: 'Status',
+                    type: 'select',
+                    options: [
+                      { label: 'Active', value: 'true' },
+                      { label: 'Inactive', value: 'false' }
+                    ]
+                  },
+                  {
+                    key: 'isPublic',
+                    label: 'Privacy',
+                    type: 'select',
+                    options: [
+                      { label: 'Public', value: 'true' },
+                      { label: 'Private', value: 'false' }
+                    ]
+                  }
+                ]}
+                emptyState={{
+                  title: "No event contracts yet",
+                  description: "Manage events that this application broadcasts to the hub. Start by registering your first event contract.",
+                  icon: <Activity className="h-8 w-8 text-[var(--text-secondary)] opacity-50" />
+                }}
+              />
             )}
 
             {eventSubTab === 'subscribe' && (
