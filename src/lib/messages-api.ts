@@ -70,10 +70,36 @@ export const testConnection = (data: TestConnectionRequest) =>
   });
 
 // Templates
-export const getTemplates = (appId: string, channelType?: ChannelType) => {
-  let url = `/messages/templates?appId=${appId}`;
-  if (channelType) url += `&channelType=${channelType}`;
-  return request<MessageTemplate[]>(url);
+export const getTemplates = (
+  appId: string,
+  params?: {
+    channelType?: ChannelType;
+    page?: number;
+    size?: number;
+    search?: string;
+    filter?: Record<string, string>;
+    sort?: string;
+  },
+) => {
+  const queryParams = new URLSearchParams();
+  queryParams.append('appId', appId);
+
+  if (params) {
+    if (params.channelType) queryParams.append('channelType', params.channelType);
+    if (params.page) queryParams.append('page', params.page.toString());
+    if (params.size) queryParams.append('size', params.size.toString());
+    if (params.search) queryParams.append('search', params.search);
+    if (params.sort) queryParams.append('sort', params.sort);
+    if (params.filter) {
+      Object.keys(params.filter).forEach((key) => {
+        queryParams.append(`filter[${key}]`, params.filter![key]);
+      });
+    }
+  }
+
+  return request<{ data: MessageTemplate[]; meta: any }>(
+    `/messages/templates?${queryParams.toString()}`,
+  );
 };
 
 export const createTemplate = (data: CreateTemplateRequest) =>
@@ -94,4 +120,35 @@ export const deleteTemplate = (id: string, appId?: string) => {
   return request<void>(url, {
     method: 'DELETE',
   });
+};
+
+// Logs
+export const getMessageLogs = (
+  appId: string,
+  params?: {
+    page?: number;
+    size?: number;
+    search?: string;
+    filter?: Record<string, string>;
+    sort?: string;
+  },
+) => {
+  const queryParams = new URLSearchParams();
+  queryParams.append('appId', appId);
+
+  if (params) {
+    if (params.page) queryParams.append('page', params.page.toString());
+    if (params.size) queryParams.append('size', params.size.toString());
+    if (params.search) queryParams.append('search', params.search);
+    if (params.sort) queryParams.append('sort', params.sort);
+    if (params.filter) {
+      Object.keys(params.filter).forEach((key) => {
+        queryParams.append(`filter[${key}]`, params.filter![key]);
+      });
+    }
+  }
+
+  return request<{ data: any[]; meta: any }>(
+    `/messages/logs?${queryParams.toString()}`,
+  );
 };

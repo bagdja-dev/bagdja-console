@@ -38,7 +38,8 @@ import {
   getTemplates,
   createTemplate,
   updateTemplate,
-  deleteTemplate
+  deleteTemplate,
+  getMessageLogs
 } from '@/lib/messages-api';
 
 type TabType = 'users' | 'product' | 'plan' | 'license' | 'subscriptions' | 'events' | 'messaging';
@@ -162,24 +163,9 @@ export default function AppDetailPage() {
   // Messaging state
   const [activeChannel, setActiveChannel] = useState<ChannelType | null>(null);
   const [messagingSubTab, setMessagingSubTab] = useState<MessagingSubTab>('setup');
-  const [templates, setTemplates] = useState<any[]>([]);
-  const [templatesLoading, setTemplatesLoading] = useState(false);
+  const [refreshTemplatesTrigger, setRefreshTemplatesTrigger] = useState(0);
   const [templateModalOpen, setTemplateModalOpen] = useState(false);
   const [editingTemplate, setEditingTemplate] = useState<any>(null);
-
-  // Messaging methods
-  const refreshTemplates = async () => {
-    if (!app?.appId || !activeChannel) return;
-    try {
-      setTemplatesLoading(true);
-      const data = await getTemplates(app.appId, activeChannel);
-      setTemplates(data);
-    } catch (err) {
-      console.error('Failed to fetch templates:', err);
-    } finally {
-      setTemplatesLoading(false);
-    }
-  };
 
   const handleTemplateSubmit = async (data: any) => {
     if (!app?.appId) return;
@@ -194,7 +180,7 @@ export default function AppDetailPage() {
     } else {
       await createTemplate(payload);
     }
-    await refreshTemplates();
+    setRefreshTemplatesTrigger(prev => prev + 1);
   };
 
   const handleDeleteTemplate = async (id: string) => {
@@ -202,17 +188,13 @@ export default function AppDetailPage() {
     if (!app?.appId) return;
     try {
       await deleteTemplate(id, app.appId);
-      await refreshTemplates();
+      setRefreshTemplatesTrigger(prev => prev + 1);
     } catch (err) {
       alert('Failed to delete template');
     }
   };
 
-  useEffect(() => {
-    if (activeTab === 'messaging' && messagingSubTab === 'templates' && activeChannel) {
-      refreshTemplates();
-    }
-  }, [activeTab, messagingSubTab, activeChannel]);
+
 
   useEffect(() => {
     const fetchApp = async () => {
@@ -2226,19 +2208,19 @@ export default function AppDetailPage() {
 
         {/* Messaging Tab */}
         {activeTab === 'messaging' && (
-          <div className="p-6">
-            <div className="mb-6 flex items-center justify-between">
-              <div>
-                <h2 className="text-lg font-semibold text-[var(--text-primary)]">
-                  {activeChannel ? `${activeChannel.charAt(0).toUpperCase() + activeChannel.slice(1)} Channel` : 'Messaging Service'}
-                </h2>
-                <p className="text-sm text-[var(--text-secondary)] mt-1">
-                  {activeChannel
-                    ? `Manage ${activeChannel} settings, templates, and delivery logs.`
-                    : 'Select a communication channel to configure and manage.'}
-                </p>
-              </div>
-              {activeChannel && (
+          <div className="p-6 h-full flex flex-col overflow-hidden">
+            <div className="flex-shrink-0 mb-6">
+              <h2 className="text-lg font-semibold text-[var(--text-primary)]">
+                {activeChannel ? `${activeChannel.charAt(0).toUpperCase() + activeChannel.slice(1)} Channel` : 'Messaging Service'}
+              </h2>
+              <p className="text-sm text-[var(--text-secondary)] mt-1">
+                {activeChannel
+                  ? `Manage ${activeChannel} settings, templates, and delivery logs.`
+                  : 'Select a communication channel to configure and manage.'}
+              </p>
+            </div>
+            {activeChannel && (
+              <div className="flex-shrink-0 mb-6 flex items-center justify-between">
                 <button
                   onClick={() => setActiveChannel(null)}
                   className="flex items-center gap-2 px-3 py-1.5 text-xs font-bold uppercase tracking-wider text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
@@ -2246,65 +2228,67 @@ export default function AppDetailPage() {
                   <ArrowLeft className="h-4 w-4" />
                   Back to Channels
                 </button>
-              )}
-            </div>
+              </div>
+            )}
 
             {!activeChannel ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {/* Email Channel Card */}
-                <button
-                  onClick={() => {
-                    setActiveChannel(ChannelType.EMAIL);
-                    setMessagingSubTab('setup');
-                  }}
-                  className="p-6 rounded-xl border border-[var(--border-default)] bg-white/5 hover:border-[var(--action-primary)] transition-all text-left group"
-                >
-                  <div className="flex items-center gap-3 mb-4">
-                    <div className="p-2 bg-blue-500/10 rounded-lg border border-blue-500/20 group-hover:bg-blue-500/20 transition-colors">
-                      <Mail className="h-6 w-6 text-blue-400" />
+              <div className="flex-1 overflow-y-auto">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {/* Email Channel Card */}
+                  <button
+                    onClick={() => {
+                      setActiveChannel(ChannelType.EMAIL);
+                      setMessagingSubTab('setup');
+                    }}
+                    className="p-6 rounded-xl border border-[var(--border-default)] bg-white/5 hover:border-[var(--action-primary)] transition-all text-left group"
+                  >
+                    <div className="flex items-center gap-3 mb-4">
+                      <div className="p-2 bg-blue-500/10 rounded-lg border border-blue-500/20 group-hover:bg-blue-500/20 transition-colors">
+                        <Mail className="h-6 w-6 text-blue-400" />
+                      </div>
+                      <span className="font-bold text-[var(--text-primary)]">Email</span>
                     </div>
-                    <span className="font-bold text-[var(--text-primary)]">Email</span>
-                  </div>
-                  <p className="text-sm text-[var(--text-secondary)] mb-4 leading-relaxed">
-                    Send transactional emails using Bagdja default or your custom SMTP/Provider.
-                  </p>
-                  <div className="flex items-center text-xs font-bold text-[var(--action-primary)] uppercase tracking-widest">
-                    Configure <ArrowLeft className="ml-2 h-3 w-3 rotate-180" />
-                  </div>
-                </button>
+                    <p className="text-sm text-[var(--text-secondary)] mb-4 leading-relaxed">
+                      Send transactional emails using Bagdja default or your custom SMTP/Provider.
+                    </p>
+                    <div className="flex items-center text-xs font-bold text-[var(--action-primary)] uppercase tracking-widest">
+                      Configure <ArrowLeft className="ml-2 h-3 w-3 rotate-180" />
+                    </div>
+                  </button>
 
-                {/* WhatsApp Channel Card (Coming Soon) */}
-                <div className="p-6 rounded-xl border border-[var(--border-default)] bg-white/5 opacity-50 cursor-not-allowed">
-                  <div className="flex items-center gap-3 mb-4">
-                    <div className="p-2 bg-green-500/10 rounded-lg border border-green-500/20">
-                      <Globe className="h-6 w-6 text-green-400" />
+                  {/* WhatsApp Channel Card (Coming Soon) */}
+                  <div className="p-6 rounded-xl border border-[var(--border-default)] bg-white/5 opacity-50 cursor-not-allowed">
+                    <div className="flex items-center gap-3 mb-4">
+                      <div className="p-2 bg-green-500/10 rounded-lg border border-green-500/20">
+                        <Globe className="h-6 w-6 text-green-400" />
+                      </div>
+                      <span className="font-bold text-[var(--text-primary)]">WhatsApp</span>
                     </div>
-                    <span className="font-bold text-[var(--text-primary)]">WhatsApp</span>
+                    <p className="text-sm text-[var(--text-secondary)] mb-4 leading-relaxed">
+                      Direct messaging via WhatsApp API. Coming soon as part of infrastructure update.
+                    </p>
+                    <span className="text-[10px] font-bold text-gray-500 uppercase">Coming Soon</span>
                   </div>
-                  <p className="text-sm text-[var(--text-secondary)] mb-4 leading-relaxed">
-                    Direct messaging via WhatsApp API. Coming soon as part of infrastructure update.
-                  </p>
-                  <span className="text-[10px] font-bold text-gray-500 uppercase">Coming Soon</span>
-                </div>
 
-                {/* SMS Channel Card (Coming Soon) */}
-                <div className="p-6 rounded-xl border border-[var(--border-default)] bg-white/5 opacity-50 cursor-not-allowed">
-                  <div className="flex items-center gap-3 mb-4">
-                    <div className="p-2 bg-amber-500/10 rounded-lg border border-amber-500/20">
-                      <Mail className="h-6 w-6 text-amber-400" />
+                  {/* SMS Channel Card (Coming Soon) */}
+                  <div className="p-6 rounded-xl border border-[var(--border-default)] bg-white/5 opacity-50 cursor-not-allowed">
+                    <div className="flex items-center gap-3 mb-4">
+                      <div className="p-2 bg-amber-500/10 rounded-lg border border-amber-500/20">
+                        <Mail className="h-6 w-6 text-amber-400" />
+                      </div>
+                      <span className="font-bold text-[var(--text-primary)]">SMS</span>
                     </div>
-                    <span className="font-bold text-[var(--text-primary)]">SMS</span>
+                    <p className="text-sm text-[var(--text-secondary)] mb-4 leading-relaxed">
+                      Global SMS delivery for OTP and alerts. Coming soon.
+                    </p>
+                    <span className="text-[10px] font-bold text-gray-500 uppercase">Coming Soon</span>
                   </div>
-                  <p className="text-sm text-[var(--text-secondary)] mb-4 leading-relaxed">
-                    Global SMS delivery for OTP and alerts. Coming soon.
-                  </p>
-                  <span className="text-[10px] font-bold text-gray-500 uppercase">Coming Soon</span>
                 </div>
               </div>
             ) : (
-              <>
+              <div className="flex-1 min-h-0 flex flex-col">
                 {/* Sub-tabs for the Active Channel */}
-                <div className="flex items-center gap-1 p-1 bg-white/5 rounded-lg w-fit mb-8">
+                <div className="flex-shrink-0 flex items-center gap-1 p-1 bg-white/5 rounded-lg w-fit mb-8">
                   <button
                     onClick={() => setMessagingSubTab('setup')}
                     className={`px-6 py-2 text-xs font-bold uppercase tracking-wider rounded-md transition-all ${messagingSubTab === 'setup'
@@ -2335,9 +2319,9 @@ export default function AppDetailPage() {
                 </div>
 
                 {/* Channel Content */}
-                <div className="space-y-6">
+                <div className="flex-1 min-h-0 flex flex-col">
                   {messagingSubTab === 'setup' && (
-                    <div className="max-w-2xl">
+                    <div className="max-w-2xl overflow-y-auto">
                       <div className="p-8 rounded-xl border border-[var(--border-default)] bg-white/5">
                         <div className="flex items-center justify-between mb-8">
                           <div className="flex items-center gap-4">
@@ -2383,117 +2367,200 @@ export default function AppDetailPage() {
                   )}
 
                   {messagingSubTab === 'templates' && (
-                    <div className="space-y-6">
-                      <div className="flex justify-between items-center">
-                        <h3 className="text-md font-bold text-[var(--text-primary)] uppercase tracking-wider">{activeChannel} Templates</h3>
-                        <button
-                          onClick={() => {
-                            setEditingTemplate(null);
-                            setTemplateModalOpen(true);
-                          }}
-                          className="flex items-center gap-2 px-4 py-2 bg-[var(--action-primary)] text-white text-xs font-bold rounded-lg hover:shadow-lg transition-all uppercase"
-                        >
-                          <Plus className="h-4 w-4" />
-                          New Template
-                        </button>
-                      </div>
-
-                      {templatesLoading ? (
-                        <div className="flex items-center justify-center py-12">
-                          <div className="text-[var(--text-secondary)]">Loading templates...</div>
-                        </div>
-                      ) : templates.length === 0 ? (
-                        <div className="rounded-2xl border border-[var(--border-default)] bg-white/5 min-h-[300px] flex flex-col items-center justify-center p-12 text-center">
-                          <div className="p-5 bg-[var(--bg-surface)] rounded-2xl border border-[var(--border-default)] mb-6 shadow-inner">
-                            <Code className="h-10 w-10 text-[var(--text-secondary)] opacity-30" />
-                          </div>
-                          <h4 className="text-[var(--text-primary)] font-bold mb-2 text-lg">No {activeChannel} templates yet</h4>
-                          <p className="text-[var(--text-secondary)] text-sm max-w-[350px] leading-relaxed">
-                            Define your {activeChannel} templates using Handlebars syntax.
-                            These can be triggered via the Message API.
-                          </p>
-                        </div>
-                      ) : (
-                        <div className="overflow-hidden rounded-xl border border-[var(--border-default)] bg-white/5">
-                          <table className="w-full text-left border-collapse">
-                            <thead>
-                              <tr className="border-b border-[var(--border-default)] bg-white/5">
-                                <th className="px-6 py-4 text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wider">Template Name</th>
-                                <th className="px-6 py-4 text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wider">Subject</th>
-                                <th className="px-6 py-4 text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wider">Last Updated</th>
-                                <th className="px-6 py-4 text-xs font-bold text-[var(--text-secondary)] uppercase tracking-wider text-right">Actions</th>
-                              </tr>
-                            </thead>
-                            <tbody className="divide-y divide-[var(--border-default)]">
-                              {templates.map((tpl) => (
-                                <tr key={tpl.id} className="hover:bg-white/5 transition-colors group">
-                                  <td className="px-6 py-4">
-                                    <div className="flex items-center gap-3">
-                                      <div className="p-2 bg-primary/10 rounded-lg text-primary">
-                                        <Code className="h-4 w-4" />
-                                      </div>
-                                      <span className="font-bold text-[var(--text-primary)]">{tpl.name}</span>
-                                    </div>
-                                  </td>
-                                  <td className="px-6 py-4">
-                                    <span className="text-sm text-[var(--text-secondary)] italic truncate max-w-[300px] block">
-                                      {tpl.subject || '-'}
-                                    </span>
-                                  </td>
-                                  <td className="px-6 py-4">
-                                    <span className="text-xs text-[var(--text-secondary)] font-mono">
-                                      {new Date(tpl.updatedAt).toLocaleDateString('en-GB', {
-                                        day: '2-digit',
-                                        month: '2-digit',
-                                        year: 'numeric',
-                                        hour: '2-digit',
-                                        minute: '2-digit'
-                                      })}
-                                    </span>
-                                  </td>
-                                  <td className="px-6 py-4 text-right">
-                                    <div className="flex justify-end gap-2">
-                                      <button
-                                        onClick={() => {
-                                          setEditingTemplate(tpl);
-                                          setTemplateModalOpen(true);
-                                        }}
-                                        className="p-2 text-[var(--text-secondary)] hover:text-primary hover:bg-primary/10 rounded-lg transition-all"
-                                        title="Edit Template"
-                                      >
-                                        <Edit className="h-4 w-4" />
-                                      </button>
-                                      <button
-                                        onClick={() => handleDeleteTemplate(tpl.id)}
-                                        className="p-2 text-[var(--text-secondary)] hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-all"
-                                        title="Delete Template"
-                                      >
-                                        <Trash2 className="h-4 w-4" />
-                                      </button>
-                                    </div>
-                                  </td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                      )}
+                    <div className="flex-1 min-h-0 flex flex-col">
+                      <DataGrid
+                        title={`${activeChannel.charAt(0).toUpperCase() + activeChannel.slice(1)} Templates`}
+                        description={`Manage your ${activeChannel} templates using Handlebars syntax.`}
+                        fetchData={(params) => getTemplates(app?.appId, { ...params, channelType: activeChannel })}
+                        refreshTrigger={refreshTemplatesTrigger}
+                        isScrollable={true}
+                        fullHeight={true}
+                        actions={[
+                          {
+                            label: '',
+                            icon: <Plus className="h-4 w-4" />,
+                            onClick: () => {
+                              setEditingTemplate(null);
+                              setTemplateModalOpen(true);
+                            },
+                            variant: 'secondary'
+                          }
+                        ]}
+                        columns={[
+                          {
+                            key: 'name',
+                            label: 'Template Name',
+                            sortable: true,
+                            render: (val) => (
+                              <div className="flex items-center gap-3">
+                                <div className="p-2 bg-primary/10 rounded-lg text-primary">
+                                  <Code className="h-4 w-4" />
+                                </div>
+                                <span className="font-bold text-[var(--text-primary)]">{val}</span>
+                              </div>
+                            )
+                          },
+                          {
+                            key: 'subject',
+                            label: 'Subject',
+                            sortable: true,
+                            render: (val) => (
+                              <span className="text-sm text-[var(--text-secondary)] italic truncate max-w-[300px] block">
+                                {val || '-'}
+                              </span>
+                            )
+                          },
+                          {
+                            key: 'updatedAt',
+                            label: 'Last Updated',
+                            sortable: true,
+                            render: (val) => (
+                              <span className="text-xs text-[var(--text-secondary)] font-mono">
+                                {new Date(val).toLocaleDateString('en-GB', {
+                                  day: '2-digit',
+                                  month: '2-digit',
+                                  year: 'numeric',
+                                  hour: '2-digit',
+                                  minute: '2-digit'
+                                })}
+                              </span>
+                            )
+                          },
+                          {
+                            key: 'actions',
+                            label: 'Actions',
+                            render: (_, row) => (
+                              <div className="flex items-center justify-end gap-2" onClick={(e) => e.stopPropagation()}>
+                                <button
+                                  onClick={() => {
+                                    setEditingTemplate(row);
+                                    setTemplateModalOpen(true);
+                                  }}
+                                  className="p-2 text-[var(--text-secondary)] hover:text-primary hover:bg-primary/10 rounded-lg transition-all"
+                                  title="Edit Template"
+                                >
+                                  <Edit className="h-4 w-4" />
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteTemplate(row.id)}
+                                  className="p-2 text-[var(--text-secondary)] hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-all"
+                                  title="Delete Template"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </button>
+                              </div>
+                            )
+                          }
+                        ]}
+                        filterFields={[
+                          { key: 'name', label: 'Template Name', type: 'text', placeholder: 'e.g. welcome-email' },
+                          { key: 'subject', label: 'Subject', type: 'text', placeholder: 'e.g. Welcome to Bagdja' }
+                        ]}
+                        emptyState={{
+                          title: `No ${activeChannel} templates yet`,
+                          description: `Define your ${activeChannel} templates using Handlebars syntax.`,
+                          icon: <Code className="h-8 w-8 text-[var(--text-secondary)] opacity-50" />
+                        }}
+                      />
                     </div>
                   )}
 
                   {messagingSubTab === 'logs' && (
-                    <div className="rounded-2xl border border-[var(--border-default)] bg-white/5 min-h-[400px] flex flex-col items-center justify-center p-12 text-center">
-                      <div className="p-5 bg-[var(--bg-surface)] rounded-2xl border border-[var(--border-default)] mb-6 shadow-inner">
-                        <History className="h-10 w-10 text-[var(--text-secondary)] opacity-30" />
-                      </div>
-                      <h4 className="text-[var(--text-primary)] font-bold mb-2 text-lg">No delivery history</h4>
-                      <p className="text-[var(--text-secondary)] text-sm max-w-[350px] leading-relaxed">
-                        Once your application starts sending {activeChannel}s, the detailed delivery logs and status will appear here.
-                      </p>
+                    <div className="flex-1 min-h-0 flex flex-col">
+                      <DataGrid
+                        title={`${activeChannel.charAt(0).toUpperCase() + activeChannel.slice(1)} Delivery Logs`}
+                        description={`Detailed history of ${activeChannel} messages sent from this application.`}
+                        fetchData={(params) => getMessageLogs(app?.appId, { ...params, filter: { ...params.filter, channelType: activeChannel } })}
+                        isScrollable={true}
+                        fullHeight={true}
+                        columns={[
+                          {
+                            key: 'status',
+                            label: 'Status',
+                            sortable: true,
+                            render: (val) => (
+                              <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase border ${val === 'sent' || val === 'delivered'
+                                ? 'bg-green-500/10 text-green-400 border-green-500/20'
+                                : val === 'failed'
+                                  ? 'bg-red-500/10 text-red-400 border-red-500/20'
+                                  : 'bg-amber-500/10 text-amber-400 border-amber-500/20'
+                                }`}>
+                                {val}
+                              </span>
+                            )
+                          },
+                          {
+                            key: 'recipient',
+                            label: 'Recipient',
+                            sortable: true,
+                            render: (val) => (
+                              <span className="text-sm font-medium text-[var(--text-primary)]">{val}</span>
+                            )
+                          },
+                          {
+                            key: 'templateName',
+                            label: 'Template',
+                            sortable: true,
+                            render: (val) => (
+                              <span className="text-xs text-[var(--text-secondary)] font-mono">{val}</span>
+                            )
+                          },
+                          {
+                            key: 'subject',
+                            label: 'Subject',
+                            sortable: true,
+                            render: (val) => (
+                              <span className="text-sm text-[var(--text-secondary)] truncate max-w-[200px]" title={val}>
+                                {val || '-'}
+                              </span>
+                            )
+                          },
+                          {
+                            key: 'createdAt',
+                            label: 'Time',
+                            sortable: true,
+                            render: (val) => (
+                              <div className="flex items-center gap-2 text-[var(--text-secondary)]">
+                                <Clock className="h-3.5 w-3.5" />
+                                <span className="text-xs">
+                                  {new Date(val).toLocaleString(undefined, {
+                                    year: 'numeric',
+                                    month: 'short',
+                                    day: '2-digit',
+                                    hour: '2-digit',
+                                    minute: '2-digit',
+                                    second: '2-digit'
+                                  })}
+                                </span>
+                              </div>
+                            )
+                          }
+                        ]}
+                        filterFields={[
+                          { key: 'recipient', label: 'Recipient', type: 'text', placeholder: 'e.g. user@example.com' },
+                          { key: 'templateName', label: 'Template', type: 'text', placeholder: 'e.g. welcome-email' },
+                          {
+                            key: 'status',
+                            label: 'Status',
+                            type: 'select',
+                            options: [
+                              { label: 'Sent', value: 'sent' },
+                              { label: 'Delivered', value: 'delivered' },
+                              { label: 'Failed', value: 'failed' },
+                              { label: 'Pending', value: 'pending' }
+                            ]
+                          }
+                        ]}
+                        emptyState={{
+                          title: "No delivery history",
+                          description: `Once your application starts sending ${activeChannel}s, the detailed delivery logs will appear here.`,
+                          icon: <History className="h-8 w-8 text-[var(--text-secondary)] opacity-50" />
+                        }}
+                      />
                     </div>
                   )}
                 </div>
-              </>
+              </div>
             )}
           </div>
         )}
