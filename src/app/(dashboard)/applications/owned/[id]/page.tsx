@@ -10,7 +10,7 @@ import { getLicenses, getPurchasedLicenses, createLicense, updateLicense, delete
 import { getAppSubscriptions } from '@/lib/subscriptions-api';
 import { ChannelType, ProviderType } from '@/types';
 import type { ClientApp, ApiError, Product, Plan, PlanDuration, AppUser, CreateProductRequest, UpdateProductRequest, CreatePlanRequest, UpdatePlanRequest, License, CreateLicenseRequest, UpdateLicenseRequest, LicenseStatus, Subscription, SubscriptionStatus } from '@/types';
-import { ArrowLeft, Package, Mail, Calendar, Users, ShoppingBag, CreditCard, Plus, Edit, Trash2, Key, Copy, Check, Coins, Activity, Shield, CheckCircle, XCircle, Globe, Lock, Code, List, Clock, Search, History, Link2, X } from 'lucide-react';
+import { ArrowLeft, Package, Mail, Calendar, Users, ShoppingBag, CreditCard, Plus, Edit, Trash2, Key, Copy, Check, Coins, Activity, Shield, CheckCircle, XCircle, Globe, Lock, Code, List, Clock, Search, History, Link2, X, ChevronUp, ChevronDown, SlidersHorizontal, Filter } from 'lucide-react';
 import ProductModal from '@/components/ProductModal';
 import PlanModal from '@/components/PlanModal';
 import LicenseModal from '@/components/LicenseModal';
@@ -102,7 +102,15 @@ export default function AppDetailPage() {
   const [subscriptionRequests, setSubscriptionRequests] = useState<any[]>([]);
   const [subscriptionRequestsLoading, setSubscriptionRequestsLoading] = useState(false);
   const [eventLogs, setEventLogs] = useState<any[]>([]);
+  const [eventLogsMeta, setEventLogsMeta] = useState<any>(null);
   const [eventLogsLoading, setEventLogsLoading] = useState(false);
+  const [logPage, setLogPage] = useState(1);
+  const [logSize, setLogSize] = useState(20);
+  const [logSearch, setLogSearch] = useState('');
+  const [logFilter, setLogFilter] = useState<Record<string, string>>({});
+  const [tempFilter, setTempFilter] = useState<Record<string, string>>({});
+  const [isFilterPanelOpen, setIsFilterPanelOpen] = useState(false);
+  const [logSort, setLogSort] = useState('createdAt:desc');
   const [selectedLog, setSelectedLog] = useState<any>(null);
   const [logDetailModalOpen, setLogDetailModalOpen] = useState(false);
   const [eventRegisterModalOpen, setEventRegisterModalOpen] = useState(false);
@@ -402,8 +410,15 @@ export default function AppDetailPage() {
 
       try {
         setEventLogsLoading(true);
-        const data = await getEventLogs(app.appId);
-        setEventLogs(data);
+        const res = await getEventLogs(app.appId, {
+          page: logPage,
+          size: logSize,
+          search: logSearch,
+          filter: logFilter,
+          sort: logSort
+        });
+        setEventLogs(res.data || []);
+        setEventLogsMeta(res.meta || null);
       } catch (err) {
         console.error('Failed to fetch event logs:', err);
       } finally {
@@ -412,7 +427,7 @@ export default function AppDetailPage() {
     };
 
     fetchLogs();
-  }, [activeTab, eventSubTab, app?.appId]);
+  }, [activeTab, eventSubTab, app?.appId, logPage, logSize, logSearch, logFilter, logSort]);
 
   const formatCurrency = (amount: number, currency: string = 'IDR') => {
     try {
@@ -2092,11 +2107,182 @@ export default function AppDetailPage() {
 
             {eventSubTab === 'log' && (
               <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h3 className="text-md font-medium text-[var(--text-primary)]">Event Logs</h3>
-                    <p className="text-sm text-[var(--text-secondary)]">Event history and logs for this application.</p>
+                <div className="flex flex-col gap-4">
+                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div>
+                      <h3 className="text-md font-medium text-[var(--text-primary)]">Event Logs</h3>
+                      <p className="text-sm text-[var(--text-secondary)]">Event history and logs for this application.</p>
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                      <div className="relative group">
+                        <div className="relative flex items-center">
+                          <Search className="absolute left-3 h-4 w-4 text-[var(--text-secondary)]" />
+                          <input
+                            type="text"
+                            placeholder="Search logs..."
+                            value={logSearch}
+                            onChange={(e) => {
+                              setLogSearch(e.target.value);
+                              setLogPage(1);
+                            }}
+                            className="pl-9 pr-12 py-2.5 bg-white/5 border border-[var(--border-default)] rounded-xl text-sm text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-primary/50 w-full md:w-[300px] transition-all"
+                          />
+                          <button
+                            onClick={() => {
+                              setTempFilter(logFilter);
+                              setIsFilterPanelOpen(!isFilterPanelOpen);
+                            }}
+                            className={`absolute right-2 p-1.5 rounded-lg transition-all ${isFilterPanelOpen ? 'bg-primary text-white' : 'text-[var(--text-secondary)] hover:bg-white/10'}`}
+                            title="Advanced Filters"
+                          >
+                            <SlidersHorizontal className="h-4 w-4" />
+                          </button>
+                        </div>
+
+                        {/* Filter Popover */}
+                        {isFilterPanelOpen && (
+                          <div className="absolute right-0 top-full mt-2 z-50 w-full md:w-[450px] bg-[var(--bg-surface)] border border-[var(--border-default)] rounded-2xl shadow-2xl p-6 animate-in fade-in slide-in-from-top-2 duration-200">
+                            <div className="flex items-center justify-between mb-6">
+                              <h4 className="text-sm font-bold text-[var(--text-primary)] flex items-center gap-2">
+                                <Filter className="h-4 w-4 text-primary" />
+                                Advanced Filters
+                              </h4>
+                              <button onClick={() => setIsFilterPanelOpen(false)} className="text-[var(--text-secondary)] hover:text-[var(--text-primary)]">
+                                <X className="h-4 w-4" />
+                              </button>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4 mb-6">
+                              <div className="space-y-2">
+                                <label className="text-[10px] font-bold text-[var(--text-secondary)] uppercase px-1">Event Name</label>
+                                <input
+                                  type="text"
+                                  placeholder="e.g. payment.paid"
+                                  value={tempFilter.eventName || ''}
+                                  onChange={(e) => setTempFilter({ ...tempFilter, eventName: e.target.value })}
+                                  className="w-full px-4 py-2 bg-white/5 border border-[var(--border-default)] rounded-xl text-sm text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-primary/50"
+                                />
+                              </div>
+                              <div className="space-y-2">
+                                <label className="text-[10px] font-bold text-[var(--text-secondary)] uppercase px-1">Status</label>
+                                <select
+                                  value={tempFilter.status || ''}
+                                  onChange={(e) => setTempFilter({ ...tempFilter, status: e.target.value })}
+                                  className="w-full px-4 py-2 bg-white/5 border border-[var(--border-default)] rounded-xl text-sm text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-primary/50"
+                                >
+                                  <option value="">All Status</option>
+                                  <option value="success">Success</option>
+                                  <option value="failed">Failed</option>
+                                </select>
+                              </div>
+                              <div className="space-y-2">
+                                <label className="text-[10px] font-bold text-[var(--text-secondary)] uppercase px-1">Log Type</label>
+                                <select
+                                  value={tempFilter.type || ''}
+                                  onChange={(e) => setTempFilter({ ...tempFilter, type: e.target.value })}
+                                  className="w-full px-4 py-2 bg-white/5 border border-[var(--border-default)] rounded-xl text-sm text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-primary/50"
+                                >
+                                  <option value="">All Types</option>
+                                  <option value="broadcast">Broadcast</option>
+                                  <option value="delivery">Delivery</option>
+                                </select>
+                              </div>
+                              <div className="space-y-2">
+                                <label className="text-[10px] font-bold text-[var(--text-secondary)] uppercase px-1">App Slug</label>
+                                <input
+                                  type="text"
+                                  placeholder="App ID slug"
+                                  value={tempFilter.appId || ''}
+                                  onChange={(e) => setTempFilter({ ...tempFilter, appId: e.target.value })}
+                                  className="w-full px-4 py-2 bg-white/5 border border-[var(--border-default)] rounded-xl text-sm text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-primary/50"
+                                />
+                              </div>
+                            </div>
+
+                            <div className="flex items-center justify-between pt-4 border-t border-[var(--border-default)]">
+                              <button
+                                onClick={() => {
+                                  setTempFilter({});
+                                  setLogFilter({});
+                                  setIsFilterPanelOpen(false);
+                                  setLogPage(1);
+                                }}
+                                className="text-xs font-bold text-red-400 hover:text-red-300 uppercase tracking-wider"
+                              >
+                                Reset All
+                              </button>
+                              <div className="flex items-center gap-3">
+                                <button
+                                  onClick={() => setIsFilterPanelOpen(false)}
+                                  className="px-4 py-2 text-xs font-bold text-[var(--text-secondary)] hover:text-[var(--text-primary)] uppercase tracking-wider"
+                                >
+                                  Cancel
+                                </button>
+                                <button
+                                  onClick={() => {
+                                    setLogFilter(tempFilter);
+                                    setIsFilterPanelOpen(false);
+                                    setLogPage(1);
+                                  }}
+                                  className="px-6 py-2 bg-primary text-white rounded-xl text-xs font-bold uppercase tracking-wider shadow-lg shadow-primary/20 hover:scale-[1.02] active:scale-[0.98] transition-all"
+                                >
+                                  Apply Filters
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
                   </div>
+
+                  {/* Active Filters Row */}
+                  {(Object.keys(logFilter).length > 0 || logSearch) && (
+                    <div className="flex flex-wrap items-center gap-2 pb-2">
+                      <span className="text-[10px] font-bold text-[var(--text-secondary)] uppercase tracking-widest mr-2">Active Filters:</span>
+
+                      {logSearch && (
+                        <div className="flex items-center gap-1.5 px-3 py-1.5 bg-primary/10 border border-primary/20 rounded-full text-xs text-primary font-medium group transition-all hover:bg-primary/20">
+                          <span>Search: {logSearch}</span>
+                          <button onClick={() => setLogSearch('')} className="hover:bg-primary/30 rounded-full p-0.5 transition-colors">
+                            <X className="h-3 w-3" />
+                          </button>
+                        </div>
+                      )}
+
+                      {Object.entries(logFilter).map(([key, value]) => value && (
+                        <div key={key} className="flex items-center gap-1.5 px-3 py-1.5 bg-white/5 border border-[var(--border-default)] rounded-full text-xs text-[var(--text-primary)] font-medium group transition-all hover:bg-white/10">
+                          <span className="text-[var(--text-secondary)] capitalize">{key}:</span>
+                          <span>{value}</span>
+                          <button
+                            onClick={() => {
+                              const newFilter = { ...logFilter };
+                              delete newFilter[key];
+                              setLogFilter(newFilter);
+                              setLogPage(1);
+                            }}
+                            className="hover:bg-white/20 rounded-full p-0.5 transition-colors"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </div>
+                      ))}
+
+                      {(Object.keys(logFilter).length > 0 || logSearch) && (
+                        <button
+                          onClick={() => {
+                            setLogSearch('');
+                            setLogFilter({});
+                            setLogPage(1);
+                          }}
+                          className="text-[10px] font-bold text-red-400 hover:text-red-300 uppercase tracking-wider ml-2"
+                        >
+                          Clear All
+                        </button>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 {eventLogsLoading ? (
@@ -2110,101 +2296,191 @@ export default function AppDetailPage() {
                     </div>
                     <h4 className="text-[var(--text-primary)] font-medium mb-1">No event logs yet</h4>
                     <p className="text-[var(--text-secondary)] text-sm max-w-[300px]">
-                      Event history and logs will appear here once events are broadcasted or received.
+                      {logSearch || Object.keys(logFilter).length > 0
+                        ? "No logs match your search criteria."
+                        : "Event history and logs will appear here once events are broadcasted or received."}
                     </p>
+                    {(logSearch || Object.keys(logFilter).length > 0) && (
+                      <button
+                        onClick={() => {
+                          setLogSearch('');
+                          setLogFilter({});
+                          setLogPage(1);
+                        }}
+                        className="mt-4 text-primary text-sm font-medium hover:underline"
+                      >
+                        Clear filters
+                      </button>
+                    )}
                   </div>
                 ) : (
-                  <div className="overflow-hidden rounded-xl border border-[var(--border-default)]">
-                    <table className="min-w-full divide-y divide-[var(--border-default)]">
-                      <thead className="border-b border-[var(--border-default)]">
-                        <tr>
-                          <th className="px-6 py-4 text-left text-[10px] font-bold text-[var(--text-secondary)] uppercase tracking-wider">Type</th>
-                          <th className="px-6 py-4 text-left text-[10px] font-bold text-[var(--text-secondary)] uppercase tracking-wider">Event Name</th>
-                          <th className="px-6 py-4 text-left text-[10px] font-bold text-[var(--text-secondary)] uppercase tracking-wider">Status</th>
-                          <th className="px-6 py-4 text-left text-[10px] font-bold text-[var(--text-secondary)] uppercase tracking-wider">Target/Response</th>
-                          <th className="px-6 py-4 text-left text-[10px] font-bold text-[var(--text-secondary)] uppercase tracking-wider">Time</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-[var(--border-default)]">
-                        {eventLogs.map((log) => (
-                          <tr
-                            key={log.id}
-                            onClick={() => {
-                              setSelectedLog(log);
-                              setLogDetailModalOpen(true);
-                            }}
-                            className="hover:bg-white/5 transition-colors group cursor-pointer"
-                          >
-                            <td className="px-6 py-5 whitespace-nowrap">
-                              {log.type === 'broadcast' ? (
-                                <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-blue-500/10 text-blue-400 text-[10px] font-bold uppercase border border-blue-500/20">
-                                  <Activity className="h-3 w-3" />
-                                  Broadcast
-                                </span>
-                              ) : (
-                                <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-purple-500/10 text-purple-400 text-[10px] font-bold uppercase border border-purple-500/20">
-                                  <Link2 className="h-3 w-3" />
-                                  Delivery
-                                </span>
-                              )}
-                            </td>
-                            <td className="px-6 py-5 whitespace-nowrap">
-                              <span className="text-sm font-medium text-[var(--text-primary)]">{log.eventName}</span>
-                            </td>
-                            <td className="px-6 py-5 whitespace-nowrap">
-                              {log.status === 'success' ? (
-                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-green-500/10 text-green-400 border border-green-500/20 uppercase">
-                                  Success
-                                </span>
-                              ) : log.status === 'failed' ? (
-                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-red-500/10 text-red-400 border border-red-500/20 uppercase">
-                                  Failed
-                                </span>
-                              ) : (
-                                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/10 text-amber-400 border border-amber-500/20 uppercase">
-                                  {log.status}
-                                </span>
-                              )}
-                            </td>
-                            <td className="px-6 py-5 whitespace-nowrap">
-                              <div className="flex flex-col gap-1">
-                                {log.targetUrl && (
-                                  <span className="text-[10px] text-[var(--text-secondary)] font-mono truncate max-w-[200px]" title={log.targetUrl}>
-                                    {log.targetUrl}
-                                  </span>
-                                )}
-                                {log.responseTimeMs && (
-                                  <span className="text-[10px] text-gray-500 italic">
-                                    Response: {log.responseTimeMs}ms
-                                  </span>
-                                )}
-                                {log.errorDetails && log.status === 'failed' && (
-                                  <span className="text-[10px] text-red-400/80 italic truncate max-w-[200px]" title={log.errorDetails}>
-                                    Error: {log.errorDetails}
-                                  </span>
-                                )}
-                              </div>
-                            </td>
-                            <td className="px-6 py-5 whitespace-nowrap">
-                              <div className="flex items-center gap-2 text-[var(--text-secondary)]">
-                                <Clock className="h-3.5 w-3.5" />
-                                <span className="text-xs">
-                                  {new Date(log.createdAt).toLocaleString(undefined, {
-                                    year: 'numeric',
-                                    month: 'short',
-                                    day: '2-digit',
-                                    hour: '2-digit',
-                                    minute: '2-digit',
-                                    second: '2-digit',
-                                    timeZoneName: 'shortOffset'
-                                  })}
-                                </span>
-                              </div>
-                            </td>
+                  <div className="space-y-4">
+                    <div className="overflow-hidden rounded-xl border border-[var(--border-default)]">
+                      <table className="min-w-full divide-y divide-[var(--border-default)]">
+                        <thead className="border-b border-[var(--border-default)]">
+                          <tr>
+                            {[
+                              { key: 'type', label: 'Type' },
+                              { key: 'eventName', label: 'Event Name' },
+                              { key: 'status', label: 'Status' },
+                              { key: 'targetUrl', label: 'Target/Response' },
+                              { key: 'createdAt', label: 'Time' },
+                            ].map((col) => {
+                              const [sortKey, sortDir] = logSort.split(':');
+                              const isSorted = sortKey === col.key;
+
+                              return (
+                                <th
+                                  key={col.key}
+                                  onClick={() => {
+                                    const nextDir = isSorted && sortDir === 'asc' ? 'desc' : 'asc';
+                                    setLogSort(`${col.key}:${nextDir}`);
+                                    setLogPage(1);
+                                  }}
+                                  className="px-6 py-4 text-left text-[10px] font-bold text-[var(--text-secondary)] uppercase tracking-wider cursor-pointer hover:bg-white/5 transition-colors group"
+                                >
+                                  <div className="flex items-center gap-1">
+                                    {col.label}
+                                    <div className={`flex flex-col transition-opacity ${isSorted ? 'opacity-100' : 'opacity-0 group-hover:opacity-50'}`}>
+                                      {isSorted && sortDir === 'desc' ? (
+                                        <ChevronDown className="h-3 w-3" />
+                                      ) : isSorted && sortDir === 'asc' ? (
+                                        <ChevronUp className="h-3 w-3" />
+                                      ) : (
+                                        <ChevronDown className="h-3 w-3" />
+                                      )}
+                                    </div>
+                                  </div>
+                                </th>
+                              );
+                            })}
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                        </thead>
+                        <tbody className="divide-y divide-[var(--border-default)]">
+                          {eventLogs.map((log) => (
+                            <tr
+                              key={log.id}
+                              onClick={() => {
+                                setSelectedLog(log);
+                                setLogDetailModalOpen(true);
+                              }}
+                              className="hover:bg-white/5 transition-colors group cursor-pointer"
+                            >
+                              <td className="px-6 py-5 whitespace-nowrap">
+                                {log.type === 'broadcast' ? (
+                                  <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-blue-500/10 text-blue-400 text-[10px] font-bold uppercase border border-blue-500/20">
+                                    <Activity className="h-3 w-3" />
+                                    Broadcast
+                                  </span>
+                                ) : (
+                                  <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-purple-500/10 text-purple-400 text-[10px] font-bold uppercase border border-purple-500/20">
+                                    <Link2 className="h-3 w-3" />
+                                    Delivery
+                                  </span>
+                                )}
+                              </td>
+                              <td className="px-6 py-5 whitespace-nowrap">
+                                <span className="text-sm font-medium text-[var(--text-primary)]">{log.eventName}</span>
+                              </td>
+                              <td className="px-6 py-5 whitespace-nowrap">
+                                {log.status === 'success' ? (
+                                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-green-500/10 text-green-400 border border-green-500/20 uppercase">
+                                    Success
+                                  </span>
+                                ) : log.status === 'failed' ? (
+                                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-red-500/10 text-red-400 border border-red-500/20 uppercase">
+                                    Failed
+                                  </span>
+                                ) : (
+                                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/10 text-amber-400 border border-amber-500/20 uppercase">
+                                    {log.status}
+                                  </span>
+                                )}
+                              </td>
+                              <td className="px-6 py-5 whitespace-nowrap">
+                                <div className="flex flex-col gap-1">
+                                  {log.targetUrl && (
+                                    <span className="text-[10px] text-[var(--text-secondary)] font-mono truncate max-w-[200px]" title={log.targetUrl}>
+                                      {log.targetUrl}
+                                    </span>
+                                  )}
+                                  {log.responseTimeMs && (
+                                    <span className="text-[10px] text-gray-500 italic">
+                                      Response: {log.responseTimeMs}ms
+                                    </span>
+                                  )}
+                                  {log.errorDetails && log.status === 'failed' && (
+                                    <span className="text-[10px] text-red-400/80 italic truncate max-w-[200px]" title={log.errorDetails}>
+                                      Error: {log.errorDetails}
+                                    </span>
+                                  )}
+                                </div>
+                              </td>
+                              <td className="px-6 py-5 whitespace-nowrap">
+                                <div className="flex items-center gap-2 text-[var(--text-secondary)]">
+                                  <Clock className="h-3.5 w-3.5" />
+                                  <span className="text-xs">
+                                    {new Date(log.createdAt).toLocaleString(undefined, {
+                                      year: 'numeric',
+                                      month: 'short',
+                                      day: '2-digit',
+                                      hour: '2-digit',
+                                      minute: '2-digit',
+                                      second: '2-digit',
+                                      timeZoneName: 'shortOffset'
+                                    })}
+                                  </span>
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    {/* Pagination */}
+                    {eventLogsMeta && eventLogsMeta.totalPages > 1 && (
+                      <div className="flex items-center justify-between px-2 py-4">
+                        <div className="text-sm text-[var(--text-secondary)]">
+                          Showing <span className="font-medium text-[var(--text-primary)]">{(eventLogsMeta.currentPage - 1) * eventLogsMeta.itemsPerPage + 1}</span> to <span className="font-medium text-[var(--text-primary)]">{Math.min(eventLogsMeta.currentPage * eventLogsMeta.itemsPerPage, eventLogsMeta.totalItems)}</span> of <span className="font-medium text-[var(--text-primary)]">{eventLogsMeta.totalItems}</span> entries
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => setLogPage(p => Math.max(1, p - 1))}
+                            disabled={eventLogsMeta.currentPage === 1}
+                            className="px-4 py-2 bg-white/5 border border-[var(--border-default)] rounded-xl text-sm font-medium text-[var(--text-primary)] disabled:opacity-30 disabled:cursor-not-allowed hover:bg-white/10 transition-all"
+                          >
+                            Previous
+                          </button>
+                          <div className="flex items-center gap-1">
+                            {Array.from({ length: Math.min(5, eventLogsMeta.totalPages) }, (_, i) => {
+                              // Logic to show pages around current page could be added here
+                              const pageNum = i + 1;
+                              return (
+                                <button
+                                  key={pageNum}
+                                  onClick={() => setLogPage(pageNum)}
+                                  className={`w-10 h-10 rounded-xl text-sm font-medium transition-all ${eventLogsMeta.currentPage === pageNum
+                                    ? 'bg-primary text-white shadow-lg shadow-primary/20'
+                                    : 'bg-white/5 text-[var(--text-secondary)] hover:bg-white/10'
+                                    }`}
+                                >
+                                  {pageNum}
+                                </button>
+                              );
+                            })}
+                            {eventLogsMeta.totalPages > 5 && <span className="text-[var(--text-secondary)] px-2">...</span>}
+                          </div>
+                          <button
+                            onClick={() => setLogPage(p => Math.min(eventLogsMeta.totalPages, p + 1))}
+                            disabled={eventLogsMeta.currentPage === eventLogsMeta.totalPages}
+                            className="px-4 py-2 bg-white/5 border border-[var(--border-default)] rounded-xl text-sm font-medium text-[var(--text-primary)] disabled:opacity-30 disabled:cursor-not-allowed hover:bg-white/10 transition-all"
+                          >
+                            Next
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
