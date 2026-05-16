@@ -1,0 +1,397 @@
+import React, { useState, useEffect, useCallback } from 'react';
+import { 
+  Search, 
+  SlidersHorizontal, 
+  Filter, 
+  X, 
+  ChevronUp, 
+  ChevronDown, 
+  History,
+  Clock
+} from 'lucide-react';
+
+export interface GridColumn {
+  key: string;
+  label: string;
+  sortable?: boolean;
+  render?: (value: any, row: any) => React.ReactNode;
+}
+
+export interface FilterField {
+  key: string;
+  label: string;
+  type: 'text' | 'select';
+  options?: { label: string; value: string }[];
+  placeholder?: string;
+}
+
+interface DataGridProps {
+  title: string;
+  description?: string;
+  columns: GridColumn[];
+  fetchData: (params: any) => Promise<{ data: any[]; meta: any }>;
+  filterFields?: FilterField[];
+  onRowClick?: (row: any) => void;
+  emptyState?: {
+    title: string;
+    description: string;
+    icon?: React.ReactNode;
+  };
+  refreshTrigger?: any;
+}
+
+const DataGrid: React.FC<DataGridProps> = ({
+  title,
+  description,
+  columns,
+  fetchData,
+  filterFields = [],
+  onRowClick,
+  emptyState,
+  refreshTrigger
+}) => {
+  const [data, setData] = useState<any[]>([]);
+  const [meta, setMeta] = useState<any>(null);
+  const [loading, setLoading] = useState(false);
+  
+  // Grid State
+  const [page, setPage] = useState(1);
+  const [size, setSize] = useState(20);
+  const [search, setSearch] = useState('');
+  const [filter, setLogFilter] = useState<Record<string, string>>({});
+  const [tempFilter, setTempFilter] = useState<Record<string, string>>({});
+  const [sort, setSort] = useState('createdAt:desc');
+  const [isFilterPanelOpen, setIsFilterPanelOpen] = useState(false);
+
+  const loadData = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await fetchData({
+        page,
+        size,
+        search,
+        filter,
+        sort
+      });
+      setData(res.data || []);
+      setMeta(res.meta || null);
+    } catch (error) {
+      console.error('DataGrid fetch error:', error);
+    } finally {
+      setLoading(false);
+    }
+  }, [fetchData, page, size, search, filter, sort, refreshTrigger]);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
+
+  const handleSort = (key: string) => {
+    const [sortKey, sortDir] = sort.split(':');
+    const isSorted = sortKey === key;
+    const nextDir = isSorted && sortDir === 'asc' ? 'desc' : 'asc';
+    setSort(`${key}:${nextDir}`);
+    setPage(1);
+  };
+
+  const clearAllFilters = () => {
+    setSearch('');
+    setLogFilter({});
+    setTempFilter({});
+    setPage(1);
+  };
+
+  return (
+    <div className="space-y-4">
+      {/* Header & Controls */}
+      <div className="flex flex-col gap-4">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div>
+            <h3 className="text-md font-medium text-[var(--text-primary)]">{title}</h3>
+            {description && <p className="text-sm text-[var(--text-secondary)]">{description}</p>}
+          </div>
+
+          <div className="flex items-center gap-3">
+            <div className="relative group">
+              <div className="relative flex items-center">
+                <Search className="absolute left-3 h-4 w-4 text-[var(--text-secondary)]" />
+                <input
+                  type="text"
+                  placeholder="Search..."
+                  value={search}
+                  onChange={(e) => {
+                    setSearch(e.target.value);
+                    setPage(1);
+                  }}
+                  className="pl-9 pr-12 py-2.5 bg-white/5 border border-[var(--border-default)] rounded-xl text-sm text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-primary/50 w-full md:w-[300px] transition-all"
+                />
+                {filterFields.length > 0 && (
+                  <button
+                    onClick={() => {
+                      setTempFilter(filter);
+                      setIsFilterPanelOpen(!isFilterPanelOpen);
+                    }}
+                    className={`absolute right-2 p-1.5 rounded-lg transition-all ${isFilterPanelOpen ? 'bg-primary text-white' : 'text-[var(--text-secondary)] hover:bg-white/10'}`}
+                    title="Advanced Filters"
+                  >
+                    <SlidersHorizontal className="h-4 w-4" />
+                  </button>
+                )}
+              </div>
+
+              {/* Filter Popover */}
+              {isFilterPanelOpen && (
+                <div className="absolute right-0 top-full mt-2 z-50 w-full md:w-[450px] bg-[var(--bg-surface)] border border-[var(--border-default)] rounded-2xl shadow-2xl p-6 animate-in fade-in slide-in-from-top-2 duration-200">
+                  <div className="flex items-center justify-between mb-6">
+                    <h4 className="text-sm font-bold text-[var(--text-primary)] flex items-center gap-2">
+                      <Filter className="h-4 w-4 text-primary" />
+                      Advanced Filters
+                    </h4>
+                    <button onClick={() => setIsFilterPanelOpen(false)} className="text-[var(--text-secondary)] hover:text-[var(--text-primary)]">
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4 mb-6">
+                    {filterFields.map((field) => (
+                      <div key={field.key} className="space-y-2">
+                        <label className="text-[10px] font-bold text-[var(--text-secondary)] uppercase px-1">{field.label}</label>
+                        {field.type === 'text' ? (
+                          <input
+                            type="text"
+                            placeholder={field.placeholder}
+                            value={tempFilter[field.key] || ''}
+                            onChange={(e) => setTempFilter({ ...tempFilter, [field.key]: e.target.value })}
+                            className="w-full px-4 py-2 bg-white/5 border border-[var(--border-default)] rounded-xl text-sm text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-primary/50"
+                          />
+                        ) : (
+                          <select
+                            value={tempFilter[field.key] || ''}
+                            onChange={(e) => setTempFilter({ ...tempFilter, [field.key]: e.target.value })}
+                            className="w-full px-4 py-2 bg-white/5 border border-[var(--border-default)] rounded-xl text-sm text-[var(--text-primary)] focus:outline-none focus:ring-2 focus:ring-primary/50"
+                          >
+                            <option value="">All {field.label}</option>
+                            {field.options?.map((opt) => (
+                              <option key={opt.value} value={opt.value}>{opt.label}</option>
+                            ))}
+                          </select>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="flex items-center justify-between pt-4 border-t border-[var(--border-default)]">
+                    <button
+                      onClick={() => {
+                        setTempFilter({});
+                        setLogFilter({});
+                        setIsFilterPanelOpen(false);
+                        setPage(1);
+                      }}
+                      className="text-xs font-bold text-red-400 hover:text-red-300 uppercase tracking-wider"
+                    >
+                      Reset All
+                    </button>
+                    <div className="flex items-center gap-3">
+                      <button
+                        onClick={() => setIsFilterPanelOpen(false)}
+                        className="px-4 py-2 text-xs font-bold text-[var(--text-secondary)] hover:text-[var(--text-primary)] uppercase tracking-wider"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={() => {
+                          setLogFilter(tempFilter);
+                          setIsFilterPanelOpen(false);
+                          setPage(1);
+                        }}
+                        className="px-6 py-2 bg-primary text-white rounded-xl text-xs font-bold uppercase tracking-wider shadow-lg shadow-primary/20 hover:scale-[1.02] active:scale-[0.98] transition-all"
+                      >
+                        Apply Filters
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Active Filters Row */}
+        {(Object.keys(filter).length > 0 || search) && (
+          <div className="flex flex-wrap items-center gap-2 pb-2">
+            <span className="text-[10px] font-bold text-[var(--text-secondary)] uppercase tracking-widest mr-2">Active Filters:</span>
+
+            {search && (
+              <div className="flex items-center gap-1.5 px-3 py-1.5 bg-primary/10 border border-primary/20 rounded-full text-xs text-primary font-medium group transition-all hover:bg-primary/20">
+                <span>Search: {search}</span>
+                <button onClick={() => setSearch('')} className="hover:bg-primary/30 rounded-full p-0.5 transition-colors">
+                  <X className="h-3 w-3" />
+                </button>
+              </div>
+            )}
+
+            {Object.entries(filter).map(([key, value]) => {
+              if (!value) return null;
+              const field = filterFields.find(f => f.key === key);
+              const displayValue = field?.type === 'select' 
+                ? field.options?.find(o => o.value === value)?.label || value
+                : value;
+              
+              return (
+                <div key={key} className="flex items-center gap-1.5 px-3 py-1.5 bg-white/5 border border-[var(--border-default)] rounded-full text-xs text-[var(--text-primary)] font-medium group transition-all hover:bg-white/10">
+                  <span className="text-[var(--text-secondary)] capitalize">{field?.label || key}:</span>
+                  <span>{displayValue}</span>
+                  <button
+                    onClick={() => {
+                      const newFilter = { ...filter };
+                      delete newFilter[key];
+                      setLogFilter(newFilter);
+                      setPage(1);
+                    }}
+                    className="hover:bg-white/20 rounded-full p-0.5 transition-colors"
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </div>
+              );
+            })}
+
+            <button
+              onClick={clearAllFilters}
+              className="text-[10px] font-bold text-red-400 hover:text-red-300 uppercase tracking-wider ml-2"
+            >
+              Clear All
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Table Section */}
+      {loading ? (
+        <div className="flex items-center justify-center py-12">
+          <div className="text-[var(--text-secondary)] animate-pulse">Loading data...</div>
+        </div>
+      ) : data.length === 0 ? (
+        <div className="rounded-xl border border-[var(--border-default)] bg-white/5 min-h-[300px] flex flex-col items-center justify-center p-8 text-center">
+          <div className="p-4 bg-[var(--bg-surface)] rounded-full border border-[var(--border-default)] mb-4">
+            {emptyState?.icon || <History className="h-8 w-8 text-[var(--text-secondary)] opacity-50" />}
+          </div>
+          <h4 className="text-[var(--text-primary)] font-medium mb-1">{emptyState?.title || 'No data found'}</h4>
+          <p className="text-[var(--text-secondary)] text-sm max-w-[300px]">
+            {search || Object.keys(filter).length > 0
+              ? "No results match your current filters."
+              : (emptyState?.description || "There is no data to display at the moment.")}
+          </p>
+          {(search || Object.keys(filter).length > 0) && (
+            <button
+              onClick={clearAllFilters}
+              className="mt-4 text-primary text-sm font-medium hover:underline"
+            >
+              Clear all filters
+            </button>
+          )}
+        </div>
+      ) : (
+        <div className="space-y-4">
+          <div className="overflow-hidden rounded-xl border border-[var(--border-default)]">
+            <table className="min-w-full divide-y divide-[var(--border-default)]">
+              <thead className="border-b border-[var(--border-default)]">
+                <tr>
+                  {columns.map((col) => {
+                    const [sortKey, sortDir] = sort.split(':');
+                    const isSorted = sortKey === col.key;
+
+                    return (
+                      <th
+                        key={col.key}
+                        onClick={() => col.sortable && handleSort(col.key)}
+                        className={`px-6 py-4 text-left text-[10px] font-bold text-[var(--text-secondary)] uppercase tracking-wider transition-colors group ${col.sortable ? 'cursor-pointer hover:bg-white/5' : ''}`}
+                      >
+                        <div className="flex items-center gap-1">
+                          {col.label}
+                          {col.sortable && (
+                            <div className={`flex flex-col transition-opacity ${isSorted ? 'opacity-100' : 'opacity-0 group-hover:opacity-50'}`}>
+                              {isSorted && sortDir === 'asc' ? (
+                                <ChevronUp className="h-3 w-3" />
+                              ) : (
+                                <ChevronDown className="h-3 w-3" />
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </th>
+                    );
+                  })}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[var(--border-default)]">
+                {data.map((row, idx) => (
+                  <tr
+                    key={row.id || idx}
+                    onClick={() => onRowClick?.(row)}
+                    className={`transition-colors ${onRowClick ? 'hover:bg-white/5 cursor-pointer' : ''}`}
+                  >
+                    {columns.map((col) => (
+                      <td key={col.key} className="px-6 py-5 whitespace-nowrap">
+                        {col.render ? col.render(row[col.key], row) : (
+                          <span className="text-sm text-[var(--text-primary)]">{row[col.key]}</span>
+                        )}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Pagination */}
+          {meta && meta.totalPages > 1 && (
+            <div className="flex items-center justify-between px-2 py-4">
+              <div className="text-sm text-[var(--text-secondary)]">
+                Showing <span className="font-medium text-[var(--text-primary)]">{(meta.currentPage - 1) * meta.itemsPerPage + 1}</span> to <span className="font-medium text-[var(--text-primary)]">{Math.min(meta.currentPage * meta.itemsPerPage, meta.totalItems)}</span> of <span className="font-medium text-[var(--text-primary)]">{meta.totalItems}</span> entries
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setPage(p => Math.max(1, p - 1))}
+                  disabled={meta.currentPage === 1}
+                  className="px-4 py-2 bg-white/5 border border-[var(--border-default)] rounded-xl text-sm font-medium text-[var(--text-primary)] disabled:opacity-30 disabled:cursor-not-allowed hover:bg-white/10 transition-all"
+                >
+                  Previous
+                </button>
+                <div className="flex items-center gap-1">
+                  {Array.from({ length: Math.min(5, meta.totalPages) }, (_, i) => {
+                    const pageNum = i + 1;
+                    return (
+                      <button
+                        key={pageNum}
+                        onClick={() => setPage(pageNum)}
+                        className={`w-10 h-10 rounded-xl text-sm font-medium transition-all ${
+                          meta.currentPage === pageNum
+                            ? 'bg-primary text-white shadow-lg shadow-primary/20'
+                            : 'bg-white/5 text-[var(--text-secondary)] hover:bg-white/10'
+                        }`}
+                      >
+                        {pageNum}
+                      </button>
+                    );
+                  })}
+                  {meta.totalPages > 5 && <span className="text-[var(--text-secondary)] px-2">...</span>}
+                </div>
+                <button
+                  onClick={() => setPage(p => Math.min(meta.totalPages, p + 1))}
+                  disabled={meta.currentPage === meta.totalPages}
+                  className="px-4 py-2 bg-white/5 border border-[var(--border-default)] rounded-xl text-sm font-medium text-[var(--text-primary)] disabled:opacity-30 disabled:cursor-not-allowed hover:bg-white/10 transition-all"
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default DataGrid;
