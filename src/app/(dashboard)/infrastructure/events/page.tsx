@@ -13,7 +13,7 @@ export default function InfraEventsPage() {
         async function fetchContracts() {
             try {
                 setLoading(true);
-                const data = await getInfraContracts();
+                const { data } = await getInfraContracts();
                 setContracts(data);
             } catch (err: any) {
                 setError(err.message || 'Failed to fetch event contracts');

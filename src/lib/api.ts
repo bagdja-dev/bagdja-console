@@ -497,7 +497,13 @@ export async function getInfraContracts(params?: {
   });
   
   if (!response.ok) throw new Error('Failed to fetch infra contracts');
-  return response.json();
+  const json = await response.json();
+  // Event Hub returns a plain array; DataTable expects { data, meta }.
+  if (Array.isArray(json)) {
+    return { data: json, meta: { total: json.length } };
+  }
+  const data = Array.isArray(json?.data) ? json.data : [];
+  return { data, meta: json?.meta ?? { total: data.length } };
 }
 
 /**
