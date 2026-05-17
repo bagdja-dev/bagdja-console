@@ -678,6 +678,52 @@ export async function getEventLogs(
 }
 
 /**
+ * Get all organizations (Admin lookup)
+ */
+export async function getAllOrganizations(): Promise<Organization[]> {
+  return apiRequest<Organization[]>('/auth/organizations/all');
+}
+
+/**
+ * Supported wallet/payment currencies from auth configs (SUPPORTED_CURRENCIES).
+ */
+export async function getSupportedCurrencies(): Promise<string[]> {
+  return apiRequest<string[]>('/auth/config/supported-currencies');
+}
+
+/**
+ * Get all apps for a specific organization by slug
+ */
+export async function getAppsByOrgSlug(orgSlug: string): Promise<ClientApp[]> {
+  return apiRequest<ClientApp[]>(`/auth/organizations/${orgSlug}/apps`);
+}
+
+/**
+ * Resend a specific delivery event
+ */
+export async function resendEventLog(logId: string, appId?: string): Promise<any> {
+  const clientToken = await ensureClientToken();
+  const userToken = getAccessToken();
+
+  const queryParams = new URLSearchParams();
+  if (appId) queryParams.append('appId', appId);
+
+  const response = await fetch(`${EVENT_API_BASE}/broadcast/logs/${logId}/resend?${queryParams.toString()}`, {
+    method: 'POST',
+    headers: {
+      'x-api-key': clientToken,
+      'Authorization': userToken ? `Bearer ${userToken}` : '',
+    },
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ message: 'Failed to resend event' }));
+    throw new Error(error.message || 'Failed to resend event');
+  }
+  return response.json();
+}
+
+/**
  * Get available events for subscription
  */
 export async function getAvailableEvents(params?: {
@@ -825,19 +871,27 @@ export async function getMyAppSubscriptions(
 /**
  * Update an existing subscription
  */
-export async function updateMySubscription(subscriptionId: string, webhookUrl?: string): Promise<any> {
+export async function updateMySubscription(
+  subscriptionId: string,
+  webhookUrl?: string,
+  appId?: string,
+): Promise<any> {
   const clientToken = await ensureClientToken();
   const userToken = getAccessToken();
-  
-  const response = await fetch(`${EVENT_API_BASE}/subscriptions/my-subscriptions/${subscriptionId}`, {
+
+  const query = appId ? `?appId=${encodeURIComponent(appId)}` : '';
+  const response = await fetch(
+    `${EVENT_API_BASE}/subscriptions/my-subscriptions/${subscriptionId}${query}`,
+    {
     method: 'PATCH',
     headers: {
       'Content-Type': 'application/json',
       'x-api-key': clientToken,
       'Authorization': userToken ? `Bearer ${userToken}` : '',
     },
-    body: JSON.stringify({ webhookUrl }),
-  });
+    body: JSON.stringify({ webhookUrl, ...(appId ? { appId } : {}) }),
+    },
+  );
   
   if (!response.ok) throw new Error('Failed to update subscription');
   return response.json();
@@ -846,17 +900,24 @@ export async function updateMySubscription(subscriptionId: string, webhookUrl?: 
 /**
  * Delete a subscription
  */
-export async function deleteMySubscription(subscriptionId: string): Promise<any> {
+export async function deleteMySubscription(
+  subscriptionId: string,
+  appId?: string,
+): Promise<any> {
   const clientToken = await ensureClientToken();
   const userToken = getAccessToken();
-  
-  const response = await fetch(`${EVENT_API_BASE}/subscriptions/my-subscriptions/${subscriptionId}`, {
+
+  const query = appId ? `?appId=${encodeURIComponent(appId)}` : '';
+  const response = await fetch(
+    `${EVENT_API_BASE}/subscriptions/my-subscriptions/${subscriptionId}${query}`,
+    {
     method: 'DELETE',
     headers: {
       'x-api-key': clientToken,
       'Authorization': userToken ? `Bearer ${userToken}` : '',
     },
-  });
+    },
+  );
   
   if (!response.ok) throw new Error('Failed to delete subscription');
   return response.json();

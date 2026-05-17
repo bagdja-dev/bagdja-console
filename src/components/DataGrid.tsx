@@ -9,6 +9,7 @@ import {
   History,
   Clock,
   Settings,
+  RefreshCcw,
   CheckCircle2
 } from 'lucide-react';
 
@@ -247,6 +248,16 @@ const DataGrid: React.FC<DataGridProps> = ({
                 </div>
               )}
             </div>
+
+            {/* Refresh Button */}
+            <button
+              onClick={() => loadData()}
+              disabled={loading}
+              className={`p-2.5 rounded-xl border border-[var(--border-default)] bg-white/5 text-[var(--text-secondary)] hover:bg-white/10 transition-all ${loading ? 'opacity-50' : ''}`}
+              title="Refresh Data"
+            >
+              <RefreshCcw className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`} />
+            </button>
 
             {/* Settings Trigger */}
             <div className="relative flex-shrink-0">

@@ -8,6 +8,7 @@ import { getLicenses, createLicense, updateLicense, deleteLicense } from '@/lib/
 import type { ClientApp, ApiError, License, LicenseStatus, CreateLicenseRequest, UpdateLicenseRequest } from '@/types';
 import { ArrowLeft, Plus, Edit, Trash2, Copy, Check } from 'lucide-react';
 import LicenseModal from '@/components/LicenseModal';
+import AlertModal, { AlertType } from '@/components/AlertModal';
 
 export default function LicensesPage() {
   const params = useParams();
@@ -20,6 +21,27 @@ export default function LicensesPage() {
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [licenseModalOpen, setLicenseModalOpen] = useState(false);
   const [editingLicense, setEditingLicense] = useState<License | null>(null);
+
+  // Global Alert State
+  const [alertConfig, setAlertConfig] = useState<{
+    isOpen: boolean;
+    message: string;
+    type: AlertType;
+    title?: string;
+  }>({
+    isOpen: false,
+    message: '',
+    type: 'info',
+  });
+
+  const showAlert = (message: string, type: AlertType = 'info', title?: string) => {
+    setAlertConfig({
+      isOpen: true,
+      message,
+      type,
+      title,
+    });
+  };
 
   useEffect(() => {
     const fetchData = async () => {
@@ -143,9 +165,10 @@ export default function LicensesPage() {
     try {
       await deleteLicense(id);
       await refreshLicenses();
+      showAlert('License deleted successfully.', 'success');
     } catch (err) {
       const apiError = err as ApiError;
-      alert(apiError.message || 'Failed to delete license');
+      showAlert(apiError.message || 'Failed to delete license', 'error');
       console.error('Failed to delete license:', err);
     }
   };
@@ -157,7 +180,7 @@ export default function LicensesPage() {
 
   const openEditModal = (license: License) => {
     if (license.status !== 'available') {
-      alert('Only available licenses can be edited');
+      showAlert('Only available licenses can be edited', 'warning');
       return;
     }
     setEditingLicense(license);
@@ -340,6 +363,15 @@ export default function LicensesPage() {
           appId={app.id}
         />
       )}
+
+      <AlertModal
+        isOpen={alertConfig.isOpen}
+        onClose={() => setAlertConfig(prev => ({ ...prev, isOpen: false }))}
+        message={alertConfig.message}
+        type={alertConfig.type}
+        title={alertConfig.title}
+        autoClose={alertConfig.type === 'success' || alertConfig.type === 'info' ? 3000 : undefined}
+      />
     </div>
   );
 }

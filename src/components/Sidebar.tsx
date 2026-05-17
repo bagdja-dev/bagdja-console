@@ -130,6 +130,12 @@ const menuItems: MenuItem[] = [
         icon: Settings,
         href: '/infrastructure/settings',
       },
+      {
+        id: 'infra-payment-config',
+        label: 'Payment Config',
+        icon: CreditCard,
+        href: '/infrastructure/payment-config',
+      },
     ],
   },
 ];

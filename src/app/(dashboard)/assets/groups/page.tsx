@@ -7,6 +7,7 @@ import type { AssetGroup, ApiError, UpdateAssetGroupRequest } from '@/types';
 import { Plus, Edit2, Trash2, Folder, Calendar, Check, X } from 'lucide-react';
 import { Button } from '@/ui/button';
 import { Input } from '@/ui/input';
+import AlertModal, { AlertType } from '@/components/AlertModal';
 
 export default function AssetGroupsPage() {
   const router = useRouter();
@@ -16,6 +17,27 @@ export default function AssetGroupsPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<{ name: string; description: string }>({ name: '', description: '' });
   const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  // Global Alert State
+  const [alertConfig, setAlertConfig] = useState<{
+    isOpen: boolean;
+    message: string;
+    type: AlertType;
+    title?: string;
+  }>({
+    isOpen: false,
+    message: '',
+    type: 'info',
+  });
+
+  const showAlert = (message: string, type: AlertType = 'info', title?: string) => {
+    setAlertConfig({
+      isOpen: true,
+      message,
+      type,
+      title,
+    });
+  };
 
   useEffect(() => {
     fetchGroups();
@@ -72,9 +94,10 @@ export default function AssetGroupsPage() {
       await fetchGroups();
       setEditingId(null);
       setEditForm({ name: '', description: '' });
+      showAlert('Asset group updated successfully.', 'success');
     } catch (err) {
       const apiError = err as ApiError;
-      alert(apiError.message || 'Failed to update asset group');
+      showAlert(apiError.message || 'Failed to update asset group', 'error');
       console.error('Failed to update asset group:', err);
     }
   };
@@ -88,9 +111,10 @@ export default function AssetGroupsPage() {
       setDeletingId(id);
       await deleteAssetGroup(id);
       await fetchGroups();
+      showAlert('Asset group deleted successfully.', 'success');
     } catch (err) {
       const apiError = err as ApiError;
-      alert(apiError.message || 'Failed to delete asset group');
+      showAlert(apiError.message || 'Failed to delete asset group', 'error');
       console.error('Failed to delete asset group:', err);
     } finally {
       setDeletingId(null);
@@ -334,6 +358,15 @@ export default function AssetGroupsPage() {
           </div>
         </div>
       )}
+
+      <AlertModal
+        isOpen={alertConfig.isOpen}
+        onClose={() => setAlertConfig(prev => ({ ...prev, isOpen: false }))}
+        message={alertConfig.message}
+        type={alertConfig.type}
+        title={alertConfig.title}
+        autoClose={alertConfig.type === 'success' || alertConfig.type === 'info' ? 3000 : undefined}
+      />
     </>
   );
 }

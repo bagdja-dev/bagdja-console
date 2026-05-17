@@ -152,3 +152,11 @@ export const getMessageLogs = (
     `/messages/logs?${queryParams.toString()}`,
   );
 };
+
+export const resendMessageLog = (logId: string, appId?: string) => {
+  let url = `/messages/logs/${logId}/resend`;
+  if (appId) url += `?appId=${appId}`;
+  return request<{ success: boolean; logId: string }>(url, {
+    method: 'POST',
+  });
+};

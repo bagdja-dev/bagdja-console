@@ -158,6 +158,153 @@ export type CreatePayoutAccountRequest = {
 
 export type UpdatePayoutAccountRequest = Partial<CreatePayoutAccountRequest>;
 
+export type Wallet = {
+  id: string;
+  org_id: string;
+  currency_code: string;
+  provider: string;
+  balance: number;
+  held_balance: number;
+  is_active: boolean;
+  activated_at: string | null;
+  updated_at: string;
+};
+
+export async function listWallets(organizationId?: string): Promise<Wallet[]> {
+  return paymentApiRequest<Wallet[]>('/wallets', { method: 'GET' }, organizationId);
+}
+
+export async function activateWallet(currencyCode: string, organizationId?: string): Promise<Wallet> {
+  return paymentApiRequest<Wallet>(
+    '/wallets/activate',
+    {
+      method: 'POST',
+      body: JSON.stringify({ currencyCode }),
+    },
+    organizationId,
+  );
+}
+
+export type PaymentTransaction = {
+  id: string;
+  external_id: string;
+  org_id: string;
+  app_id: string;
+  user_id: string;
+  product_id: string;
+  amount: number;
+  currency: string;
+  status: string;
+  payment_type: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export type TransactionListResponse = {
+  data: PaymentTransaction[];
+  meta: {
+    totalItems: number;
+    itemCount: number;
+    itemsPerPage: number;
+    totalPages: number;
+    currentPage: number;
+  };
+};
+
+export async function getPaymentTransactions(params?: {
+  page?: number;
+  size?: number;
+  search?: string;
+  status?: string;
+  currency?: string;
+  sort?: string;
+  organizationId?: string;
+}): Promise<TransactionListResponse> {
+  const qs = new URLSearchParams();
+  if (params?.page) qs.append('page', String(params.page));
+  if (params?.size) qs.append('size', String(params.size));
+  if (params?.search) qs.append('search', params.search);
+  if (params?.status) qs.append('status', params.status);
+  if (params?.currency) qs.append('currency', params.currency);
+  if (params?.sort) qs.append('sort', params.sort);
+
+  return paymentApiRequest<TransactionListResponse>(
+    `/payments/transactions?${qs.toString()}`,
+    { method: 'GET' },
+    params?.organizationId,
+  );
+}
+
+export type BillingSetting = {
+  org_id: string;
+  app_id: string;
+  currency: string;
+  fixed_fee: number;
+  percentage_fee: number;
+  fixed_cap_fee?: number;
+  max_service_fee?: number;
+  is_active: boolean;
+  created_at?: string;
+  updated_at?: string;
+};
+
+export type BillingSettingListResponse = {
+  data: BillingSetting[];
+  total: number;
+  page: number;
+  limit: number;
+};
+
+export async function getBillingSettings(params?: {
+  page?: number;
+  limit?: number;
+  search?: string;
+}): Promise<BillingSettingListResponse> {
+  const qs = new URLSearchParams();
+  if (params?.page) qs.append('page', String(params.page));
+  if (params?.limit) qs.append('limit', String(params.limit));
+  if (params?.search) qs.append('search', params.search);
+
+  // Use 'all' as organizationId to fetch all settings (for admin view)
+  return paymentApiRequest<BillingSettingListResponse>(`/billing/settings?${qs.toString()}`, {}, 'all');
+}
+
+export async function getGlobalDefaultBillingSetting(): Promise<BillingSetting | null> {
+  // Use 'default' as organizationId for global settings
+  return paymentApiRequest<BillingSetting | null>('/billing/settings/global-default', {}, 'default');
+}
+
+export async function updateGlobalDefaultBillingSetting(data: Partial<BillingSetting>): Promise<BillingSetting> {
+  // Use 'default' as organizationId for global settings
+  return paymentApiRequest<BillingSetting>('/billing/settings/global-default', {
+    method: 'PATCH',
+    body: JSON.stringify(data),
+  }, 'default');
+}
+
+export async function upsertBillingSetting(data: BillingSetting): Promise<BillingSetting> {
+  // Use the org_id from data if available, otherwise fallback to current org
+  return paymentApiRequest<BillingSetting>('/billing/settings', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  }, data.org_id);
+}
+
+export async function updateBillingSetting(
+  appId: string,
+  currency: string,
+  data: Partial<BillingSetting>,
+): Promise<BillingSetting> {
+  // We need the org_id to update. If it's in data, use it. 
+  // For updates, the org_id is usually part of the unique key.
+  const orgId = (data as any).org_id || (typeof window !== 'undefined' ? sessionStorage.getItem('activeOrganizationId') : 'default');
+  
+  return paymentApiRequest<BillingSetting>(`/billing/settings/${appId}/${currency}`, {
+    method: 'PATCH',
+    body: JSON.stringify(data),
+  }, orgId);
+}
+
 export async function listPayoutAccounts(params?: {
   page?: number;
   size?: number;
@@ -189,6 +336,46 @@ export async function updatePayoutAccount(
     `/payout-account/${encodeURIComponent(id)}`,
     { method: 'PUT', body: JSON.stringify(data) },
     organizationId,
+  );
+}
+
+export type WithdrawalRequest = {
+  id: string;
+  wallet_id: string;
+  amount: number;
+  status: 'PENDING' | 'APPROVED' | 'COMPLETED' | 'REJECTED';
+  bank_info: any;
+  payout_details_snapshot: any;
+  created_at: string;
+  wallet?: {
+    currency_code: string;
+  };
+};
+
+export type WithdrawalListResponse = {
+  data: WithdrawalRequest[];
+  meta: {
+    totalItems: number;
+    itemCount: number;
+    itemsPerPage: number;
+    totalPages: number;
+    currentPage: number;
+  };
+};
+
+export async function listWithdrawalRequests(params?: {
+  page?: number;
+  size?: number;
+  organizationId?: string;
+}): Promise<WithdrawalListResponse> {
+  const qs = new URLSearchParams();
+  if (params?.page) qs.append('page', String(params.page));
+  if (params?.size) qs.append('size', String(params.size));
+
+  return paymentApiRequest<WithdrawalListResponse>(
+    `/wallets/withdrawals?${qs.toString()}`,
+    { method: 'GET' },
+    params?.organizationId,
   );
 }
 

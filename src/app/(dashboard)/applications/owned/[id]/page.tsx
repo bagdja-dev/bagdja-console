@@ -19,7 +19,11 @@ import DistributePieceModal from '@/components/DistributePieceModal';
 import EventRegisterModal from '@/components/EventRegisterModal';
 import EventSubscribeModal from '@/components/EventSubscribeModal';
 import MessageTemplateModal from '@/components/MessageTemplateModal';
+import ChannelSetupModal from '@/components/ChannelSetupModal';
+import MessageLogDetailModal from '@/components/MessageLogDetailModal';
+import AlertModal, { AlertType } from '@/components/AlertModal';
 import { useLayout } from '@/context/LayoutContext';
+import { generateCurl } from '@/lib/utils';
 import {
   getInfraContracts,
   createEventContract,
@@ -32,14 +36,18 @@ import {
   deleteMySubscription,
   getSubscriptionRequests,
   updateSubscriptionStatus,
-  getEventLogs
+  getEventLogs,
+  resendEventLog
 } from '@/lib/api';
 import {
   getTemplates,
   createTemplate,
   updateTemplate,
   deleteTemplate,
-  getMessageLogs
+  getMessageLogs,
+  resendMessageLog,
+  getChannelSettings,
+  setupChannel
 } from '@/lib/messages-api';
 
 type TabType = 'users' | 'product' | 'plan' | 'license' | 'subscriptions' | 'events' | 'messaging';
@@ -163,9 +171,100 @@ export default function AppDetailPage() {
   // Messaging state
   const [activeChannel, setActiveChannel] = useState<ChannelType | null>(null);
   const [messagingSubTab, setMessagingSubTab] = useState<MessagingSubTab>('setup');
+  const [channelSettings, setChannelSettings] = useState<any[]>([]);
+  const [channelSettingsLoading, setChannelSettingsLoading] = useState(false);
   const [refreshTemplatesTrigger, setRefreshTemplatesTrigger] = useState(0);
   const [templateModalOpen, setTemplateModalOpen] = useState(false);
+  const [channelSetupModalOpen, setChannelSetupModalOpen] = useState(false);
   const [editingTemplate, setEditingTemplate] = useState<any>(null);
+  const [msgLogDetailModalOpen, setMsgLogDetailModalOpen] = useState(false);
+  const [selectedMsgLog, setSelectedMsgLog] = useState<any>(null);
+
+  // Global Alert State
+  const [alertConfig, setAlertConfig] = useState<{
+    isOpen: boolean;
+    message: string;
+    type: AlertType;
+    title?: string;
+  }>({
+    isOpen: false,
+    message: '',
+    type: 'info',
+  });
+
+  const showAlert = (message: string, type: AlertType = 'info', title?: string) => {
+    setAlertConfig({
+      isOpen: true,
+      message,
+      type,
+      title,
+    });
+  };
+
+  const fetchChannelSettings = async () => {
+    if (!app?.appId) return;
+    try {
+      setChannelSettingsLoading(true);
+      const data = await getChannelSettings(app.appId);
+      setChannelSettings(data);
+    } catch (err) {
+      console.error('Failed to fetch channel settings:', err);
+    } finally {
+      setChannelSettingsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'messaging' && app?.appId) {
+      fetchChannelSettings();
+    }
+  }, [activeTab, app?.appId]);
+
+  const handleChannelSetupSubmit = async (data: any) => {
+    if (!app?.appId) return;
+    try {
+      await setupChannel({
+        ...data,
+        appId: app.appId,
+      });
+      await fetchChannelSettings();
+    } catch (err: any) {
+      throw new Error(err.message || 'Failed to setup channel');
+    }
+  };
+
+  const [resendingLogId, setResendingLogId] = useState<string | null>(null);
+  const [resendingMsgLogId, setResendingMsgLogId] = useState<string | null>(null);
+
+  const handleResendEvent = async (e: React.MouseEvent, logId: string) => {
+    e.stopPropagation();
+    if (!app?.appId) return;
+
+    try {
+      setResendingLogId(logId);
+      await resendEventLog(logId, app.appId);
+      showAlert('Event has been successfully re-enqueued for delivery.', 'success', 'Delivery Triggered');
+    } catch (err: any) {
+      showAlert(err.message || 'Failed to resend event', 'error', 'Delivery Failed');
+    } finally {
+      setResendingLogId(null);
+    }
+  };
+
+  const handleResendMessage = async (e: React.MouseEvent, logId: string) => {
+    e.stopPropagation();
+    if (!app?.appId) return;
+
+    try {
+      setResendingMsgLogId(logId);
+      await resendMessageLog(logId, app.appId);
+      showAlert('Email has been successfully resent.', 'success', 'Message Sent');
+    } catch (err: any) {
+      showAlert(err.message || 'Failed to resend message', 'error', 'Resend Failed');
+    } finally {
+      setResendingMsgLogId(null);
+    }
+  };
 
   const handleTemplateSubmit = async (data: any) => {
     if (!app?.appId) return;
@@ -189,8 +288,9 @@ export default function AppDetailPage() {
     try {
       await deleteTemplate(id, app.appId);
       setRefreshTemplatesTrigger(prev => prev + 1);
+      showAlert('Template deleted successfully.', 'success');
     } catch (err) {
-      alert('Failed to delete template');
+      showAlert('Failed to delete template', 'error');
     }
   };
 
@@ -540,7 +640,7 @@ export default function AppDetailPage() {
     if (!app?.appId) return;
     try {
       if (editingSubscription) {
-        await updateMySubscription(editingSubscription.id, webhookUrl);
+        await updateMySubscription(editingSubscription.id, webhookUrl, app.appId);
       } else {
         await subscribeToEvent(contractId, webhookUrl, app.appId);
       }
@@ -579,18 +679,21 @@ export default function AppDetailPage() {
       // Also update the local state for current count/notifications if needed
       const res = await getSubscriptionRequests(app.appId);
       setSubscriptionRequests(res.data || []);
+      showAlert(`Subscription request ${status} successfully.`, 'success');
     } catch (err: any) {
-      alert(err.message || 'Failed to update status');
+      showAlert(err.message || 'Failed to update status', 'error');
     }
   };
 
   const handleUnsubscribe = async (subId: string) => {
     if (!confirm('Are you sure you want to unsubscribe from this event?')) return;
+    if (!app?.appId) return;
     try {
-      await deleteMySubscription(subId);
+      await deleteMySubscription(subId, app.appId);
       setRefreshContracts(prev => prev + 1);
+      showAlert('Unsubscribed successfully.', 'success');
     } catch (err: any) {
-      alert(err.message || 'Failed to unsubscribe');
+      showAlert(err.message || 'Failed to unsubscribe', 'error');
     }
   };
 
@@ -603,8 +706,9 @@ export default function AppDetailPage() {
       await deleteEventContract(id);
       // Refresh list
       setRefreshContracts(prev => prev + 1);
+      showAlert('Event contract deleted successfully.', 'success');
     } catch (err: any) {
-      alert(err.message || 'Failed to delete event');
+      showAlert(err.message || 'Failed to delete event', 'error');
     }
   };
 
@@ -616,9 +720,10 @@ export default function AppDetailPage() {
     try {
       await deleteProduct(id);
       await refreshProducts();
+      showAlert('Product deleted successfully.', 'success');
     } catch (err) {
       const apiError = err as ApiError;
-      alert(apiError.message || 'Failed to delete product');
+      showAlert(apiError.message || 'Failed to delete product', 'error');
       console.error('Failed to delete product:', err);
     }
   };
@@ -683,9 +788,10 @@ export default function AppDetailPage() {
     try {
       await deletePlan(id);
       await refreshPlans();
+      showAlert('Plan deleted successfully.', 'success');
     } catch (err) {
       const apiError = err as ApiError;
-      alert(apiError.message || 'Failed to delete plan');
+      showAlert(apiError.message || 'Failed to delete plan', 'error');
       console.error('Failed to delete plan:', err);
     }
   };
@@ -766,9 +872,10 @@ export default function AppDetailPage() {
     try {
       await deleteLicense(id);
       await refreshLicenses();
+      showAlert('License deleted successfully.', 'success');
     } catch (err) {
       const apiError = err as ApiError;
-      alert(apiError.message || 'Failed to delete license');
+      showAlert(apiError.message || 'Failed to delete license', 'error');
       console.error('Failed to delete license:', err);
     }
   };
@@ -780,7 +887,7 @@ export default function AppDetailPage() {
 
   const openEditLicenseModal = (license: License) => {
     if (license.status !== 'available') {
-      alert('Only available licenses can be edited');
+      showAlert('Only available licenses can be edited', 'warning');
       return;
     }
     setEditingLicense(license);
@@ -2172,6 +2279,26 @@ export default function AppDetailPage() {
                           </span>
                         </div>
                       )
+                    },
+                    {
+                      key: 'actions',
+                      label: '',
+                      render: (_, row) => (
+                        <div className="flex justify-end">
+                          {row.type === 'delivery' && (
+                            <button
+                              onClick={(e) => handleResendEvent(e, row.id)}
+                              disabled={resendingLogId === row.id}
+                              className="px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-primary hover:bg-primary/10 rounded-lg transition-all disabled:opacity-50 flex items-center gap-2"
+                            >
+                              {resendingLogId === row.id ? (
+                                <History className="h-3 w-3 animate-spin" />
+                              ) : null}
+                              {resendingLogId === row.id ? 'Resending...' : 'Resend'}
+                            </button>
+                          )}
+                        </div>
+                      )
                     }
                   ]}
                   filterFields={[
@@ -2333,25 +2460,37 @@ export default function AppDetailPage() {
                               <p className="text-xs text-[var(--text-secondary)]">Choose how your {activeChannel}s are delivered.</p>
                             </div>
                           </div>
-                          <span className="px-3 py-1 bg-green-500/10 text-green-400 text-[10px] font-black uppercase rounded-full border border-green-500/20">
-                            System Default
-                          </span>
+                          {channelSettings.find(s => s.channelType === activeChannel)?.providerType === 'SYSTEM' || !channelSettings.find(s => s.channelType === activeChannel) ? (
+                            <span className="px-3 py-1 bg-green-500/10 text-green-400 text-[10px] font-black uppercase rounded-full border border-green-500/20">
+                              System Default
+                            </span>
+                          ) : (
+                            <span className="px-3 py-1 bg-blue-500/10 text-blue-400 text-[10px] font-black uppercase rounded-full border border-blue-500/20">
+                              {channelSettings.find(s => s.channelType === activeChannel)?.providerType}
+                            </span>
+                          )}
                         </div>
 
                         <div className="space-y-6">
                           <div className="p-4 rounded-lg bg-[var(--bg-surface)] border border-[var(--border-default)] flex items-start gap-4">
                             <Shield className="h-5 w-5 text-green-500 mt-0.5" />
                             <div>
-                              <p className="text-sm font-bold text-[var(--text-primary)]">Using Bagdja Infrastructure</p>
+                              <p className="text-sm font-bold text-[var(--text-primary)]">
+                                {channelSettings.find(s => s.channelType === activeChannel)?.providerType === 'SYSTEM' || !channelSettings.find(s => s.channelType === activeChannel)
+                                  ? 'Using Bagdja Infrastructure'
+                                  : `Using Custom ${channelSettings.find(s => s.channelType === activeChannel)?.providerType}`}
+                              </p>
                               <p className="text-xs text-[var(--text-secondary)] leading-relaxed">
-                                Your application is currently using the shared Bagdja messaging service (noreply@bagdja.com).
-                                No setup required.
+                                {channelSettings.find(s => s.channelType === activeChannel)?.providerType === 'SYSTEM' || !channelSettings.find(s => s.channelType === activeChannel)
+                                  ? `Your application is currently using the shared Bagdja messaging service (noreply@bagdja.com). No setup required.`
+                                  : `Your application is using a custom ${activeChannel} provider. Settings are managed by your team.`}
                               </p>
                             </div>
                           </div>
 
                           <div className="pt-4 border-t border-[var(--border-default)]">
                             <button
+                              onClick={() => setChannelSetupModalOpen(true)}
                               className="w-full py-3 px-4 rounded-xl bg-white/5 border border-[var(--border-default)] text-[var(--text-primary)] text-sm font-bold uppercase hover:bg-white/10 transition-all flex items-center justify-center gap-2"
                             >
                               <Code className="h-4 w-4" />
@@ -2473,6 +2612,10 @@ export default function AppDetailPage() {
                         fetchData={(params) => getMessageLogs(app?.appId, { ...params, filter: { ...params.filter, channelType: activeChannel } })}
                         isScrollable={true}
                         fullHeight={true}
+                        onRowClick={(row) => {
+                          setSelectedMsgLog(row);
+                          setMsgLogDetailModalOpen(true);
+                        }}
                         columns={[
                           {
                             key: 'status',
@@ -2532,6 +2675,24 @@ export default function AppDetailPage() {
                                     second: '2-digit'
                                   })}
                                 </span>
+                              </div>
+                            )
+                          },
+                          {
+                            key: 'actions',
+                            label: '',
+                            render: (_, row) => (
+                              <div className="flex justify-end">
+                                <button
+                                  onClick={(e) => handleResendMessage(e, row.id)}
+                                  disabled={resendingMsgLogId === row.id}
+                                  className="px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-primary hover:bg-primary/10 rounded-lg transition-all disabled:opacity-50 flex items-center gap-2"
+                                >
+                                  {resendingMsgLogId === row.id ? (
+                                    <History className="h-3 w-3 animate-spin" />
+                                  ) : null}
+                                  {resendingMsgLogId === row.id ? 'Resending...' : 'Resend'}
+                                </button>
                               </div>
                             )
                           }
@@ -2667,6 +2828,27 @@ export default function AppDetailPage() {
         )
       }
 
+      {/* Channel Setup Modal */}
+      {
+        app && activeChannel && (
+          <ChannelSetupModal
+            isOpen={channelSetupModalOpen}
+            onClose={() => setChannelSetupModalOpen(false)}
+            onSubmit={handleChannelSetupSubmit}
+            channelType={activeChannel}
+            initialData={channelSettings.find(s => s.channelType === activeChannel)}
+          />
+        )
+      }
+
+      <MessageLogDetailModal
+        isOpen={msgLogDetailModalOpen}
+        onClose={() => setMsgLogDetailModalOpen(false)}
+        log={selectedMsgLog}
+        onResend={handleResendMessage}
+        resendingId={resendingMsgLogId}
+      />
+
       {/* Event Log Detail Modal */}
       {
         logDetailModalOpen && selectedLog && (
@@ -2755,7 +2937,7 @@ export default function AppDetailPage() {
                     <button
                       onClick={() => {
                         navigator.clipboard.writeText(JSON.stringify(selectedLog.payload, null, 2));
-                        alert('Payload copied to clipboard');
+                        showAlert('Payload copied to clipboard', 'info');
                       }}
                       className="absolute top-2 right-2 p-1.5 bg-white/5 hover:bg-white/10 rounded-lg border border-white/10 text-[var(--text-secondary)] transition-all opacity-0 group-hover:opacity-100"
                       title="Copy Payload"
@@ -2764,6 +2946,58 @@ export default function AppDetailPage() {
                     </button>
                   </div>
                 </div>
+
+                {/* CURL Debugger (for Deliveries) */}
+                {selectedLog.type === 'delivery' && selectedLog.targetUrl && (
+                  <div className="space-y-2">
+                    <span className="text-[10px] font-bold text-amber-400 uppercase px-1">CURL Debugger (Simulate Request)</span>
+                    <div className="relative group">
+                      <pre className="p-4 rounded-xl bg-amber-500/5 border border-amber-500/10 text-[10px] font-mono text-amber-200/70 overflow-x-auto leading-relaxed scrollbar-thin scrollbar-thumb-white/10">
+                        {generateCurl(selectedLog.targetUrl, {
+                          method: 'POST',
+                          headers: {
+                            'Content-Type': 'application/json',
+                            'X-Bagdja-Event': selectedLog.eventName,
+                            'X-Bagdja-Delivery': selectedLog.id,
+                          },
+                          body: {
+                            eventName: selectedLog.eventName,
+                            appId: app?.appId,
+                            data: selectedLog.payload,
+                            timestamp: selectedLog.createdAt,
+                          }
+                        })}
+                      </pre>
+                      <button
+                        onClick={() => {
+                          const curl = generateCurl(selectedLog.targetUrl, {
+                            method: 'POST',
+                            headers: {
+                              'Content-Type': 'application/json',
+                              'X-Bagdja-Event': selectedLog.eventName,
+                              'X-Bagdja-Delivery': selectedLog.id,
+                            },
+                            body: {
+                              eventName: selectedLog.eventName,
+                              appId: app?.appId,
+                              data: selectedLog.payload,
+                              timestamp: selectedLog.createdAt,
+                            }
+                          });
+                          navigator.clipboard.writeText(curl);
+                          showAlert('CURL command copied to clipboard', 'success', 'Ready to Debug');
+                        }}
+                        className="absolute top-2 right-2 p-1.5 bg-amber-500/10 hover:bg-amber-500/20 rounded-lg border border-amber-500/20 text-amber-400 transition-all opacity-0 group-hover:opacity-100"
+                        title="Copy CURL Command"
+                      >
+                        <Copy className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                    <p className="text-[9px] text-amber-500/50 italic px-1">
+                      * Use this command to manually test your webhook endpoint with the exact same payload and headers.
+                    </p>
+                  </div>
+                )}
               </div>
 
               {/* Modal Footer */}
@@ -2779,6 +3013,15 @@ export default function AppDetailPage() {
           </div>
         )
       }
+
+      <AlertModal
+        isOpen={alertConfig.isOpen}
+        onClose={() => setAlertConfig(prev => ({ ...prev, isOpen: false }))}
+        message={alertConfig.message}
+        type={alertConfig.type}
+        title={alertConfig.title}
+        autoClose={alertConfig.type === 'success' || alertConfig.type === 'info' ? 3000 : undefined}
+      />
     </div>
   );
 }
