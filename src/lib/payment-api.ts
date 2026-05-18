@@ -188,23 +188,23 @@ export async function activateWallet(currencyCode: string, organizationId?: stri
   );
 }
 
-export type PaymentTransaction = {
+export type WalletLedgerEntry = {
   id: string;
-  external_id: string;
-  org_id: string;
-  app_id: string;
-  user_id: string;
-  product_id: string;
+  wallet_id: string;
   amount: number;
-  currency: string;
-  status: string;
-  payment_type: string;
+  type: string;
+  direction: 'credit' | 'debit';
+  reference_id?: string | null;
+  metadata?: Record<string, unknown> | null;
+  currency: string | null;
   created_at: string;
-  updated_at: string;
 };
 
+/** @deprecated Use WalletLedgerEntry */
+export type PaymentTransaction = WalletLedgerEntry;
+
 export type TransactionListResponse = {
-  data: PaymentTransaction[];
+  data: WalletLedgerEntry[];
   meta: {
     totalItems: number;
     itemCount: number;
@@ -218,7 +218,7 @@ export async function getPaymentTransactions(params?: {
   page?: number;
   size?: number;
   search?: string;
-  status?: string;
+  type?: string;
   currency?: string;
   sort?: string;
   organizationId?: string;
@@ -227,7 +227,7 @@ export async function getPaymentTransactions(params?: {
   if (params?.page) qs.append('page', String(params.page));
   if (params?.size) qs.append('size', String(params.size));
   if (params?.search) qs.append('search', params.search);
-  if (params?.status) qs.append('status', params.status);
+  if (params?.type) qs.append('type', params.type);
   if (params?.currency) qs.append('currency', params.currency);
   if (params?.sort) qs.append('sort', params.sort);
 
@@ -369,11 +369,15 @@ export type WithdrawalListResponse = {
 export async function listWithdrawalRequests(params?: {
   page?: number;
   size?: number;
+  currency?: string;
+  status?: string;
   organizationId?: string;
 }): Promise<WithdrawalListResponse> {
   const qs = new URLSearchParams();
   if (params?.page) qs.append('page', String(params.page));
   if (params?.size) qs.append('size', String(params.size));
+  if (params?.currency) qs.append('currency', params.currency);
+  if (params?.status) qs.append('status', params.status);
 
   return paymentApiRequest<WithdrawalListResponse>(
     `/wallets/withdrawals?${qs.toString()}`,

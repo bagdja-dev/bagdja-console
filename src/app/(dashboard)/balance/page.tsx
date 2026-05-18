@@ -1,20 +1,13 @@
 'use client';
 
 import { useMemo, useState, useEffect, useCallback, useRef } from 'react';
-import { CheckCircle2, Clock3, Wallet as WalletIcon, Loader2, ArrowUpRight, ArrowDownLeft, ChevronDown } from 'lucide-react';
-import {
-  listWallets,
-  activateWallet,
-  getPaymentTransactions,
-  listWithdrawalRequests,
-  type Wallet,
-  type PaymentTransaction,
-  type WithdrawalRequest
-} from '@/lib/payment-api';
+import { CheckCircle2, Clock3, Wallet as WalletIcon, Loader2 } from 'lucide-react';
+import { listWallets, activateWallet, type Wallet } from '@/lib/payment-api';
 import { getSupportedCurrencies } from '@/lib/api';
 import { getActiveOrganizationSlug } from '@/lib/auth';
-import DataGrid, { type GridColumn, type FilterField } from '@/components/DataGrid';
 import { useLayout } from '@/context/LayoutContext';
+import WalletLedgerGrid from './WalletLedgerGrid';
+import WithdrawalRequestsGrid from './WithdrawalRequestsGrid';
 
 type Currency = string;
 type TabKey = 'transactions' | 'withdraw_requests';
@@ -265,124 +258,6 @@ export default function WalletPage() {
 
   const selectedWallet = walletsSummary.find((w) => w.currency === selectedCurrency) ?? walletsSummary[0];
 
-  // DataGrid Columns for Transactions
-  const transactionColumns: GridColumn[] = [
-    {
-      key: 'created_at',
-      label: 'Date',
-      sortable: true,
-      render: (val) => new Date(val).toLocaleDateString()
-    },
-    {
-      key: 'type',
-      label: 'Type',
-      render: () => (
-        <div className="flex items-center gap-2">
-          <div className="flex h-7 w-7 items-center justify-center rounded-full bg-emerald-500/10">
-            <ArrowDownLeft className="h-4 w-4 text-emerald-500" />
-          </div>
-          <span className="text-[var(--text-primary)]">Payment</span>
-        </div>
-      )
-    },
-    {
-      key: 'status',
-      label: 'Status',
-      sortable: true,
-      render: (status) => (
-        <span className={[
-          'inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium',
-          status === 'PAID' || status === 'COMPLETED' || status === 'SUCCESS'
-            ? 'bg-emerald-500/10 text-emerald-500'
-            : status === 'PENDING'
-              ? 'bg-amber-500/10 text-amber-500'
-              : 'bg-red-500/10 text-red-500'
-        ].join(' ')}>
-          {status}
-        </span>
-      )
-    },
-    {
-      key: 'amount',
-      label: 'Amount',
-      sortable: true,
-      render: (val, row) => (
-        <div className="text-right font-medium text-[var(--text-primary)]">
-          {formatMoney(Number(val), row.currency as Currency)}
-        </div>
-      )
-    }
-  ];
-
-  // DataGrid Columns for Withdrawals
-  const withdrawalColumns: GridColumn[] = [
-    {
-      key: 'created_at',
-      label: 'Date',
-      sortable: true,
-      render: (val) => new Date(val).toLocaleDateString()
-    },
-    {
-      key: 'account',
-      label: 'Account',
-      render: (_, row) => (
-        <div className="flex items-center gap-2">
-          <div className="flex h-7 w-7 items-center justify-center rounded-full bg-orange-500/10">
-            <ArrowUpRight className="h-4 w-4 text-orange-500" />
-          </div>
-          <div>
-            <div className="text-[var(--text-primary)]">Withdraw</div>
-            <div className="text-xs text-[var(--text-secondary)]">
-              {row.bank_info?.bankName || 'Unknown Bank'}
-            </div>
-          </div>
-        </div>
-      )
-    },
-    {
-      key: 'status',
-      label: 'Status',
-      sortable: true,
-      render: (status) => (
-        <span className={[
-          'inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium',
-          status === 'COMPLETED'
-            ? 'bg-emerald-500/10 text-emerald-500'
-            : status === 'PENDING'
-              ? 'bg-amber-500/10 text-amber-500'
-              : status === 'REJECTED'
-                ? 'bg-red-500/10 text-red-500'
-                : 'bg-blue-500/10 text-blue-500'
-        ].join(' ')}>
-          {status}
-        </span>
-      )
-    },
-    {
-      key: 'amount',
-      label: 'Amount',
-      sortable: true,
-      render: (val, row) => (
-        <div className="text-right font-medium text-[var(--text-primary)]">
-          -{formatMoney(val, (row.wallet?.currency_code as Currency) || selectedCurrency)}
-        </div>
-      )
-    }
-  ];
-
-  const transactionFilters: FilterField[] = [
-    {
-      key: 'status',
-      label: 'Status',
-      type: 'select',
-      options: [
-        { label: 'Pending', value: 'PENDING' },
-        { label: 'Success', value: 'SUCCESS' },
-        { label: 'Failed', value: 'FAILED' },
-        { label: 'Paid', value: 'PAID' },
-      ]
-    }
-  ];
 
   if (loading && walletsData.length === 0) {
     return (
@@ -456,39 +331,9 @@ export default function WalletPage() {
 
         <div className="flex-1 flex flex-col min-h-0 mt-4 mx-4">
           {activeTab === 'transactions' ? (
-            <DataGrid
-              title=""
-              columns={transactionColumns}
-              fetchData={(params) => getPaymentTransactions({
-                ...params,
-                status: params.filter?.status,
-                currency: selectedCurrency // Auto filter by selected wallet
-              })}
-              filterFields={transactionFilters}
-              refreshTrigger={selectedCurrency}
-              emptyState={{
-                title: 'No transactions',
-                description: `No transactions found for ${selectedCurrency} wallet.`,
-                icon: <ArrowDownLeft className="h-12 w-12 text-[var(--text-muted)]" />
-              }}
-              fullHeight={true}
-            />
+            <WalletLedgerGrid key={`ledger-${selectedCurrency}`} currency={selectedCurrency} />
           ) : (
-            <DataGrid
-              title=""
-              columns={withdrawalColumns}
-              fetchData={(params) => listWithdrawalRequests({
-                ...params,
-                organizationId: undefined // Handled by paymentApiRequest
-              })}
-              refreshTrigger={selectedCurrency}
-              emptyState={{
-                title: 'No withdrawals',
-                description: `No withdrawal requests found for ${selectedCurrency} wallet.`,
-                icon: <ArrowUpRight className="h-12 w-12 text-[var(--text-muted)]" />
-              }}
-              fullHeight={true}
-            />
+            <WithdrawalRequestsGrid key={`withdraw-${selectedCurrency}`} currency={selectedCurrency} />
           )}
         </div>
       </div>
