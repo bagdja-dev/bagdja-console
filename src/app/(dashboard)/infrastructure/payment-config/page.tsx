@@ -1,18 +1,21 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, type MouseEvent } from 'react';
 import {
   getBillingSettings,
   getGlobalDefaultBillingSetting,
   updateGlobalDefaultBillingSetting,
   upsertBillingSetting,
+  deleteBillingSetting,
   type BillingSetting
 } from '@/lib/payment-api';
 import { formatPercentageFeeForDisplay } from '@/lib/billing-utils';
-import { CreditCard, Plus, Info, CheckCircle2, XCircle, Settings2, Edit2 } from 'lucide-react';
+import { CreditCard, Plus, Info, CheckCircle2, XCircle, Settings2, Edit2, Trash2 } from 'lucide-react';
 import DataGrid, { GridColumn, GridAction } from '@/components/DataGrid';
 import BillingSettingModal from '@/components/BillingSettingModal';
 import GlobalBillingModal from '@/components/GlobalBillingModal';
+import ConfirmModal from '@/components/ConfirmModal';
+import AlertModal, { type AlertType } from '@/components/AlertModal';
 
 export default function PaymentConfigPage() {
   const [refreshTrigger, setRefreshTrigger] = useState(0);
@@ -21,6 +24,14 @@ export default function PaymentConfigPage() {
   const [modalMode, setModalMode] = useState<'create' | 'edit'>('create');
   const [selectedSetting, setSelectedSetting] = useState<BillingSetting | null>(null);
   const [globalDefault, setGlobalDefault] = useState<BillingSetting | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<BillingSetting | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [alertState, setAlertState] = useState<{
+    isOpen: boolean;
+    type: AlertType;
+    title: string;
+    message: string;
+  }>({ isOpen: false, type: 'info', title: '', message: '' });
 
   const fetchData = useCallback(async (params?: { page: number; limit: number; search?: string }) => {
     const [response, globalData] = await Promise.all([
@@ -46,6 +57,47 @@ export default function PaymentConfigPage() {
   const handleUpdateGlobal = async (payload: Partial<BillingSetting>) => {
     await updateGlobalDefaultBillingSetting(payload);
     setRefreshTrigger(prev => prev + 1);
+  };
+
+  const isGlobalDefault = (row: BillingSetting) =>
+    row.org_id === 'default' && row.app_id === 'default' && row.currency === 'DEFAULT';
+
+  const showAlert = (type: AlertType, title: string, message: string) => {
+    setAlertState({ isOpen: true, type, title, message });
+  };
+
+  const openDeleteConfirm = (row: BillingSetting, e?: MouseEvent) => {
+    e?.stopPropagation();
+    if (isGlobalDefault(row)) {
+      showAlert(
+        'warning',
+        'Cannot delete',
+        'Global default billing rule cannot be deleted. Edit it instead.',
+      );
+      return;
+    }
+    setDeleteTarget(row);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!deleteTarget) return;
+    setIsDeleting(true);
+    try {
+      await deleteBillingSetting(
+        deleteTarget.org_id,
+        deleteTarget.app_id,
+        deleteTarget.currency,
+      );
+      setDeleteTarget(null);
+      setRefreshTrigger((prev) => prev + 1);
+      showAlert('success', 'Deleted', 'Billing rule has been removed.');
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : 'Failed to delete billing rule';
+      showAlert('error', 'Delete failed', message);
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
   const gridActions: GridAction[] = [
@@ -131,7 +183,28 @@ export default function PaymentConfigPage() {
           )}
         </div>
       )
-    }
+    },
+    {
+      key: 'actions',
+      label: '',
+      render: (_, row: BillingSetting) => (
+        <div className="flex justify-end">
+          <button
+            type="button"
+            onClick={(e) => openDeleteConfirm(row, e)}
+            disabled={isGlobalDefault(row)}
+            title={
+              isGlobalDefault(row)
+                ? 'Global default cannot be deleted'
+                : 'Delete billing rule'
+            }
+            className="rounded-lg p-2 text-[var(--text-secondary)] transition-colors hover:bg-red-500/10 hover:text-red-500 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            <Trash2 className="h-4 w-4" />
+          </button>
+        </div>
+      ),
+    },
   ];
 
   return (
@@ -292,6 +365,33 @@ export default function PaymentConfigPage() {
         setting={globalDefault}
         onClose={() => setIsGlobalModalOpen(false)}
         onSubmit={handleUpdateGlobal}
+      />
+
+      <ConfirmModal
+        isOpen={Boolean(deleteTarget)}
+        onClose={() => {
+          if (!isDeleting) setDeleteTarget(null);
+        }}
+        onConfirm={handleConfirmDelete}
+        title="Delete billing rule?"
+        message="Transactions will fall back to other rules in the billing hierarchy."
+        detail={
+          deleteTarget
+            ? `${deleteTarget.org_id} · ${deleteTarget.app_id} · ${deleteTarget.currency}`
+            : undefined
+        }
+        confirmLabel="Delete rule"
+        cancelLabel="Keep rule"
+        variant="danger"
+        loading={isDeleting}
+      />
+
+      <AlertModal
+        isOpen={alertState.isOpen}
+        onClose={() => setAlertState((prev) => ({ ...prev, isOpen: false }))}
+        type={alertState.type}
+        title={alertState.title}
+        message={alertState.message}
       />
     </>
   );

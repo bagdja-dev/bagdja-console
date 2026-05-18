@@ -308,6 +308,20 @@ export async function updateBillingSetting(
   }, orgId);
 }
 
+export async function deleteBillingSetting(
+  orgId: string,
+  appId: string,
+  currency: string,
+): Promise<void> {
+  const qs = new URLSearchParams();
+  qs.set('org_id', orgId);
+  return paymentApiRequest<void>(
+    `/billing/settings/${encodeURIComponent(appId)}/${encodeURIComponent(currency)}?${qs.toString()}`,
+    { method: 'DELETE' },
+    orgId,
+  );
+}
+
 export async function listPayoutAccounts(params?: {
   page?: number;
   size?: number;
