@@ -259,17 +259,36 @@ export type BillingSettingListResponse = {
   limit: number;
 };
 
-export async function getBillingSettings(params?: {
+export type BillingSettingsQuery = {
   page?: number;
   limit?: number;
+  size?: number;
   search?: string;
-}): Promise<BillingSettingListResponse> {
-  const qs = new URLSearchParams();
-  if (params?.page) qs.append('page', String(params.page));
-  if (params?.limit) qs.append('limit', String(params.limit));
-  if (params?.search) qs.append('search', params.search);
+  sort?: string;
+  org_id?: string;
+  app_id?: string;
+  product_id?: string;
+  currency?: string;
+  is_active?: string;
+};
 
-  // Use 'all' as organizationId to fetch all settings (for admin view)
+export async function getBillingSettings(
+  params?: BillingSettingsQuery,
+): Promise<BillingSettingListResponse> {
+  const qs = new URLSearchParams();
+  const page = params?.page;
+  const limit = params?.limit ?? params?.size;
+
+  if (page) qs.append('page', String(page));
+  if (limit) qs.append('limit', String(limit));
+  if (params?.search) qs.append('search', params.search);
+  if (params?.sort) qs.append('sort', params.sort);
+  if (params?.org_id) qs.append('org_id', params.org_id);
+  if (params?.app_id) qs.append('app_id', params.app_id);
+  if (params?.product_id) qs.append('product_id', params.product_id);
+  if (params?.currency) qs.append('currency', params.currency);
+  if (params?.is_active) qs.append('is_active', params.is_active);
+
   return paymentApiRequest<BillingSettingListResponse>(`/billing/settings?${qs.toString()}`, {}, 'all');
 }
 

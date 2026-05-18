@@ -51,6 +51,7 @@ interface DataGridProps {
   refreshTrigger?: any;
   isScrollable?: boolean;
   fullHeight?: boolean;
+  defaultSort?: string;
 }
 
 const DataGrid: React.FC<DataGridProps> = ({
@@ -64,7 +65,8 @@ const DataGrid: React.FC<DataGridProps> = ({
   emptyState,
   refreshTrigger,
   isScrollable = false,
-  fullHeight = false
+  fullHeight = false,
+  defaultSort = 'createdAt:desc',
 }) => {
   const [data, setData] = useState<any[]>([]);
   const [meta, setMeta] = useState<any>(null);
@@ -76,7 +78,7 @@ const DataGrid: React.FC<DataGridProps> = ({
   const [search, setSearch] = useState('');
   const [filter, setLogFilter] = useState<Record<string, string>>({});
   const [tempFilter, setTempFilter] = useState<Record<string, string>>({});
-  const [sort, setSort] = useState('createdAt:desc');
+  const [sort, setSort] = useState(defaultSort);
   const [isFilterPanelOpen, setIsFilterPanelOpen] = useState(false);
   const [isSettingsPanelOpen, setIsSettingsPanelOpen] = useState(false);
   const [visibleColumns, setVisibleColumns] = useState<Record<string, boolean>>({});

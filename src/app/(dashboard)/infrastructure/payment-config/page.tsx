@@ -12,11 +12,52 @@ import {
 import { formatPercentageFeeForDisplay } from '@/lib/billing-utils';
 import { formatRuleKeyLabel, getHierarchyStep } from '@/lib/billing-hierarchy';
 import { CreditCard, Plus, Info, CheckCircle2, XCircle, Settings2, Edit2, Trash2 } from 'lucide-react';
-import DataGrid, { GridColumn, GridAction } from '@/components/DataGrid';
+import DataGrid, { GridColumn, GridAction, FilterField } from '@/components/DataGrid';
 import BillingSettingModal from '@/components/BillingSettingModal';
 import GlobalBillingModal from '@/components/GlobalBillingModal';
 import ConfirmModal from '@/components/ConfirmModal';
 import AlertModal, { type AlertType } from '@/components/AlertModal';
+
+const billingFilters: FilterField[] = [
+  {
+    key: 'org_id',
+    label: 'Organization',
+    type: 'text',
+    placeholder: 'e.g. acme',
+  },
+  {
+    key: 'app_id',
+    label: 'Application',
+    type: 'text',
+    placeholder: 'app slug',
+  },
+  {
+    key: 'product_id',
+    label: 'Product',
+    type: 'text',
+    placeholder: 'product UUID',
+  },
+  {
+    key: 'currency',
+    label: 'Currency',
+    type: 'select',
+    options: [
+      { label: 'IDR', value: 'IDR' },
+      { label: 'USD', value: 'USD' },
+      { label: 'MYR', value: 'MYR' },
+      { label: 'Default (all)', value: 'DEFAULT' },
+    ],
+  },
+  {
+    key: 'is_active',
+    label: 'Status',
+    type: 'select',
+    options: [
+      { label: 'Active', value: 'true' },
+      { label: 'Inactive', value: 'false' },
+    ],
+  },
+];
 
 export default function PaymentConfigPage() {
   const [refreshTrigger, setRefreshTrigger] = useState(0);
@@ -34,21 +75,46 @@ export default function PaymentConfigPage() {
     message: string;
   }>({ isOpen: false, type: 'info', title: '', message: '' });
 
-  const fetchData = useCallback(async (params?: { page: number; limit: number; search?: string }) => {
-    const [response, globalData] = await Promise.all([
-      getBillingSettings(params),
-      getGlobalDefaultBillingSetting()
-    ]);
-    setGlobalDefault(globalData);
-    return {
-      data: response.data,
-      meta: {
-        total: response.total,
-        page: response.page,
-        limit: response.limit
-      }
-    };
-  }, []);
+  const fetchData = useCallback(
+    async (params?: {
+      page: number;
+      size: number;
+      search?: string;
+      filter?: Record<string, string>;
+      sort?: string;
+    }) => {
+      const filter = params?.filter ?? {};
+      const [response, globalData] = await Promise.all([
+        getBillingSettings({
+          page: params?.page,
+          limit: params?.size,
+          search: params?.search,
+          sort: params?.sort,
+          org_id: filter.org_id,
+          app_id: filter.app_id,
+          product_id: filter.product_id,
+          currency: filter.currency,
+          is_active: filter.is_active,
+        }),
+        getGlobalDefaultBillingSetting(),
+      ]);
+      setGlobalDefault(globalData);
+      const limit = response.limit || params?.size || 20;
+      const totalItems = response.total ?? 0;
+      const currentPage = response.page ?? params?.page ?? 1;
+      return {
+        data: response.data,
+        meta: {
+          totalItems,
+          itemCount: response.data.length,
+          itemsPerPage: limit,
+          totalPages: Math.max(1, Math.ceil(totalItems / limit)),
+          currentPage,
+        },
+      };
+    },
+    [],
+  );
 
   const handleUpsert = async (payload: BillingSetting) => {
     await upsertBillingSetting(payload);
@@ -122,6 +188,7 @@ export default function PaymentConfigPage() {
     {
       key: 'org_id',
       label: 'Organization',
+      sortable: true,
       render: (val, row) => (
         <div className="flex flex-col">
           <span className={`font-bold ${val === 'default' ? 'text-primary' : 'text-[var(--text-primary)]'}`}>
@@ -148,8 +215,29 @@ export default function PaymentConfigPage() {
       )
     },
     {
+      key: 'app_id',
+      label: 'Application',
+      sortable: true,
+      render: (val) => (
+        <span className="text-sm font-medium text-[var(--text-primary)]">
+          {val === 'default' ? 'All apps' : val}
+        </span>
+      ),
+    },
+    {
+      key: 'product_id',
+      label: 'Product',
+      sortable: true,
+      render: (val) => (
+        <span className="text-xs text-[var(--text-secondary)] font-mono truncate max-w-[140px] block">
+          {!val || val === 'default' ? 'All products' : val}
+        </span>
+      ),
+    },
+    {
       key: 'currency',
       label: 'Currency',
+      sortable: true,
       render: (val) => (
         <span className={`px-2 py-1 ${val === 'DEFAULT' ? 'bg-primary/10 text-primary border-primary/20' : 'bg-[var(--bg-main)] text-[var(--text-secondary)] border-[var(--border-default)]'} text-[10px] font-bold rounded uppercase border`}>
           {val}
@@ -159,6 +247,7 @@ export default function PaymentConfigPage() {
     {
       key: 'fees',
       label: 'Fee Structure',
+      sortable: true,
       render: (_, row) => (
         <div className="flex flex-col gap-1">
           <div className="flex items-center gap-2">
@@ -189,8 +278,19 @@ export default function PaymentConfigPage() {
       )
     },
     {
+      key: 'updated_at',
+      label: 'Updated',
+      sortable: true,
+      render: (val) => (
+        <span className="text-xs text-[var(--text-secondary)]">
+          {val ? new Date(val).toLocaleString() : '—'}
+        </span>
+      ),
+    },
+    {
       key: 'is_active',
       label: 'Status',
+      sortable: true,
       render: (val) => (
         <div className="flex items-center gap-1.5">
           {val ? (
@@ -349,6 +449,8 @@ export default function PaymentConfigPage() {
           columns={columns}
           actions={gridActions}
           fetchData={fetchData}
+          filterFields={billingFilters}
+          defaultSort="updated_at:desc"
           refreshTrigger={refreshTrigger}
           onRowClick={(row) => {
             setModalMode('edit');
