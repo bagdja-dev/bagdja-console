@@ -241,6 +241,7 @@ export async function getPaymentTransactions(params?: {
 export type BillingSetting = {
   org_id: string;
   app_id: string;
+  product_id?: string;
   currency: string;
   fixed_fee: number;
   percentage_fee: number;
@@ -295,28 +296,32 @@ export async function upsertBillingSetting(data: BillingSetting): Promise<Billin
 
 export async function updateBillingSetting(
   appId: string,
+  productId: string,
   currency: string,
   data: Partial<BillingSetting>,
 ): Promise<BillingSetting> {
-  // We need the org_id to update. If it's in data, use it. 
-  // For updates, the org_id is usually part of the unique key.
   const orgId = (data as { org_id?: string }).org_id || getActiveOrganizationSlug() || 'default';
-  
-  return paymentApiRequest<BillingSetting>(`/billing/settings/${appId}/${currency}`, {
-    method: 'PATCH',
-    body: JSON.stringify(data),
-  }, orgId);
+
+  return paymentApiRequest<BillingSetting>(
+    `/billing/settings/${encodeURIComponent(appId)}/${encodeURIComponent(productId)}/${encodeURIComponent(currency)}`,
+    {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    },
+    orgId,
+  );
 }
 
 export async function deleteBillingSetting(
   orgId: string,
   appId: string,
+  productId: string,
   currency: string,
 ): Promise<void> {
   const qs = new URLSearchParams();
   qs.set('org_id', orgId);
   return paymentApiRequest<void>(
-    `/billing/settings/${encodeURIComponent(appId)}/${encodeURIComponent(currency)}?${qs.toString()}`,
+    `/billing/settings/${encodeURIComponent(appId)}/${encodeURIComponent(productId)}/${encodeURIComponent(currency)}?${qs.toString()}`,
     { method: 'DELETE' },
     orgId,
   );

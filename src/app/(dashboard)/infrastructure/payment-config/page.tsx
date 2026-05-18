@@ -10,6 +10,7 @@ import {
   type BillingSetting
 } from '@/lib/payment-api';
 import { formatPercentageFeeForDisplay } from '@/lib/billing-utils';
+import { formatRuleKeyLabel, getHierarchyStep } from '@/lib/billing-hierarchy';
 import { CreditCard, Plus, Info, CheckCircle2, XCircle, Settings2, Edit2, Trash2 } from 'lucide-react';
 import DataGrid, { GridColumn, GridAction } from '@/components/DataGrid';
 import BillingSettingModal from '@/components/BillingSettingModal';
@@ -60,7 +61,10 @@ export default function PaymentConfigPage() {
   };
 
   const isGlobalDefault = (row: BillingSetting) =>
-    row.org_id === 'default' && row.app_id === 'default' && row.currency === 'DEFAULT';
+    row.org_id === 'default' &&
+    row.app_id === 'default' &&
+    (row.product_id === 'default' || !row.product_id) &&
+    row.currency === 'DEFAULT';
 
   const showAlert = (type: AlertType, title: string, message: string) => {
     setAlertState({ isOpen: true, type, title, message });
@@ -86,6 +90,7 @@ export default function PaymentConfigPage() {
       await deleteBillingSetting(
         deleteTarget.org_id,
         deleteTarget.app_id,
+        deleteTarget.product_id || 'default',
         deleteTarget.currency,
       );
       setDeleteTarget(null);
@@ -122,7 +127,23 @@ export default function PaymentConfigPage() {
           <span className={`font-bold ${val === 'default' ? 'text-primary' : 'text-[var(--text-primary)]'}`}>
             {val === 'default' ? 'Global Default' : val}
           </span>
-          <span className="text-xs text-[var(--text-secondary)]">App: {row.app_id === 'default' ? 'All Apps' : row.app_id}</span>
+          <span className="text-xs text-[var(--text-secondary)]">
+            {formatRuleKeyLabel(
+              row.org_id,
+              row.app_id,
+              row.product_id || 'default',
+              row.currency,
+            )}
+          </span>
+          <span className="text-[10px] text-primary font-medium">
+            Priority #
+            {getHierarchyStep(
+              row.org_id,
+              row.app_id,
+              row.product_id || 'default',
+              row.currency,
+            )}
+          </span>
         </div>
       )
     },
@@ -247,18 +268,8 @@ export default function PaymentConfigPage() {
               <div className="flex-1 flex flex-col items-center justify-center text-center p-4 border-2 border-dashed border-[var(--border-default)] rounded-xl">
                 <p className="text-sm text-[var(--text-secondary)] mb-4">No global default configured</p>
                 <button
-                  onClick={() => {
-                    setModalMode('create');
-                    setSelectedSetting({
-                      org_id: 'default',
-                      app_id: 'default',
-                      currency: 'DEFAULT',
-                      fixed_fee: 0,
-                      percentage_fee: 0,
-                      is_active: true
-                    });
-                    setIsModalOpen(true);
-                  }}
+                  type="button"
+                  onClick={() => setIsGlobalModalOpen(true)}
                   className="text-xs font-bold text-primary uppercase hover:underline"
                 >
                   Create Default Now
@@ -325,7 +336,7 @@ export default function PaymentConfigPage() {
             </div>
           </div>
           <div className="mt-6 p-3 bg-[var(--bg-main)] rounded-lg border border-[var(--border-default)] text-[10px] uppercase font-bold tracking-widest text-center">
-            System Identity: org_id = 'default' | app_id = 'default' | currency = 'DEFAULT'
+            System Identity: org_id = 'default' | app_id = 'default' | product_id = 'default' | currency = 'DEFAULT'
           </div>
         </div>
       </div>
@@ -358,6 +369,7 @@ export default function PaymentConfigPage() {
         setting={selectedSetting}
         onClose={() => setIsModalOpen(false)}
         onSubmit={handleUpsert}
+        onEditSystemGlobal={() => setIsGlobalModalOpen(true)}
       />
 
       <GlobalBillingModal
@@ -377,7 +389,7 @@ export default function PaymentConfigPage() {
         message="Transactions will fall back to other rules in the billing hierarchy."
         detail={
           deleteTarget
-            ? `${deleteTarget.org_id} · ${deleteTarget.app_id} · ${deleteTarget.currency}`
+            ? `${deleteTarget.org_id} · ${deleteTarget.app_id} · ${deleteTarget.product_id || 'default'} · ${deleteTarget.currency}`
             : undefined
         }
         confirmLabel="Delete rule"
