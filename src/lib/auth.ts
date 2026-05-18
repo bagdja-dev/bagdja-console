@@ -8,6 +8,13 @@ const ACCESS_TOKEN_KEY = 'bagdja_access_token';
 const COOKIE_NAME = 'bagdja_access_token';
 const CLIENT_TOKEN_KEY = 'bagdja_client_token';
 const CLIENT_TOKEN_EXPIRY_KEY = 'bagdja_client_token_expiry';
+const ACTIVE_ORG_ID_KEY = 'activeOrganizationId';
+const ACTIVE_ORG_SLUG_KEY = 'activeOrganizationSlug';
+
+export type ActiveOrganizationRef = {
+  id: string;
+  slug?: string | null;
+};
 
 /**
  * Store access token in memory (sessionStorage) and cookie
@@ -106,4 +113,34 @@ export function removeClientToken(): void {
     sessionStorage.removeItem(CLIENT_TOKEN_KEY);
     sessionStorage.removeItem(CLIENT_TOKEN_EXPIRY_KEY);
   }
+}
+
+/**
+ * Persist active org for auth APIs (UUID) and payment service (slug).
+ */
+export function setActiveOrganization(org: ActiveOrganizationRef): void {
+  if (typeof window === 'undefined') return;
+  sessionStorage.setItem(ACTIVE_ORG_ID_KEY, org.id);
+  const slug = org.slug?.trim();
+  sessionStorage.setItem(ACTIVE_ORG_SLUG_KEY, slug || org.id);
+}
+
+export function getActiveOrganizationId(): string | null {
+  if (typeof window === 'undefined') return null;
+  return sessionStorage.getItem(ACTIVE_ORG_ID_KEY);
+}
+
+/** Organization slug for payment-service (wallets, payouts, billing rows use org slug). */
+export function getActiveOrganizationSlug(): string | null {
+  if (typeof window === 'undefined') return null;
+  return (
+    sessionStorage.getItem(ACTIVE_ORG_SLUG_KEY) ||
+    sessionStorage.getItem(ACTIVE_ORG_ID_KEY)
+  );
+}
+
+export function clearActiveOrganization(): void {
+  if (typeof window === 'undefined') return;
+  sessionStorage.removeItem(ACTIVE_ORG_ID_KEY);
+  sessionStorage.removeItem(ACTIVE_ORG_SLUG_KEY);
 }

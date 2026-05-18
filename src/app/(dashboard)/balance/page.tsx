@@ -12,6 +12,7 @@ import {
   type WithdrawalRequest
 } from '@/lib/payment-api';
 import { getSupportedCurrencies } from '@/lib/api';
+import { getActiveOrganizationSlug } from '@/lib/auth';
 import DataGrid, { type GridColumn, type FilterField } from '@/components/DataGrid';
 import { useLayout } from '@/context/LayoutContext';
 
@@ -131,19 +132,33 @@ export default function WalletPage() {
   const headerRef = useRef<HTMLDivElement>(null);
 
   const fetchWallets = useCallback(async () => {
+    const orgSlug = getActiveOrganizationSlug();
+    if (!orgSlug) {
+      setWalletsData([]);
+      setLoading(false);
+      return;
+    }
+
     try {
       setLoading(true);
-      const data = await listWallets();
-      setWalletsData(data);
+      const data = await listWallets(orgSlug);
+      setWalletsData(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error('Failed to fetch wallets:', error);
+      setWalletsData([]);
     } finally {
       setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    fetchWallets();
+    void fetchWallets();
+
+    const onOrganizationChanged = () => {
+      void fetchWallets();
+    };
+    window.addEventListener('organizationChanged', onOrganizationChanged);
+    return () => window.removeEventListener('organizationChanged', onOrganizationChanged);
   }, [fetchWallets]);
 
   useEffect(() => {
@@ -162,9 +177,9 @@ export default function WalletPage() {
       const found = walletsData.find((w) => w.currency_code === curr);
       return {
         currency: curr,
-        availableBalance: found?.balance ?? 0,
-        heldBalance: found?.held_balance ?? 0,
-        isActive: found?.is_active ?? false,
+        availableBalance: found != null ? Number(found.balance) || 0 : 0,
+        heldBalance: found != null ? Number(found.held_balance) || 0 : 0,
+        isActive: Boolean(found?.is_active),
       };
     });
   }, [walletsData, supportedCurrencies]);

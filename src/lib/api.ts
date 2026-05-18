@@ -11,6 +11,7 @@ import {
   setClientToken,
   removeClientToken,
   isClientTokenExpired,
+  clearActiveOrganization,
 } from './auth';
 import type { 
   AuthResponse, 
@@ -434,10 +435,7 @@ export async function getPublicAppDetails(appId: string): Promise<ClientApp> {
  */
 export function logout(): void {
   removeAccessToken();
-  // Clear active organization from sessionStorage
-  if (typeof window !== 'undefined') {
-    sessionStorage.removeItem('activeOrganizationId');
-  }
+  clearActiveOrganization();
   // Redirect handled by component
 }
 

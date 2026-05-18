@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useRef } from 'react';
 import { logout, getOrganizations } from '@/lib/api';
+import { setActiveOrganization as persistActiveOrganization } from '@/lib/auth';
 import { useRouter, usePathname } from 'next/navigation';
 import { Building, Wallet } from 'lucide-react';
 import type { Organization } from '@/types';
@@ -41,6 +42,7 @@ export function Topbar({ userEmail, username, profilePicture }: TopbarProps) {
     if (activeOrgId) {
       const activeOrg = orgs.find(org => org.id === activeOrgId);
       if (activeOrg) {
+        persistActiveOrganization(activeOrg);
         setActiveOrganization(activeOrg);
         return;
       }
@@ -48,7 +50,7 @@ export function Topbar({ userEmail, username, profilePicture }: TopbarProps) {
     // If no active org found or no activeOrgId, set first one
     if (orgs.length > 0) {
       const firstOrg = orgs[0];
-      sessionStorage.setItem('activeOrganizationId', firstOrg.id);
+      persistActiveOrganization(firstOrg);
       setActiveOrganization(firstOrg);
     }
   };
@@ -124,7 +126,7 @@ export function Topbar({ userEmail, username, profilePicture }: TopbarProps) {
 
   const handleSelectOrganization = async (org: Organization) => {
     // Update active organization
-    sessionStorage.setItem('activeOrganizationId', org.id);
+    persistActiveOrganization(org);
     setActiveOrganization(org);
     setIsOrgDropdownOpen(false);
 

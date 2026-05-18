@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { createOrganization } from '@/lib/api';
+import { setActiveOrganization as persistActiveOrganization } from '@/lib/auth';
 import { Button } from '@/ui/button';
 import { Input } from '@/ui/input';
 import type { ApiError } from '@/types';
@@ -32,7 +33,7 @@ export default function CreateOrganizationPage() {
       });
 
       // Set as active organization
-      sessionStorage.setItem('activeOrganizationId', organization.id);
+      persistActiveOrganization(organization);
       
       // Dispatch custom event to notify Topbar to refresh
       if (typeof window !== 'undefined') {

@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { getOrganizations, updateOrganization } from '@/lib/api';
+import { setActiveOrganization as persistActiveOrganization } from '@/lib/auth';
 import { AssetSelector } from '@/components/AssetSelector';
 import type { Organization, ApiError } from '@/types';
 import { Plus, Building, Mail, Calendar, User, Edit, X } from 'lucide-react';
@@ -37,7 +38,7 @@ export default function OrganizationsPage() {
   }, []);
 
   const handleSelectOrganization = (org: Organization) => {
-    sessionStorage.setItem('activeOrganizationId', org.id);
+    persistActiveOrganization(org);
     // Dispatch custom event to notify Topbar to refresh
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('organizationChanged', { detail: { organizationId: org.id } }));

@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { getProfile, getOrganizations } from '@/lib/api';
+import { setActiveOrganization as persistActiveOrganization } from '@/lib/auth';
 import { MainLayout } from '@/components/MainLayout';
 import { LayoutProvider } from '@/context/LayoutContext';
 import type { User, ApiError } from '@/types';
@@ -32,9 +33,18 @@ export default function DashboardLayout({
             const activeOrgId = sessionStorage.getItem('activeOrganizationId');
 
             // If no active org or active org is not in the list, set first organization as active
+            const notifyOrgReady = (org: (typeof organizations)[0]) => {
+              persistActiveOrganization(org);
+              window.dispatchEvent(
+                new CustomEvent('organizationChanged', { detail: { organizationId: org.id } }),
+              );
+            };
+
             if (!activeOrgId || !organizations.some(org => org.id === activeOrgId)) {
-              const firstOrg = organizations[0];
-              sessionStorage.setItem('activeOrganizationId', firstOrg.id);
+              notifyOrgReady(organizations[0]);
+            } else {
+              const current = organizations.find((org) => org.id === activeOrgId);
+              if (current) notifyOrgReady(current);
             }
           } else {
             // User has no organizations, redirect to create organization page

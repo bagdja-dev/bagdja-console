@@ -5,6 +5,8 @@
 
 import {
   getAccessToken,
+  getActiveOrganizationId,
+  getActiveOrganizationSlug,
   getClientToken,
   isClientTokenExpired,
   removeAccessToken,
@@ -69,19 +71,20 @@ async function paymentApiRequest<T>(
     throw new Error('User not authenticated');
   }
 
-  const orgId =
-    organizationId || (typeof window !== 'undefined' ? sessionStorage.getItem('activeOrganizationId') : null);
-  if (!orgId) {
-    throw new Error('Organization ID is required');
+  const orgSlug = organizationId || getActiveOrganizationSlug();
+  if (!orgSlug) {
+    throw new Error('Organization is required');
   }
 
+  const orgUuid = getActiveOrganizationId();
   const url = `${getPaymentApiBase()}${endpoint}`;
 
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     'x-api-key': clientToken,
     Authorization: `Bearer ${userToken}`,
-    'x-organization-id': orgId,
+    'x-organization-id': orgSlug,
+    ...(orgUuid && orgUuid !== orgSlug ? { 'x-organization-uuid': orgUuid } : {}),
     ...(options.headers as Record<string, string>),
   };
 
@@ -297,7 +300,7 @@ export async function updateBillingSetting(
 ): Promise<BillingSetting> {
   // We need the org_id to update. If it's in data, use it. 
   // For updates, the org_id is usually part of the unique key.
-  const orgId = (data as any).org_id || (typeof window !== 'undefined' ? sessionStorage.getItem('activeOrganizationId') : 'default');
+  const orgId = (data as { org_id?: string }).org_id || getActiveOrganizationSlug() || 'default';
   
   return paymentApiRequest<BillingSetting>(`/billing/settings/${appId}/${currency}`, {
     method: 'PATCH',
