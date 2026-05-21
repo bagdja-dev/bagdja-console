@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Save, X, Building2, AppWindow, Coins, Info, Package } from 'lucide-react';
 import { Button } from '@/ui/button';
 import { FancySelect } from '@/ui/fancy-select';
+import { Input } from '@/ui/input';
 import { getAllOrganizations, getAppsByOrgSlug, getSupportedCurrencies } from '@/lib/api';
 import { getProducts } from '@/lib/products-api';
 import type { ApiError, Organization, ClientApp, Product } from '@/types';
@@ -16,7 +17,8 @@ import {
   BILLING_DEFAULT_APP,
   BILLING_DEFAULT_CURRENCY,
   BILLING_DEFAULT_ORG,
-  BILLING_DEFAULT_PRODUCT,
+  BILLING_DEFAULT_ITEM,
+  BILLING_DEFAULT_ITEM_TYPE,
   describeHierarchyStep,
   formatRuleKeyLabel,
   isSystemGlobalKeys,
@@ -29,7 +31,8 @@ type Mode = 'create' | 'edit';
 type FormState = {
   org_id: string;
   app_id: string;
-  product_id: string;
+  item_type: string;
+  item_id: string;
   currency: string;
   fixed_fee: string;
   percentage_fee: string;
@@ -68,7 +71,8 @@ export default function BillingSettingModal({
     () => ({
       org_id: '',
       app_id: BILLING_DEFAULT_APP,
-      product_id: BILLING_DEFAULT_PRODUCT,
+      item_type: BILLING_DEFAULT_ITEM_TYPE,
+      item_id: BILLING_DEFAULT_ITEM,
       currency: defaultCurrency,
       fixed_fee: '',
       percentage_fee: '',
@@ -89,18 +93,29 @@ export default function BillingSettingModal({
   const isGlobalOrg = form.org_id === BILLING_DEFAULT_ORG;
   const isDefaultApp = form.app_id === BILLING_DEFAULT_APP;
   const canSelectProduct =
-    Boolean(form.org_id) && !isGlobalOrg && Boolean(form.app_id) && !isDefaultApp;
+    Boolean(form.org_id) &&
+    !isGlobalOrg &&
+    Boolean(form.app_id) &&
+    !isDefaultApp &&
+    form.item_type === 'PRODUCT';
   const isSystemGlobalRule = isSystemGlobalKeys(
     form.org_id,
     form.app_id,
-    form.product_id,
+    form.item_type,
+    form.item_id,
     form.currency,
   );
 
   const hierarchyHint =
-    form.org_id && form.app_id && form.product_id && form.currency
-      ? describeHierarchyStep(form.org_id, form.app_id, form.product_id, form.currency)
-      : 'Select organization, application, product, and currency.';
+    form.org_id && form.app_id && form.item_type && form.item_id && form.currency
+      ? describeHierarchyStep(
+          form.org_id,
+          form.app_id,
+          form.item_type,
+          form.item_id,
+          form.currency,
+        )
+      : 'Select organization, application, item type, item, and currency.';
 
   useEffect(() => {
     if (!isOpen) return;
@@ -189,7 +204,8 @@ export default function BillingSettingModal({
       setForm({
         org_id: setting.org_id,
         app_id: setting.app_id,
-        product_id: setting.product_id || BILLING_DEFAULT_PRODUCT,
+        item_type: setting.item_type || BILLING_DEFAULT_ITEM_TYPE,
+        item_id: setting.item_id || BILLING_DEFAULT_ITEM,
         currency: setting.currency,
         fixed_fee: setting.fixed_fee != null ? String(setting.fixed_fee) : '',
         percentage_fee:
@@ -219,8 +235,11 @@ export default function BillingSettingModal({
       return;
     }
 
-    if (form.product_id !== BILLING_DEFAULT_PRODUCT && isDefaultApp) {
-      setError('Select a specific application before choosing a product.');
+    if (
+      form.item_id !== BILLING_DEFAULT_ITEM &&
+      (form.item_type === BILLING_DEFAULT_ITEM_TYPE || isDefaultApp)
+    ) {
+      setError('Select a specific application and item type before choosing an item.');
       return;
     }
 
@@ -231,7 +250,8 @@ export default function BillingSettingModal({
       const payload: BillingSetting = {
         org_id: form.org_id,
         app_id: form.app_id || BILLING_DEFAULT_APP,
-        product_id: form.product_id || BILLING_DEFAULT_PRODUCT,
+        item_type: form.item_type || BILLING_DEFAULT_ITEM_TYPE,
+        item_id: form.item_id || BILLING_DEFAULT_ITEM,
         currency: form.currency || defaultCurrency,
         fixed_fee: parseAmount(form.fixed_fee),
         percentage_fee: percentageFeeFromInput(parseAmount(form.percentage_fee)),
@@ -288,11 +308,11 @@ export default function BillingSettingModal({
 
   const productOptions = [
     {
-      value: BILLING_DEFAULT_PRODUCT,
-      label: 'Default — all products',
+      value: BILLING_DEFAULT_ITEM,
+      label: 'Default — all items',
       description: isDefaultApp
-        ? 'Select a specific app to target one product'
-        : 'Applies to every product in this app',
+        ? 'Select a specific app to target one item'
+        : 'Applies to every item in this app',
       icon: <Package className="w-4 h-4 text-amber-500" />,
     },
     ...products.map((product) => ({
@@ -301,6 +321,18 @@ export default function BillingSettingModal({
       description: product.id,
       icon: <Package className="w-4 h-4 text-indigo-500" />,
     })),
+  ];
+
+  const itemTypeOptions = [
+    {
+      value: BILLING_DEFAULT_ITEM_TYPE,
+      label: 'Default — all item types',
+      description: 'Applies to any item type',
+      icon: <Package className="w-4 h-4 text-primary" />,
+    },
+    { value: 'PRODUCT', label: 'PRODUCT', description: 'Product from Auth', icon: <Package className="w-4 h-4 text-amber-500" /> },
+    { value: 'PLAN', label: 'PLAN', description: 'Plan from Auth', icon: <Package className="w-4 h-4 text-amber-500" /> },
+    { value: 'LICENSE', label: 'LICENSE KEY', description: 'License key from Auth', icon: <Package className="w-4 h-4 text-amber-500" /> },
   ];
 
   const currencyOptions = [
@@ -327,7 +359,7 @@ export default function BillingSettingModal({
               {mode === 'create' ? 'Create billing rule' : 'Edit billing rule'}
             </h2>
             <p className="mt-0.5 text-xs text-[var(--text-secondary)]">
-              Use <span className="font-medium">Default</span> in dropdowns for broader rules (all organizations / apps / products / currencies).
+              Use <span className="font-medium">Default</span> in dropdowns for broader rules (all organizations / apps / item types / items / currencies).
             </p>
           </div>
           <button
@@ -362,7 +394,8 @@ export default function BillingSettingModal({
                   ...prev,
                   org_id: val,
                   app_id: BILLING_DEFAULT_APP,
-                  product_id: BILLING_DEFAULT_PRODUCT,
+                  item_type: BILLING_DEFAULT_ITEM_TYPE,
+                  item_id: BILLING_DEFAULT_ITEM,
                 }))
               }
               disabled={disabled || mode === 'edit'}
@@ -378,7 +411,7 @@ export default function BillingSettingModal({
                 setForm((prev) => ({
                   ...prev,
                   app_id: val,
-                  product_id: BILLING_DEFAULT_PRODUCT,
+                  item_id: BILLING_DEFAULT_ITEM,
                 }))
               }
               disabled={disabled || mode === 'edit' || !form.org_id || isGlobalOrg}
@@ -389,13 +422,18 @@ export default function BillingSettingModal({
 
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <FancySelect
-              label="Product"
-              value={form.product_id}
-              onChange={(val) => setForm((prev) => ({ ...prev, product_id: val }))}
-              disabled={disabled || mode === 'edit' || !canSelectProduct}
-              placeholder="Default — all products"
-              options={productOptions}
-              loading={loadingProducts}
+              label="Item Type"
+              value={form.item_type}
+              onChange={(val) =>
+                setForm((prev) => ({
+                  ...prev,
+                  item_type: val,
+                  item_id: BILLING_DEFAULT_ITEM,
+                }))
+              }
+              disabled={disabled || mode === 'edit'}
+              placeholder="Default — all item types"
+              options={itemTypeOptions}
             />
 
             <FancySelect
@@ -407,6 +445,38 @@ export default function BillingSettingModal({
               searchable={false}
               options={currencyOptions}
             />
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            {form.item_type === 'PRODUCT' ? (
+              <FancySelect
+                label="Item (Product)"
+                value={form.item_id}
+                onChange={(val) => setForm((prev) => ({ ...prev, item_id: val }))}
+                disabled={disabled || mode === 'edit' || !canSelectProduct}
+                placeholder="Default — all items"
+                options={productOptions}
+                loading={loadingProducts}
+              />
+            ) : (
+              <Input
+                label="Item Id"
+                value={form.item_id === BILLING_DEFAULT_ITEM ? '' : form.item_id}
+                onChange={(e) =>
+                  setForm((prev) => ({
+                    ...prev,
+                    item_id: e.target.value?.trim() ? e.target.value.trim() : BILLING_DEFAULT_ITEM,
+                  }))
+                }
+                disabled={disabled || mode === 'edit' || form.item_type === BILLING_DEFAULT_ITEM_TYPE}
+                placeholder="Leave empty for default"
+                helpText={
+                  form.item_type === BILLING_DEFAULT_ITEM_TYPE
+                    ? 'Select an item type to target a specific item.'
+                    : 'Leave empty to apply to all items of this type.'
+                }
+              />
+            )}
           </div>
 
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -433,7 +503,7 @@ export default function BillingSettingModal({
             />
           </div>
 
-          {form.org_id && form.app_id && form.product_id && form.currency ? (
+          {form.org_id && form.app_id && form.item_type && form.item_id && form.currency ? (
             <div className="flex items-start gap-2 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2.5 text-xs">
               <Info className="h-4 w-4 text-primary shrink-0 mt-0.5" />
               <div>
@@ -441,7 +511,8 @@ export default function BillingSettingModal({
                   {formatRuleKeyLabel(
                     form.org_id,
                     form.app_id,
-                    form.product_id,
+                    form.item_type,
+                    form.item_id,
                     form.currency,
                   )}
                 </p>

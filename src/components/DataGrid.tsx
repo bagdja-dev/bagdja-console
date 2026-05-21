@@ -461,7 +461,11 @@ const DataGrid: React.FC<DataGridProps> = ({
         </div>
       ) : (
         <div className={`flex flex-col min-h-0 ${fullHeight ? 'flex-1 h-full min-h-0' : ''}`}>
-          <div className={`rounded-xl border border-[var(--border-default)] ${localIsScrollable ? 'overflow-auto scrollbar-thin flex-1' : 'overflow-hidden'}`}>
+          <div
+            className={`rounded-xl border border-[var(--border-default)] overflow-x-auto scrollbar-thin ${
+              localIsScrollable ? 'overflow-y-auto flex-1' : 'overflow-y-hidden'
+            }`}
+          >
             <table className="min-w-full divide-y divide-[var(--border-default)]">
               <thead className={`border-b border-[var(--border-default)] bg-[var(--bg-surface)] ${localIsScrollable ? 'sticky top-0 z-[5]' : ''}`}>
                 <tr>

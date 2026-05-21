@@ -32,10 +32,21 @@ const billingFilters: FilterField[] = [
     placeholder: 'app slug',
   },
   {
-    key: 'product_id',
-    label: 'Product',
+    key: 'item_type',
+    label: 'Item Type',
+    type: 'select',
+    options: [
+      { label: 'Default (all)', value: 'default' },
+      { label: 'PRODUCT', value: 'PRODUCT' },
+      { label: 'PLAN', value: 'PLAN' },
+      { label: 'LICENSE KEY', value: 'LICENSE' },
+    ],
+  },
+  {
+    key: 'item_id',
+    label: 'Item Id',
     type: 'text',
-    placeholder: 'product UUID',
+    placeholder: 'item UUID (or default)',
   },
   {
     key: 'currency',
@@ -92,7 +103,8 @@ export default function PaymentConfigPage() {
           sort: params?.sort,
           org_id: filter.org_id,
           app_id: filter.app_id,
-          product_id: filter.product_id,
+          item_type: filter.item_type,
+          item_id: filter.item_id,
           currency: filter.currency,
           is_active: filter.is_active,
         }),
@@ -129,7 +141,8 @@ export default function PaymentConfigPage() {
   const isGlobalDefault = (row: BillingSetting) =>
     row.org_id === 'default' &&
     row.app_id === 'default' &&
-    (row.product_id === 'default' || !row.product_id) &&
+    (row.item_type === 'default' || !row.item_type) &&
+    (row.item_id === 'default' || !row.item_id) &&
     row.currency === 'DEFAULT';
 
   const showAlert = (type: AlertType, title: string, message: string) => {
@@ -156,7 +169,8 @@ export default function PaymentConfigPage() {
       await deleteBillingSetting(
         deleteTarget.org_id,
         deleteTarget.app_id,
-        deleteTarget.product_id || 'default',
+        deleteTarget.item_type || 'default',
+        deleteTarget.item_id || 'default',
         deleteTarget.currency,
       );
       setDeleteTarget(null);
@@ -198,7 +212,8 @@ export default function PaymentConfigPage() {
             {formatRuleKeyLabel(
               row.org_id,
               row.app_id,
-              row.product_id || 'default',
+              row.item_type || 'default',
+              row.item_id || 'default',
               row.currency,
             )}
           </span>
@@ -207,7 +222,8 @@ export default function PaymentConfigPage() {
             {getHierarchyStep(
               row.org_id,
               row.app_id,
-              row.product_id || 'default',
+              row.item_type || 'default',
+              row.item_id || 'default',
               row.currency,
             )}
           </span>
@@ -225,12 +241,22 @@ export default function PaymentConfigPage() {
       ),
     },
     {
-      key: 'product_id',
-      label: 'Product',
+      key: 'item_type',
+      label: 'Item Type',
       sortable: true,
       render: (val) => (
-        <span className="text-xs text-[var(--text-secondary)] font-mono truncate max-w-[140px] block">
-          {!val || val === 'default' ? 'All products' : val}
+        <span className="text-xs text-[var(--text-secondary)] font-mono uppercase">
+          {!val || val === 'default' ? 'ALL' : String(val)}
+        </span>
+      ),
+    },
+    {
+      key: 'item_id',
+      label: 'Item Id',
+      sortable: true,
+      render: (val) => (
+        <span className="text-xs text-[var(--text-secondary)] font-mono truncate max-w-[160px] block">
+          {!val || val === 'default' ? 'All items' : String(val)}
         </span>
       ),
     },
@@ -436,7 +462,7 @@ export default function PaymentConfigPage() {
             </div>
           </div>
           <div className="mt-6 p-3 bg-[var(--bg-main)] rounded-lg border border-[var(--border-default)] text-[10px] uppercase font-bold tracking-widest text-center">
-            System Identity: org_id = 'default' | app_id = 'default' | product_id = 'default' | currency = 'DEFAULT'
+            System Identity: org_id = 'default' | app_id = 'default' | item_type = 'default' | item_id = 'default' | currency = 'DEFAULT'
           </div>
         </div>
       </div>
@@ -491,7 +517,7 @@ export default function PaymentConfigPage() {
         message="Transactions will fall back to other rules in the billing hierarchy."
         detail={
           deleteTarget
-            ? `${deleteTarget.org_id} · ${deleteTarget.app_id} · ${deleteTarget.product_id || 'default'} · ${deleteTarget.currency}`
+            ? `${deleteTarget.org_id} · ${deleteTarget.app_id} · ${deleteTarget.item_type || 'default'} · ${deleteTarget.item_id || 'default'} · ${deleteTarget.currency}`
             : undefined
         }
         confirmLabel="Delete rule"

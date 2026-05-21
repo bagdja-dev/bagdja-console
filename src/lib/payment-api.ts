@@ -241,7 +241,10 @@ export async function getPaymentTransactions(params?: {
 export type BillingSetting = {
   org_id: string;
   app_id: string;
-  product_id?: string;
+  /** null/empty means default in UI; API expects 'default' */
+  item_type?: string;
+  /** null/empty means default in UI; API expects 'default' */
+  item_id?: string;
   currency: string;
   fixed_fee: number;
   percentage_fee: number;
@@ -267,7 +270,8 @@ export type BillingSettingsQuery = {
   sort?: string;
   org_id?: string;
   app_id?: string;
-  product_id?: string;
+  item_type?: string;
+  item_id?: string;
   currency?: string;
   is_active?: string;
 };
@@ -285,7 +289,8 @@ export async function getBillingSettings(
   if (params?.sort) qs.append('sort', params.sort);
   if (params?.org_id) qs.append('org_id', params.org_id);
   if (params?.app_id) qs.append('app_id', params.app_id);
-  if (params?.product_id) qs.append('product_id', params.product_id);
+  if (params?.item_type) qs.append('item_type', params.item_type);
+  if (params?.item_id) qs.append('item_id', params.item_id);
   if (params?.currency) qs.append('currency', params.currency);
   if (params?.is_active) qs.append('is_active', params.is_active);
 
@@ -315,14 +320,15 @@ export async function upsertBillingSetting(data: BillingSetting): Promise<Billin
 
 export async function updateBillingSetting(
   appId: string,
-  productId: string,
+  itemType: string,
+  itemId: string,
   currency: string,
   data: Partial<BillingSetting>,
 ): Promise<BillingSetting> {
   const orgId = (data as { org_id?: string }).org_id || getActiveOrganizationSlug() || 'default';
 
   return paymentApiRequest<BillingSetting>(
-    `/billing/settings/${encodeURIComponent(appId)}/${encodeURIComponent(productId)}/${encodeURIComponent(currency)}`,
+    `/billing/settings/${encodeURIComponent(appId)}/${encodeURIComponent(itemType)}/${encodeURIComponent(itemId)}/${encodeURIComponent(currency)}`,
     {
       method: 'PATCH',
       body: JSON.stringify(data),
@@ -334,13 +340,14 @@ export async function updateBillingSetting(
 export async function deleteBillingSetting(
   orgId: string,
   appId: string,
-  productId: string,
+  itemType: string,
+  itemId: string,
   currency: string,
 ): Promise<void> {
   const qs = new URLSearchParams();
   qs.set('org_id', orgId);
   return paymentApiRequest<void>(
-    `/billing/settings/${encodeURIComponent(appId)}/${encodeURIComponent(productId)}/${encodeURIComponent(currency)}?${qs.toString()}`,
+    `/billing/settings/${encodeURIComponent(appId)}/${encodeURIComponent(itemType)}/${encodeURIComponent(itemId)}/${encodeURIComponent(currency)}?${qs.toString()}`,
     { method: 'DELETE' },
     orgId,
   );
@@ -423,4 +430,3 @@ export async function listWithdrawalRequests(params?: {
     params?.organizationId,
   );
 }
-
