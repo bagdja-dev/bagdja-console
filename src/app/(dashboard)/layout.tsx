@@ -36,14 +36,14 @@ export default function DashboardLayout({
             const notifyOrgReady = (org: (typeof organizations)[0]) => {
               persistActiveOrganization(org);
               window.dispatchEvent(
-                new CustomEvent('organizationChanged', { detail: { organizationId: org.id } }),
+                new CustomEvent('organizationChanged', { detail: { organizationId: org.orgId } }),
               );
             };
 
-            if (!activeOrgId || !organizations.some(org => org.id === activeOrgId)) {
+            if (!activeOrgId || !organizations.some(org => org.orgId === activeOrgId)) {
               notifyOrgReady(organizations[0]);
             } else {
-              const current = organizations.find((org) => org.id === activeOrgId);
+              const current = organizations.find((org) => org.orgId === activeOrgId);
               if (current) notifyOrgReady(current);
             }
           } else {
@@ -88,4 +88,3 @@ export default function DashboardLayout({
     </LayoutProvider>
   );
 }
-

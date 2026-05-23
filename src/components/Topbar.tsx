@@ -40,7 +40,7 @@ export function Topbar({ userEmail, username, profilePicture }: TopbarProps) {
   const updateActiveOrganization = (orgs: Organization[]) => {
     const activeOrgId = sessionStorage.getItem('activeOrganizationId');
     if (activeOrgId) {
-      const activeOrg = orgs.find(org => org.id === activeOrgId);
+      const activeOrg = orgs.find(org => org.orgId === activeOrgId);
       if (activeOrg) {
         persistActiveOrganization(activeOrg);
         setActiveOrganization(activeOrg);
@@ -133,7 +133,7 @@ export function Topbar({ userEmail, username, profilePicture }: TopbarProps) {
     // Dispatch custom event to notify all components to refresh
     if (typeof window !== 'undefined') {
       window.dispatchEvent(new CustomEvent('organizationChanged', {
-        detail: { organizationId: org.id }
+        detail: { organizationId: org.orgId }
       }));
     }
 
@@ -141,7 +141,7 @@ export function Topbar({ userEmail, username, profilePicture }: TopbarProps) {
     try {
       const orgs = await getOrganizations();
       setOrganizations(orgs);
-      const updatedOrg = orgs.find(o => o.id === org.id);
+      const updatedOrg = orgs.find(o => o.orgId === org.orgId);
       if (updatedOrg) {
         setActiveOrganization(updatedOrg);
       }
@@ -386,7 +386,5 @@ export function Topbar({ userEmail, username, profilePicture }: TopbarProps) {
     </header>
   );
 }
-
-
 
 

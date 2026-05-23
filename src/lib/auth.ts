@@ -12,8 +12,7 @@ const ACTIVE_ORG_ID_KEY = 'activeOrganizationId';
 const ACTIVE_ORG_SLUG_KEY = 'activeOrganizationSlug';
 
 export type ActiveOrganizationRef = {
-  id: string;
-  slug?: string | null;
+  orgId: string;
 };
 
 /**
@@ -116,13 +115,12 @@ export function removeClientToken(): void {
 }
 
 /**
- * Persist active org for auth APIs (UUID) and payment service (slug).
+ * Persist active org for APIs. `orgId` is the slug identity (immutable).
  */
 export function setActiveOrganization(org: ActiveOrganizationRef): void {
   if (typeof window === 'undefined') return;
-  sessionStorage.setItem(ACTIVE_ORG_ID_KEY, org.id);
-  const slug = org.slug?.trim();
-  sessionStorage.setItem(ACTIVE_ORG_SLUG_KEY, slug || org.id);
+  sessionStorage.setItem(ACTIVE_ORG_ID_KEY, org.orgId);
+  sessionStorage.setItem(ACTIVE_ORG_SLUG_KEY, org.orgId);
 }
 
 export function getActiveOrganizationId(): string | null {

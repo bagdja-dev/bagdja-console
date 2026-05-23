@@ -14,7 +14,7 @@ export default function CreateOrganizationPage() {
   const [error, setError] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     name: '',
-    slug: '',
+    orgId: '',
     description: '',
     contactEmail: '',
   });
@@ -27,17 +27,17 @@ export default function CreateOrganizationPage() {
     try {
       const organization = await createOrganization({
         name: formData.name,
-        slug: formData.slug || undefined,
+        orgId: formData.orgId || undefined,
         description: formData.description || undefined,
         contactEmail: formData.contactEmail || undefined,
       });
 
       // Set as active organization
       persistActiveOrganization(organization);
-      
+
       // Dispatch custom event to notify Topbar to refresh
       if (typeof window !== 'undefined') {
-        window.dispatchEvent(new CustomEvent('organizationChanged', { detail: { organizationId: organization.id } }));
+        window.dispatchEvent(new CustomEvent('organizationChanged', { detail: { organizationId: organization.orgId } }));
       }
 
       // Redirect to dashboard
@@ -73,6 +73,18 @@ export default function CreateOrganizationPage() {
           )}
 
           <div className="space-y-4">
+
+            <Input
+              label="Org ID"
+              type="text"
+              required
+              value={formData.orgId}
+              onChange={(e) => setFormData({ ...formData, orgId: e.target.value })}
+              disabled={loading}
+              placeholder="acme-corp"
+              helpText="Org ID is a unique identifier used in URLs and API calls. It can only contain lowercase letters, numbers, and hyphens."
+            />
+
             <Input
               label="Organization Name"
               type="text"
@@ -83,15 +95,7 @@ export default function CreateOrganizationPage() {
               placeholder="Acme Corporation"
             />
 
-            <Input
-              label="Slug (optional)"
-              type="text"
-              value={formData.slug}
-              onChange={(e) => setFormData({ ...formData, slug: e.target.value })}
-              disabled={loading}
-              placeholder="acme-corp"
-              helpText="URL-friendly identifier. Will be auto-generated from name if not provided."
-            />
+
 
             <div>
               <label
@@ -139,4 +143,3 @@ export default function CreateOrganizationPage() {
     </>
   );
 }
-

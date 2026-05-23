@@ -310,10 +310,10 @@ export async function createOrganization(data: CreateOrganizationRequest): Promi
  * Update an organization
  */
 export async function updateOrganization(
-  organizationId: string,
+  orgId: string,
   data: UpdateOrganizationRequest
 ): Promise<Organization> {
-  return apiRequest<Organization>(`/auth/organizations/${organizationId}`, {
+  return apiRequest<Organization>(`/auth/organizations/${orgId}`, {
     method: 'PUT',
     body: JSON.stringify(data),
   });
@@ -386,24 +386,32 @@ export async function findUserByUsernameOrEmail(identifier: string): Promise<Use
 }
 
 export async function getClientApps(): Promise<ClientApp[]> {
-  const organizationId = getActiveOrganizationId();
-  if (!organizationId) {
+  const orgId = getActiveOrganizationId();
+  if (!orgId) {
     throw new Error('No active organization selected');
   }
-  return apiRequest<ClientApp[]>(`/auth/client-apps?organizationId=${encodeURIComponent(organizationId)}`);
+  return apiRequest<ClientApp[]>(`/auth/client-apps?orgId=${encodeURIComponent(orgId)}`);
 }
 
 /**
  * Create a new client app
  */
 export async function createClientApp(data: CreateClientAppRequest): Promise<ClientApp> {
-  const organizationId = getActiveOrganizationId();
-  if (!organizationId) {
+  const orgId = getActiveOrganizationId();
+  if (!orgId) {
     throw new Error('No active organization selected');
   }
-  return apiRequest<ClientApp>(`/auth/client-apps?organizationId=${encodeURIComponent(organizationId)}`, {
+  // Ensure user access token is sent explicitly for endpoints requiring user authentication
+  const userToken = getAccessToken();
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  };
+  if (userToken) headers['Authorization'] = `Bearer ${userToken}`;
+
+  return apiRequest<ClientApp>(`/auth/client-apps?orgId=${encodeURIComponent(orgId)}`, {
     method: 'POST',
     body: JSON.stringify(data),
+    headers,
   });
 }
 
@@ -970,5 +978,4 @@ export async function deleteNotification(id: string): Promise<{ success: boolean
     method: 'DELETE',
   });
 }
-
 

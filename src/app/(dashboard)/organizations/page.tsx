@@ -14,7 +14,7 @@ export default function OrganizationsPage() {
   const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [editingOrgId, setEditingOrgId] = useState<string | null>(null);
+  const [editingOrgId, setEditingOrgId] = useState<string | null>(null); // orgId (slug)
   const [selectedLogo, setSelectedLogo] = useState<string>('');
   const [updating, setUpdating] = useState(false);
 
@@ -41,13 +41,13 @@ export default function OrganizationsPage() {
     persistActiveOrganization(org);
     // Dispatch custom event to notify Topbar to refresh
     if (typeof window !== 'undefined') {
-      window.dispatchEvent(new CustomEvent('organizationChanged', { detail: { organizationId: org.id } }));
+      window.dispatchEvent(new CustomEvent('organizationChanged', { detail: { organizationId: org.orgId } }));
     }
     router.push('/dashboard');
   };
 
   const handleEditLogo = (org: Organization) => {
-    setEditingOrgId(org.id);
+    setEditingOrgId(org.orgId);
     setSelectedLogo(org.logo || '');
   };
 
@@ -66,8 +66,8 @@ export default function OrganizationsPage() {
       });
 
       // Update organizations list
-      setOrganizations(orgs => 
-        orgs.map(org => org.id === editingOrgId ? updatedOrg : org)
+      setOrganizations(orgs =>
+        orgs.map(org => (org.orgId === editingOrgId ? updatedOrg : org)),
       );
 
       // Dispatch event to refresh Topbar
@@ -259,9 +259,9 @@ export default function OrganizationsPage() {
                           <div className="text-sm font-medium text-[var(--text-primary)]">
                             {org.name}
                           </div>
-                          {org.slug && (
+                          {org.orgId && (
                             <div className="text-sm text-[var(--text-secondary)]">
-                              {org.slug}
+                              {org.orgId}
                             </div>
                           )}
                           {org.description && (
@@ -382,4 +382,3 @@ export default function OrganizationsPage() {
     </>
   );
 }
-

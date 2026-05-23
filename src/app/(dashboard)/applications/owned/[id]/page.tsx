@@ -618,8 +618,8 @@ export default function AppDetailPage() {
       } else {
         // 1. Ensure app is registered in hub registry first (idempotent)
         await registerAppInHub({
-          orgId: app.organizationId,
-          orgSlug: app.orgSlug || 'bagdja',
+          orgId: app.orgId,
+          orgSlug: app.orgId || 'bagdja',
           appId: app.appId,
           appSlug: app.appSlug || app.appId.split('-')[0],
         });

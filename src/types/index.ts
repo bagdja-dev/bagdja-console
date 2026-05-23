@@ -46,7 +46,7 @@ export interface ClientTokenResponse {
 export interface Organization {
   id: string;
   name: string;
-  slug?: string;
+  orgId: string;
   description?: string;
   isActive: boolean;
   isSystemOrg?: boolean;
@@ -63,7 +63,7 @@ export interface Organization {
 
 export interface CreateOrganizationRequest {
   name: string;
-  slug?: string;
+  orgId?: string;
   description?: string;
   logo?: string;
   contactEmail?: string;
@@ -71,7 +71,7 @@ export interface CreateOrganizationRequest {
 
 export interface UpdateOrganizationRequest {
   name?: string;
-  slug?: string;
+  orgId?: string;
   description?: string;
   logo?: string;
   contactEmail?: string;
@@ -89,8 +89,8 @@ export interface ClientApp {
   updatedAt: Date;
   lastUsedAt?: Date;
   userId: string;
-  organizationId: string;
-  orgSlug?: string;
+  orgId: string;
+  orgUuid: string;
   appSlug?: string;
   isCoreService?: boolean;
   app_secret?: string; // Only returned once during creation/regeneration
@@ -415,4 +415,3 @@ export interface TestConnectionRequest {
   providerType: ProviderType;
   config: any;
 }
-

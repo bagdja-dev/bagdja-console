@@ -1,86 +1,86 @@
 'use client';
 
-import { Suspense } from 'react';
+import { Suspense, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Image from 'next/image';
 import { Button } from '@/ui/button';
+import { generateCodeVerifier, generateCodeChallenge, generateState, generateEncryptionKey } from '@/lib/oauth';
 
 function LoginContent() {
   const searchParams = useSearchParams();
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  // Get redirect_url from query params if exists
-  const redirectUrl = searchParams.get('redirect_url');
+  // Get redirect path from query params (e.g., from middleware redirect)
+  const redirectPath = searchParams.get('redirect') || '/dashboard';
 
   // Get bagdja-login URL from environment variable
   const LOGIN_URL = process.env.NEXT_PUBLIC_LOGIN_URL || 'http://localhost:3000';
-
-  // Build login URL with redirect_url
-  const buildLoginUrl = () => {
-    const loginUrl = new URL(LOGIN_URL);
-    
-    // Build callback URL with original redirect_url if exists
-    const callbackUrl = typeof window !== 'undefined'
+  const SESSION_ENCRYPTION_KEY = process.env.NEXT_PUBLIC_SESSION_ENCRYPTION_KEY;
+  const CLIENT_ID =
+    process.env.NEXT_PUBLIC_CLIENT_ID ||
+    process.env.NEXT_PUBLIC_CLIENT_APP_ID ||
+    'user-console';
+  const REDIRECT_URI =
+    process.env.NEXT_PUBLIC_REDIRECT_URI ||
+    (typeof window !== 'undefined'
       ? `${window.location.origin}/auth/callback`
-      : 'http://localhost:3001/auth/callback';
-    
-    const callbackUrlWithRedirect = new URL(callbackUrl);
-    
-    // If there's an original redirect_url, pass it to callback
-    if (redirectUrl) {
-      callbackUrlWithRedirect.searchParams.set('redirect_url', redirectUrl);
-    }
-    
-    // Also check for 'redirect' param (from middleware)
-    const redirect = searchParams.get('redirect');
-    if (redirect) {
-      callbackUrlWithRedirect.searchParams.set('redirect_url', redirect);
-    }
+      : 'http://localhost:3000/auth/callback');
 
-    loginUrl.searchParams.set('redirect_url', callbackUrlWithRedirect.toString());
+  /**
+   * Initiate OAuth authorization code flow with PKCE
+   */
+  const handleLogin = async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
 
-    // Preserve any other query params (like lang)
-    searchParams.forEach((value, key) => {
-      if (key !== 'redirect_url' && key !== 'redirect') {
-        loginUrl.searchParams.set(key, value);
+      // Generate PKCE code verifier and challenge
+      const codeVerifier = await generateCodeVerifier();
+      const codeChallenge = await generateCodeChallenge(codeVerifier);
+
+      // Generate encrypted state with original redirect path
+      // Use a fixed encryption key for now (in production, fetch from config)
+      let encryptionKey = SESSION_ENCRYPTION_KEY;
+      if (!encryptionKey) {
+        // Fallback: generate a key, but this won't work across requests
+        // In production, use a server-side key from environment
+        console.warn('SESSION_ENCRYPTION_KEY not set, using generated key (not recommended for production)');
+        encryptionKey = generateEncryptionKey();
       }
-    });
 
-    return loginUrl.toString();
-  };
+      const state = await generateState(redirectPath, encryptionKey);
 
-  const handleLogin = () => {
-    const loginUrl = buildLoginUrl();
-    window.location.href = loginUrl;
+      // Store code_verifier in sessionStorage for later use in callback
+      sessionStorage.setItem('oauth_code_verifier', codeVerifier);
+      sessionStorage.setItem('oauth_state', state);
+
+      // Build OAuth authorization URL
+      const authUrl = new URL('/oauth/authorize', LOGIN_URL);
+      authUrl.searchParams.set('client_id', CLIENT_ID);
+      authUrl.searchParams.set('response_type', 'code');
+      authUrl.searchParams.set('redirect_uri', REDIRECT_URI);
+      authUrl.searchParams.set('state', state);
+      authUrl.searchParams.set('code_challenge', codeChallenge);
+      authUrl.searchParams.set('code_challenge_method', 'S256');
+      authUrl.searchParams.set('scope', 'openid profile email');
+      // #region debug-point D:console-auth-url
+      fetch('http://127.0.0.1:7777/event', { method: 'POST', body: JSON.stringify({ sessionId: 'oauth-login-loop', runId: 'pre-fix', hypothesisId: 'D', location: 'bagdja-console/src/app/login/page.tsx:handleLogin', msg: '[DEBUG] console built oauth authorize url', data: { loginUrl: LOGIN_URL, clientId: CLIENT_ID, redirectUri: REDIRECT_URI, redirectPath, hasEncryptionKey: !!SESSION_ENCRYPTION_KEY, stateLength: state.length, codeChallengeLength: codeChallenge.length }, ts: Date.now() }) }).catch(() => {});
+      // #endregion
+
+      // Redirect to OAuth authorization endpoint
+      window.location.href = authUrl.toString();
+    } catch (err) {
+      console.error('Login initiation error:', err);
+      setError('Failed to initiate login. Please try again.');
+      setIsLoading(false);
+    }
   };
 
   const handleForgotPassword = () => {
-    const loginUrl = new URL(LOGIN_URL);
-
-    const callbackUrl = typeof window !== 'undefined'
-      ? `${window.location.origin}/auth/callback`
-      : 'http://localhost:3001/auth/callback';
-
-    const callbackUrlWithRedirect = new URL(callbackUrl);
-
-    if (redirectUrl) {
-      callbackUrlWithRedirect.searchParams.set('redirect_url', redirectUrl);
-    }
-
-    const redirect = searchParams.get('redirect');
-    if (redirect) {
-      callbackUrlWithRedirect.searchParams.set('redirect_url', redirect);
-    }
-
-    loginUrl.pathname = '/forgot-password';
-    loginUrl.searchParams.set('redirect_url', callbackUrlWithRedirect.toString());
-
-    searchParams.forEach((value, key) => {
-      if (key !== 'redirect_url' && key !== 'redirect') {
-        loginUrl.searchParams.set(key, value);
-      }
-    });
-
-    window.location.href = loginUrl.toString();
+    const forgotPasswordUrl = new URL('/forgot-password', LOGIN_URL);
+    forgotPasswordUrl.searchParams.set('redirect_url', REDIRECT_URI);
+    window.location.href = forgotPasswordUrl.toString();
   };
 
   return (
@@ -129,15 +129,33 @@ function LoginContent() {
                   <Button
                     type="button"
               onClick={handleLogin}
-              className="w-full shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-[1.02]"
+              disabled={isLoading}
+              className="w-full shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-[1.02] disabled:opacity-50"
             >
-              <span className="flex items-center justify-center gap-2 ">
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
+              {isLoading ? (
+                <>
+                  <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  <span>Signing in...</span>
+                </>
+              ) : (
+                <>
+                  <span className="flex items-center justify-center gap-2 ">
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
                     </svg>
-                Sign in Now
-              </span>
+                    Sign in Now
+                  </span>
+                </>
+              )}
                   </Button>
+                  {error && (
+                    <div className="p-3 bg-red-500/10 border border-red-500/50 rounded text-red-600 text-sm">
+                      {error}
+                    </div>
+                  )}
                   <div className="text-center text-sm">
                     <button
                       type="button"

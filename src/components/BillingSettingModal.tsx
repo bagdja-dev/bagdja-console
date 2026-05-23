@@ -280,9 +280,9 @@ export default function BillingSettingModal({
       icon: <Building2 className="w-4 h-4 text-primary" />,
     },
     ...organizations.map((org) => ({
-      value: org.slug || org.id,
+      value: org.orgId || org.id,
       label: org.name,
-      description: org.slug || org.id,
+      description: org.orgId || org.id,
       icon: <Building2 className="w-4 h-4 text-emerald-500" />,
     })),
   ];
