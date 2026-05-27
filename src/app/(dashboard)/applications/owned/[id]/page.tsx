@@ -771,13 +771,13 @@ export default function AppDetailPage() {
     }
   };
 
-  const handleEventSubscribe = async (contractId: string, webhookUrl?: string) => {
+  const handleEventSubscribe = async (contractId: string, webhookUrl?: string, label: string = 'default') => {
     if (!app?.appId) return;
     try {
       if (editingSubscription) {
-        await updateMySubscription(editingSubscription.id, webhookUrl, app.appId);
+        await updateMySubscription(editingSubscription.id, webhookUrl, app.appId, label);
       } else {
-        await subscribeToEvent(contractId, webhookUrl, app.appId);
+        await subscribeToEvent(contractId, webhookUrl, app.appId, label);
       }
 
       // Refresh list
@@ -793,6 +793,7 @@ export default function AppDetailPage() {
       id: sub.id,
       contractId: sub.contractId,
       webhookUrl: sub.webhookUrl,
+      label: sub.label,
       eventName: sub.contract?.eventName,
       contract: sub.contract
     });
@@ -2164,15 +2165,24 @@ export default function AppDetailPage() {
                     },
                     {
                       key: 'webhookUrl',
-                      label: 'Webhook',
+                      label: 'Webhook/Label',
                       sortable: true,
-                      render: (val) => val ? (
-                        <div className="flex items-center gap-1.5 text-[var(--text-secondary)]">
-                          <Link2 className="h-3.5 w-3.5" />
-                          <span className="text-xs truncate max-w-[150px]" title={val}>{val}</span>
+                      render: (val, row) => (
+                        <div className="flex flex-col gap-1">
+                          {val ? (
+                            <div className="flex items-center gap-1.5 text-[var(--text-secondary)]">
+                              <Link2 className="h-3.5 w-3.5" />
+                              <span className="text-xs truncate max-w-[150px]" title={val}>{val}</span>
+                            </div>
+                          ) : (
+                            <span className="text-[10px] text-gray-400 italic">WebSocket Only</span>
+                          )}
+                          {row.label && (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-bold text-primary uppercase">
+                              <List className="h-3 w-3" /> {row.label}
+                            </span>
+                          )}
                         </div>
-                      ) : (
-                        <span className="text-[10px] text-gray-400 italic">WebSocket Only</span>
                       )
                     },
                     {
@@ -2255,9 +2265,16 @@ export default function AppDetailPage() {
                     },
                     {
                       key: 'webhookUrl',
-                      label: 'Webhook URL',
-                      render: (val) => (
-                        <span className="text-xs text-[var(--text-secondary)] font-mono">{val || 'WebSocket Only'}</span>
+                      label: 'Webhook/Label',
+                      render: (val, row) => (
+                        <div className="flex flex-col gap-1">
+                          <span className="text-xs text-[var(--text-secondary)] font-mono">{val || 'WebSocket Only'}</span>
+                          {row.label && (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-bold text-primary uppercase">
+                              <List className="h-3 w-3" /> {row.label}
+                            </span>
+                          )}
+                        </div>
                       )
                     },
                     {

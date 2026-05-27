@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { X, Globe, Lock, Clock, AlertCircle, Link2, FileText, Search, Copy, Check } from 'lucide-react';
+import { X, Globe, Lock, Clock, AlertCircle, Link2, FileText, Search, Copy, Check, List } from 'lucide-react';
 import { Input } from '@/ui/input';
 import { Button } from '@/ui/button';
 import { getAvailableEvents } from '@/lib/api';
@@ -10,11 +10,12 @@ import DataGrid from './DataGrid';
 interface EventSubscribeModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSubmit: (contractId: string, webhookUrl?: string) => Promise<void>;
+  onSubmit: (contractId: string, webhookUrl?: string, label?: string) => Promise<void>;
   initialData?: {
     id: string;
     contractId: string;
     webhookUrl?: string;
+    label?: string;
     eventName: string;
     contract?: any;
   };
@@ -27,6 +28,7 @@ export default function EventSubscribeModal({ isOpen, onClose, onSubmit, initial
   const [selectedContractId, setSelectedContractId] = useState<string | null>(null);
   const [selectedContract, setSelectedContract] = useState<any | null>(null);
   const [webhookUrl, setWebhookUrl] = useState('');
+  const [label, setLabel] = useState('default');
   const [viewingContract, setViewingContract] = useState<any | null>(null);
   const [copiedSchema, setCopiedSchema] = useState(false);
 
@@ -35,12 +37,14 @@ export default function EventSubscribeModal({ isOpen, onClose, onSubmit, initial
       if (initialData) {
         setSelectedContractId(initialData.contractId);
         setWebhookUrl(initialData.webhookUrl || '');
+        setLabel(initialData.label || 'default');
         // Note: selectedContract object will be null until we find it or if we're editing
         // But since we use initialData.eventName, it's fine for the UI
       } else {
         setSelectedContractId(null);
         setSelectedContract(null);
         setWebhookUrl('');
+        setLabel('default');
       }
       setViewingContract(null);
       setError(null);
@@ -53,7 +57,7 @@ export default function EventSubscribeModal({ isOpen, onClose, onSubmit, initial
 
     setSubmitting(true);
     try {
-      await onSubmit(selectedContractId, webhookUrl || undefined);
+      await onSubmit(selectedContractId, webhookUrl || undefined, label || 'default');
       onClose();
     } catch (err: any) {
       setError(err.message || 'Failed to subscribe');
@@ -208,6 +212,21 @@ export default function EventSubscribeModal({ isOpen, onClose, onSubmit, initial
                   <div className="space-y-4">
                     <div>
                       <label className="block text-sm font-bold text-[var(--text-primary)] mb-1.5 flex items-center gap-2">
+                        <List className="h-4 w-4" /> Subscription Label
+                      </label>
+                      <Input
+                        placeholder="e.g. Production, Development"
+                        value={label}
+                        onChange={(e) => setLabel(e.target.value)}
+                        required
+                      />
+                      <p className="mt-2 text-[11px] text-[var(--text-secondary)] leading-relaxed italic">
+                        Use labels to distinguish between multiple endpoints (e.g. dev, prod).
+                      </p>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-bold text-[var(--text-primary)] mb-1.5 flex items-center gap-2">
                         <Link2 className="h-4 w-4" /> Webhook URL (Optional)
                       </label>
                       <Input
@@ -243,7 +262,7 @@ export default function EventSubscribeModal({ isOpen, onClose, onSubmit, initial
                     className="text-xs font-bold text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:underline flex items-center gap-2"
                   >
                     <FileText className="h-4 w-4" />
-                    View Contract
+                    View Schema
                   </button>
                   <button
                     type="button"
@@ -251,14 +270,30 @@ export default function EventSubscribeModal({ isOpen, onClose, onSubmit, initial
                       setSelectedContractId(null);
                       setSelectedContract(null);
                     }}
-                    className="text-xs font-bold text-primary hover:underline"
+                    className="text-xs font-bold text-red-500 hover:text-red-600 hover:underline flex items-center gap-2"
                   >
+                    <X className="h-4 w-4" />
                     Change
                   </button>
                 </div>
               </div>
 
               <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-bold text-[var(--text-primary)] mb-1.5 flex items-center gap-2">
+                    <List className="h-4 w-4" /> Subscription Label
+                  </label>
+                  <Input
+                    placeholder="e.g. Production, Development"
+                    value={label}
+                    onChange={(e) => setLabel(e.target.value)}
+                    required
+                      />
+                  <p className="mt-2 text-[11px] text-[var(--text-secondary)] leading-relaxed italic">
+                    Use labels to distinguish between multiple endpoints (e.g. dev, prod).
+                  </p>
+                </div>
+
                 <div>
                   <label className="block text-sm font-bold text-[var(--text-primary)] mb-1.5 flex items-center gap-2">
                     <Link2 className="h-4 w-4" /> Webhook URL (Optional)
