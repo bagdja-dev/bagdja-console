@@ -82,7 +82,7 @@ export async function generateState(
   // Import key for Web Crypto
   const key = await crypto.subtle.importKey(
     'raw',
-    encryptionKey,
+    encryptionKey.buffer as ArrayBuffer,
     { name: 'AES-GCM' },
     false,
     ['encrypt']
@@ -136,7 +136,7 @@ export async function decryptState(
     // Import key for Web Crypto
     const key = await crypto.subtle.importKey(
       'raw',
-      encryptionKey,
+      encryptionKey.buffer as ArrayBuffer,
       { name: 'AES-GCM' },
       false,
       ['decrypt']
