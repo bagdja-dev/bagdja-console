@@ -17,9 +17,8 @@ export function middleware(request: NextRequest) {
   }
 
   // Check for access token in cookies
-  // Note: Since we're using sessionStorage for tokens, this middleware
-  // provides basic protection. For production, consider using httpOnly cookies.
-  const accessToken = request.cookies.get('bagdja_access_token')?.value;
+  // We use httpOnly cookies for security (XSS protection)
+  const accessToken = request.cookies.get('bagdja_auth_token')?.value;
 
   // If no token and trying to access protected route, redirect to login
   if (!accessToken && pathname.startsWith('/dashboard')) {

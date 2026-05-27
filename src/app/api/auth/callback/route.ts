@@ -138,7 +138,7 @@ export async function POST(request: NextRequest): Promise<Response> {
     // Set httpOnly, Secure cookie with token
     // The cookie name should match what middleware expects
     response.cookies.set({
-      name: 'bagdja_session',
+      name: 'bagdja_auth_token',
       value: accessToken,
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',

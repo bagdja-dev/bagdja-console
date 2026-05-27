@@ -177,7 +177,7 @@ const DataGrid: React.FC<DataGridProps> = ({
 
               {/* Filter Popover */}
               {isFilterPanelOpen && (
-                <div className="absolute right-0 md:right-auto md:left-0 top-full mt-2 z-50 w-[calc(100vw-2rem)] md:w-[450px] bg-[var(--bg-surface)] border border-[var(--border-default)] rounded-2xl shadow-2xl p-6 animate-in fade-in slide-in-from-top-2 duration-200">
+                <div className="absolute right-0 top-full mt-2 z-[100] w-[calc(100vw-2rem)] md:w-[450px] bg-[var(--bg-surface)] border border-[var(--border-default)] rounded-2xl shadow-2xl p-6 animate-in fade-in slide-in-from-top-2 duration-200">
                   <div className="flex items-center justify-between mb-6">
                     <h4 className="text-sm font-bold text-[var(--text-primary)] flex items-center gap-2">
                       <Filter className="h-4 w-4 text-primary" />

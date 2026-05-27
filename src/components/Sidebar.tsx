@@ -136,6 +136,12 @@ const menuItems: MenuItem[] = [
         icon: CreditCard,
         href: '/infrastructure/payment-config',
       },
+      {
+        id: 'infra-logs',
+        label: 'Platform Logs',
+        icon: List,
+        href: '/infrastructure/logs',
+      },
     ],
   },
 ];

@@ -442,9 +442,14 @@ export async function getPublicAppDetails(appId: string): Promise<ClientApp> {
  * Logout user
  */
 export function logout(): void {
+  // Clear client-side state
   removeAccessToken();
   clearActiveOrganization();
-  // Redirect handled by component
+  
+  // Call server-side logout to clear httpOnly cookies
+  fetch('/api/auth/logout', { method: 'POST' }).catch(err => {
+    console.error('Server-side logout failed:', err);
+  });
 }
 
 // --- Infrastructure / Event Service API ---

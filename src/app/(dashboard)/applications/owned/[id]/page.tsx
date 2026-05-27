@@ -10,8 +10,39 @@ import { getLicenses, getPurchasedLicenses, createLicense, updateLicense, delete
 import { getAppSubscriptions } from '@/lib/subscriptions-api';
 import { ChannelType } from '@/types';
 import type { ClientApp, ApiError, Product, Plan, PlanDuration, AppUser, CreateProductRequest, UpdateProductRequest, CreatePlanRequest, UpdatePlanRequest, License, CreateLicenseRequest, UpdateLicenseRequest, LicenseStatus, Subscription, SubscriptionStatus } from '@/types';
-import { ArrowLeft, Package, Mail, Calendar, Users, ShoppingBag, CreditCard, Plus, Edit, Trash2, Key, Copy, Check, Coins, Activity, Shield, CheckCircle, Globe, Code, List, Clock, History, Link2, X } from 'lucide-react';
-import DataGrid from '@/components/DataGrid';
+import { getLogs } from '@/lib/logs-api';
+import { 
+  ArrowLeft, 
+  Package, 
+  Mail, 
+  Calendar, 
+  Users, 
+  ShoppingBag, 
+  CreditCard, 
+  Plus, 
+  Edit, 
+  Trash2, 
+  Key, 
+  Copy, 
+  Check, 
+  Coins, 
+  Activity, 
+  Shield, 
+  CheckCircle, 
+  Globe, 
+  Code, 
+  List, 
+  Clock, 
+  History, 
+  Link2, 
+  X,
+  Terminal,
+  ExternalLink,
+  XCircle,
+  AlertTriangle,
+  Info
+} from 'lucide-react';
+import DataGrid, { type GridColumn, type FilterField } from '@/components/DataGrid';
 import ProductModal from '@/components/ProductModal';
 import PlanModal from '@/components/PlanModal';
 import LicenseModal from '@/components/LicenseModal';
@@ -50,7 +81,7 @@ import {
   setupChannel
 } from '@/lib/messages-api';
 
-type TabType = 'users' | 'product' | 'plan' | 'license' | 'subscriptions' | 'events' | 'messaging';
+type TabType = 'users' | 'product' | 'plan' | 'license' | 'subscriptions' | 'events' | 'messaging' | 'logs';
 type EventSubTab = 'broadcast' | 'subscribe' | 'requests' | 'log';
 type MessagingSubTab = 'setup' | 'templates' | 'logs';
 
@@ -179,6 +210,110 @@ export default function AppDetailPage() {
   const [editingTemplate, setEditingTemplate] = useState<any>(null);
   const [msgLogDetailModalOpen, setMsgLogDetailModalOpen] = useState(false);
   const [selectedMsgLog, setSelectedMsgLog] = useState<any>(null);
+
+  // Platform Logs state
+  const [selectedPlatformLog, setSelectedPlatformLog] = useState<any>(null);
+  const [refreshPlatformLogs, setRefreshPlatformLogs] = useState(0);
+
+  const platformLogColumns: GridColumn[] = [
+    {
+      key: 'timestamp',
+      label: 'Timestamp',
+      sortable: true,
+      render: (value: any) => (
+        <div className="flex items-center gap-2 text-xs font-medium text-[var(--text-secondary)]">
+          <Clock className="w-3 h-3" />
+          {new Date(value).toLocaleString()}
+        </div>
+      ),
+    },
+    {
+      key: 'level',
+      label: 'Level',
+      render: (value: any) => {
+        const lvl = value.toLowerCase();
+        switch (lvl) {
+          case 'error':
+            return <span className="flex items-center gap-1 px-2 py-0.5 bg-red-500/10 text-red-500 text-[10px] font-bold rounded-full border border-red-500/20 uppercase tracking-wider"><XCircle className="w-3 h-3" /> Error</span>;
+          case 'warn':
+            return <span className="flex items-center gap-1 px-2 py-0.5 bg-amber-500/10 text-amber-500 text-[10px] font-bold rounded-full border border-amber-500/20 uppercase tracking-wider"><AlertTriangle className="w-3 h-3" /> Warn</span>;
+          case 'debug':
+            return <span className="flex items-center gap-1 px-2 py-0.5 bg-gray-500/10 text-gray-500 text-[10px] font-bold rounded-full border border-gray-500/20 uppercase tracking-wider"><Terminal className="w-3 h-3" /> Debug</span>;
+          default:
+            return <span className="flex items-center gap-1 px-2 py-0.5 bg-blue-500/10 text-blue-500 text-[10px] font-bold rounded-full border border-blue-500/20 uppercase tracking-wider"><Info className="w-3 h-3" /> Info</span>;
+        }
+      },
+    },
+    {
+      key: 'service',
+      label: 'Service',
+      render: (value: any) => (
+        <span className="text-sm font-semibold text-[var(--text-primary)]">{value}</span>
+      ),
+    },
+    {
+      key: 'message',
+      label: 'Message',
+      render: (value: any, row: any) => (
+        <div className="max-w-xl">
+          <p className="text-sm text-[var(--text-primary)] font-medium leading-relaxed truncate">
+            {value}
+          </p>
+          {row.tags && row.tags.length > 0 && (
+            <div className="flex flex-wrap gap-1 mt-1.5">
+              {row.tags.map((tag: string) => (
+                <span key={tag} className="px-1.5 py-0.5 bg-[var(--bg-surface)] text-[var(--text-secondary)] text-[10px] font-mono rounded border border-[var(--border-default)] opacity-80">
+                  #{tag}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+      ),
+    },
+    {
+      key: 'actions',
+      label: '',
+      render: (_: any, row: any) => (
+        <button 
+          onClick={(e) => {
+            e.stopPropagation();
+            setSelectedPlatformLog(row);
+          }}
+          className="p-2 text-[var(--text-secondary)] hover:text-primary hover:bg-primary/5 rounded-xl transition-all"
+          title="View Details"
+        >
+          <ExternalLink className="w-4 h-4" />
+        </button>
+      ),
+    }
+  ];
+
+  const platformLogFilterFields: FilterField[] = [
+    {
+      key: 'level',
+      label: 'Log Level',
+      type: 'select',
+      options: [
+        { label: 'Info', value: 'info' },
+        { label: 'Warning', value: 'warn' },
+        { label: 'Error', value: 'error' },
+        { label: 'Debug', value: 'debug' },
+      ],
+    },
+    {
+      key: 'tags',
+      label: 'Tags',
+      type: 'text',
+      placeholder: 'e.g. auth, login',
+    },
+    {
+      key: 'service',
+      label: 'Service',
+      type: 'text',
+      placeholder: 'Filter by Service',
+    }
+  ];
 
   // Global Alert State
   const [alertConfig, setAlertConfig] = useState<{
@@ -1083,6 +1218,18 @@ export default function AppDetailPage() {
             <div className="flex items-center gap-2">
               <Mail className="h-4 w-4" />
               Messaging
+            </div>
+          </button>
+          <button
+            onClick={() => setActiveTab('logs')}
+            className={`pb-4 px-1 border-b-2 font-medium text-sm transition-colors ${activeTab === 'logs'
+              ? 'border-[var(--action-primary)] text-[var(--action-primary)]'
+              : 'border-transparent text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+              }`}
+          >
+            <div className="flex items-center gap-2">
+              <Terminal className="h-4 w-4" />
+              Logs
             </div>
           </button>
         </nav>
@@ -2725,6 +2872,49 @@ export default function AppDetailPage() {
             )}
           </div>
         )}
+
+        {/* Logs Tab */}
+        {activeTab === 'logs' && (
+          <div className="p-6 h-full flex flex-col">
+            <DataGrid
+              title="Application Logs"
+              description={`Infrastructure and service logs for ${app.appName}`}
+              columns={platformLogColumns}
+              fetchData={async (params) => {
+                const { page, size, search, filter } = params;
+                const offset = (page - 1) * size;
+                const response = await getLogs({
+                  appId: app.appId,
+                  search: search || undefined,
+                  service: filter.service || undefined,
+                  level: filter.level || undefined,
+                  tags: filter.tags || undefined,
+                  limit: size,
+                  offset,
+                });
+                return {
+                  data: response.items,
+                  meta: {
+                    totalItems: response.total,
+                    currentPage: page,
+                    itemsPerPage: size,
+                    totalPages: Math.ceil(response.total / size)
+                  }
+                };
+              }}
+              filterFields={platformLogFilterFields}
+              refreshTrigger={refreshPlatformLogs}
+              onRowClick={(row) => setSelectedPlatformLog(row)}
+              isScrollable={true}
+              fullHeight={true}
+              emptyState={{
+                title: 'No logs found',
+                description: 'Service logs for this application will appear here.',
+                icon: <Terminal className="w-12 h-12 text-[var(--text-secondary)] opacity-20" />
+              }}
+            />
+          </div>
+        )}
       </div>
 
       {/* Product Modal */}
@@ -3022,6 +3212,129 @@ export default function AppDetailPage() {
         title={alertConfig.title}
         autoClose={alertConfig.type === 'success' || alertConfig.type === 'info' ? 3000 : undefined}
       />
+
+      {/* Platform Log Detail Modal */}
+      {selectedPlatformLog && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-[var(--bg-surface)] border border-[var(--border-default)] w-full max-w-3xl max-h-[85vh] rounded-3xl shadow-2xl overflow-hidden flex flex-col animate-in zoom-in-95 duration-200">
+            <div className="p-6 border-b border-[var(--border-default)] flex items-center justify-between flex-shrink-0 bg-white/5">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 bg-primary/10 rounded-xl text-primary">
+                  <Terminal className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-[var(--text-primary)]">Log Details</h3>
+                  <p className="text-xs text-[var(--text-secondary)] font-mono uppercase tracking-wider">{selectedPlatformLog.id || 'N/A'}</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setSelectedPlatformLog(null)}
+                className="p-2 text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-white/5 rounded-full transition-all"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-6 overflow-y-auto space-y-6">
+              {/* Status & Quick Info */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="p-4 bg-[var(--bg-main)] rounded-2xl border border-[var(--border-default)] space-y-1">
+                  <span className="text-[10px] font-bold text-[var(--text-secondary)] uppercase tracking-widest block">Timestamp</span>
+                  <p className="text-sm font-medium text-[var(--text-primary)]">
+                    {new Date(selectedPlatformLog.timestamp).toLocaleString(undefined, {
+                      year: 'numeric',
+                      month: 'long',
+                      day: '2-digit',
+                      hour: '2-digit',
+                      minute: '2-digit',
+                      second: '2-digit',
+                      timeZoneName: 'shortOffset'
+                    })}
+                  </p>
+                </div>
+                <div className="p-4 bg-[var(--bg-main)] rounded-2xl border border-[var(--border-default)] space-y-1">
+                  <span className="text-[10px] font-bold text-[var(--text-secondary)] uppercase tracking-widest block">Level</span>
+                  <div>
+                    {(() => {
+                      const lvl = selectedPlatformLog.level.toLowerCase();
+                      switch (lvl) {
+                        case 'error':
+                          return <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-red-500/10 text-red-500 border border-red-500/20 uppercase">Error</span>;
+                        case 'warn':
+                          return <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/10 text-amber-500 border border-amber-500/20 uppercase">Warning</span>;
+                        default:
+                          return <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-blue-500/10 text-blue-500 border border-blue-500/20 uppercase">{lvl}</span>;
+                      }
+                    })()}
+                  </div>
+                </div>
+                <div className="p-4 bg-[var(--bg-main)] rounded-2xl border border-[var(--border-default)] space-y-1">
+                  <span className="text-[10px] font-bold text-[var(--text-secondary)] uppercase tracking-widest block">Service</span>
+                  <p className="text-sm font-bold text-[var(--text-primary)]">{selectedPlatformLog.service}</p>
+                </div>
+                <div className="p-4 bg-[var(--bg-main)] rounded-2xl border border-[var(--border-default)] space-y-1">
+                  <span className="text-[10px] font-bold text-[var(--text-secondary)] uppercase tracking-widest block">App ID</span>
+                  <p className="text-sm font-mono text-[var(--text-primary)]">{selectedPlatformLog.appId}</p>
+                </div>
+              </div>
+
+              {/* Message Banner */}
+              <div className="p-4 bg-[var(--bg-main)] rounded-2xl border border-[var(--border-default)]">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-[10px] font-bold text-[var(--text-secondary)] uppercase tracking-widest">Message</span>
+                </div>
+                <p className="text-sm text-[var(--text-primary)] font-medium leading-relaxed">
+                  {selectedPlatformLog.message}
+                </p>
+              </div>
+
+              {/* Tags */}
+              {selectedPlatformLog.tags && selectedPlatformLog.tags.length > 0 && (
+                <div className="space-y-2">
+                  <span className="text-[10px] font-bold text-[var(--text-secondary)] uppercase tracking-widest px-1">Tags</span>
+                  <div className="flex flex-wrap gap-2">
+                    {selectedPlatformLog.tags.map((tag: string) => (
+                      <span key={tag} className="px-3 py-1 bg-primary/5 text-primary text-xs font-medium rounded-full border border-primary/10">
+                        #{tag}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Data/Meta Viewer */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between px-1">
+                  <span className="text-[10px] font-bold text-[var(--text-secondary)] uppercase tracking-widest">Structured Data</span>
+                  <button 
+                    onClick={() => {
+                      navigator.clipboard.writeText(JSON.stringify(selectedPlatformLog.data || selectedPlatformLog.meta || {}, null, 2));
+                      showAlert('JSON copied to clipboard', 'success');
+                    }}
+                    className="text-[10px] font-bold text-primary hover:underline uppercase tracking-wider"
+                  >
+                    Copy JSON
+                  </button>
+                </div>
+                <div className="bg-gray-900 rounded-2xl p-6 overflow-hidden border border-white/5 shadow-inner">
+                  <pre className="text-xs text-green-400 font-mono overflow-x-auto custom-scrollbar leading-relaxed">
+                    {JSON.stringify(selectedPlatformLog.data || selectedPlatformLog.meta || {}, null, 2)}
+                  </pre>
+                </div>
+              </div>
+            </div>
+
+            <div className="p-6 border-t border-[var(--border-default)] flex justify-end flex-shrink-0 bg-white/5">
+              <button 
+                onClick={() => setSelectedPlatformLog(null)}
+                className="px-8 py-2.5 bg-[var(--bg-surface)] text-[var(--text-primary)] rounded-xl text-sm font-bold border border-[var(--border-default)] hover:bg-white/5 transition-all uppercase tracking-widest"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

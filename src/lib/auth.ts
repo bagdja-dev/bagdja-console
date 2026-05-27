@@ -5,7 +5,7 @@
  */
 
 const ACCESS_TOKEN_KEY = 'bagdja_access_token';
-const COOKIE_NAME = 'bagdja_access_token';
+const COOKIE_NAME = 'bagdja_auth_token';
 const CLIENT_TOKEN_KEY = 'bagdja_client_token';
 const CLIENT_TOKEN_EXPIRY_KEY = 'bagdja_client_token_expiry';
 const ACTIVE_ORG_ID_KEY = 'activeOrganizationId';
