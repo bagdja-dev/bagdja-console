@@ -937,11 +937,12 @@ export async function deleteMySubscription(
 /**
  * Update subscription status
  */
-export async function updateSubscriptionStatus(subscriptionId: string, status: string): Promise<any> {
+export async function updateSubscriptionStatus(subscriptionId: string, status: string, appId?: string): Promise<any> {
   const clientToken = await ensureClientToken();
   const userToken = getAccessToken();
   
-  const response = await fetch(`${EVENT_API_BASE}/subscriptions/${subscriptionId}/status`, {
+  const query = appId ? `?appId=${encodeURIComponent(appId)}` : '';
+  const response = await fetch(`${EVENT_API_BASE}/subscriptions/${subscriptionId}/status${query}`, {
     method: 'PATCH',
     headers: {
       'Content-Type': 'application/json',

@@ -807,7 +807,7 @@ export default function AppDetailPage() {
   const handleUpdateSubscriptionStatus = async (subId: string, status: string) => {
     if (!app?.appId) return;
     try {
-      await updateSubscriptionStatus(subId, status);
+      await updateSubscriptionStatus(subId, status, app.appId);
       // Refresh grid by triggering refreshContracts state
       setRefreshContracts(prev => prev + 1);
 
