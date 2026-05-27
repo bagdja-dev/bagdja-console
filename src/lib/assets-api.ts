@@ -9,6 +9,7 @@ import {
   getClientToken,
   setClientToken,
   isClientTokenExpired,
+  getActiveOrganizationSlug,
 } from './auth';
 import type { 
   Asset, 
@@ -153,7 +154,7 @@ export async function createAsset(data: CreateAssetRequest, organizationId: stri
 
 /**
  * Make authenticated API request to Assets Service
- * Automatically includes x-api-token, user token, and organization ID
+ * Automatically includes x-api-token, user token, and organization slug
  */
 async function assetsApiRequest<T>(
   endpoint: string,
@@ -170,11 +171,11 @@ async function assetsApiRequest<T>(
     throw new Error('User not authenticated');
   }
 
-  // Get organization ID from sessionStorage if not provided
-  const orgId = organizationId || (typeof window !== 'undefined' ? sessionStorage.getItem('activeOrganizationId') : null);
+  // Get organization slug from sessionStorage if not provided
+  const orgId = organizationId || getActiveOrganizationSlug();
   
   if (!orgId) {
-    throw new Error('Organization ID is required');
+    throw new Error('Organization slug is required');
   }
 
   const url = `${getAssetsApiBase()}${endpoint}`;
