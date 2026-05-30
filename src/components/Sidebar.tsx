@@ -137,6 +137,12 @@ const menuItems: MenuItem[] = [
         href: '/infrastructure/payment-config',
       },
       {
+        id: 'infra-payment-fees',
+        label: 'PG Fees',
+        icon: CreditCard,
+        href: '/infrastructure/payment-fees',
+      },
+      {
         id: 'infra-logs',
         label: 'Platform Logs',
         icon: List,
