@@ -139,6 +139,7 @@ export default function WalletLedgerGrid({ currency }: WalletLedgerGridProps) {
         icon: <ArrowDownLeft className="h-12 w-12 text-[var(--text-muted)]" />,
       }}
       fullHeight
+      isScrollable={true}
     />
   );
 }

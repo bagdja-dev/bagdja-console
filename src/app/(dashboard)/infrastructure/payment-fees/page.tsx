@@ -338,6 +338,8 @@ export default function PaymentFeesPage() {
             description: 'Start by adding fee configurations for payment methods.',
             icon: <CreditCard className="w-12 h-12 text-[var(--text-secondary)] opacity-20" />,
           }}
+          fullHeight
+          isScrollable={true}
         />  
       </div>
 
