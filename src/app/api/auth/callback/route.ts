@@ -131,6 +131,7 @@ export async function POST(request: NextRequest): Promise<Response> {
       {
         success: true,
         redirectPath,
+        access_token: accessToken,
       },
       { status: 200 }
     );

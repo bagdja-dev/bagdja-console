@@ -76,7 +76,10 @@ export function CallbackClient({
 
           const result = await tokenResponse.json();
           
-          // Token is now in httpOnly cookie set by the API response
+          if (result.access_token) {
+            setAccessToken(result.access_token);
+          }
+          
           // Clear sessionStorage
           sessionStorage.removeItem('oauth_code_verifier');
           sessionStorage.removeItem('oauth_state');

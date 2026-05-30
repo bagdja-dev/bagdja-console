@@ -195,6 +195,8 @@ export type WalletLedgerEntry = {
   type: string;
   direction: 'credit' | 'debit';
   reference_id?: string | null;
+  external_id?: string | null;
+  description?: string | null;
   metadata?: Record<string, unknown> | null;
   currency: string | null;
   created_at: string;

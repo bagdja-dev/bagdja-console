@@ -1,8 +1,10 @@
 'use client';
 
+import React, { useState } from 'react';
 import { ArrowDownLeft, ArrowUpRight } from 'lucide-react';
 import DataGrid, { type FilterField, type GridColumn } from '@/components/DataGrid';
 import { getPaymentTransactions, type WalletLedgerEntry } from '@/lib/payment-api';
+import WalletTransactionDetailModal from '@/components/WalletTransactionDetailModal';
 
 type Currency = string;
 
@@ -59,7 +61,7 @@ function buildLedgerColumns(currency: Currency): GridColumn[] {
               )}
             </div>
             <div>
-              <div className="text-[var(--text-primary)]">{labelForType(type)}</div>
+              <div className="text-[var(--text-primary)]">{row.description || labelForType(type)}</div>
               <div className="text-xs text-[var(--text-secondary)]">{type}</div>
             </div>
           </div>
@@ -69,9 +71,9 @@ function buildLedgerColumns(currency: Currency): GridColumn[] {
     {
       key: 'reference_id',
       label: 'Reference',
-      render: (val) => (
+      render: (val, row: WalletLedgerEntry) => (
         <span className="font-mono text-xs text-[var(--text-secondary)]">
-          {val ? `${String(val).slice(0, 8)}…` : '—'}
+          {row.external_id ? row.external_id : (val ? `${String(val).slice(0, 8)}…` : '—')}
         </span>
       ),
     },
@@ -119,8 +121,12 @@ type WalletLedgerGridProps = {
 };
 
 export default function WalletLedgerGrid({ currency }: WalletLedgerGridProps) {
+  const [selectedTx, setSelectedTx] = useState<WalletLedgerEntry | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+
   return (
-    <DataGrid
+    <>
+      <DataGrid
       title="Wallet activity"
       description="Credits and debits applied to this wallet balance"
       columns={buildLedgerColumns(currency)}
@@ -140,6 +146,18 @@ export default function WalletLedgerGrid({ currency }: WalletLedgerGridProps) {
       }}
       fullHeight
       isScrollable={true}
+      onRowClick={(row: any) => {
+        setSelectedTx(row);
+        setIsModalOpen(true);
+      }}
     />
+    
+    <WalletTransactionDetailModal
+      isOpen={isModalOpen}
+      onClose={() => setIsModalOpen(false)}
+      transaction={selectedTx}
+      currency={currency}
+    />
+    </>
   );
 }
