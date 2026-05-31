@@ -23,6 +23,7 @@ const feeFilters: FilterField[] = [
     options: [
       { label: 'All', value: '' },
       { label: 'Midtrans', value: 'midtrans' },
+      { label: 'Internal', value: 'internal' },
     ],
   },
   {

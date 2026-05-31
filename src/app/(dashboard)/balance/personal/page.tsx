@@ -131,7 +131,7 @@ function WalletCard({
 
 export default function PersonalWalletPage() {
   const [walletsData, setWalletsData] = useState<Wallet[]>([]);
-  const [supportedCurrencies, setSupportedCurrencies] = useState<string[]>(['IDR', 'USD', 'MYR']);
+  const [supportedCurrencies, setSupportedCurrencies] = useState<string[]>(['IDR']);
   const [loading, setLoading] = useState(true);
   const [activatingCurrency, setActivatingCurrency] = useState<Currency | null>(null);
   const [topUpCurrency, setTopUpCurrency] = useState<Currency | null>(null);
@@ -269,7 +269,7 @@ export default function PersonalWalletPage() {
   }
 
   return (
-    <div className="flex flex-col min-h-full">
+    <div className="flex flex-col min-h-full" translate="no">
       <div ref={headerRef} className="mb-8 flex-shrink-0">
         <h1 className="text-3xl font-bold text-[var(--text-primary)]">Personal Balance</h1>
         <p className="mt-2 text-[var(--text-secondary)]">View and manage your personal wallet balances.</p>

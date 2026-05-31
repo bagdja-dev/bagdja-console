@@ -29,10 +29,15 @@ const MIDTRANS_PAYMENT_METHODS = [
   'kredivo',
 ];
 
+const INTERNAL_PAYMENT_METHODS = [
+  'wallet',
+];
+
 const CURRENCIES = ['IDR', 'USD'];
 
 const providerOptions = [
   { value: 'midtrans', label: 'Midtrans', description: 'Payment gateway Midtrans' },
+  { value: 'internal', label: 'Internal', description: 'Internal wallet payment' },
 ];
 
 const statusOptions = [
@@ -91,7 +96,17 @@ export default function PaymentFeeModal({
 
   if (!isOpen) return null;
 
-  const paymentMethodOptions = MIDTRANS_PAYMENT_METHODS.map((method) => ({
+  const getPaymentMethodsForProvider = (provider: string | undefined) => {
+    switch (provider) {
+      case 'internal':
+        return INTERNAL_PAYMENT_METHODS;
+      case 'midtrans':
+      default:
+        return MIDTRANS_PAYMENT_METHODS;
+    }
+  };
+
+  const paymentMethodOptions = getPaymentMethodsForProvider(formData.provider).map((method) => ({
     value: method,
     label: method.replace('_', ' '),
     description: method,
@@ -126,7 +141,7 @@ export default function PaymentFeeModal({
           <FancySelect
             label="Provider"
             value={formData.provider}
-            onChange={(val) => setFormData((prev) => ({ ...prev, provider: val }))}
+            onChange={(val) => setFormData((prev) => ({ ...prev, provider: val, method: '' }))}
             disabled={isSubmitting}
             options={providerOptions}
             placeholder="Select provider"

@@ -259,6 +259,19 @@ export type TopUpResponse = {
 };
 
 export async function createOrgTopup(amount: number, currencyCode: string = 'IDR', organizationId?: string): Promise<TopUpResponse> {
+  const token = getAccessToken();
+  let userId = '';
+  if (token) {
+    try {
+      const base64Url = token.split('.')[1];
+      const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+      const payload = JSON.parse(atob(base64));
+      userId = payload.sub || '';
+    } catch (e) {
+      console.warn('Could not parse userId from token', e);
+    }
+  }
+
   const orgId = organizationId || getActiveOrganizationId();
   if (!orgId) throw new Error('Organization ID is required');
 
@@ -266,7 +279,15 @@ export async function createOrgTopup(amount: number, currencyCode: string = 'IDR
     '/topup/organization',
     {
       method: 'POST',
-      body: JSON.stringify({ amount, currency: currencyCode, orgId }),
+      body: JSON.stringify({
+        amount,
+        currency:
+          currencyCode,
+        userId,
+        orgId,
+        successRedirectUrl: `${window.location.origin}/balance?topup=success`,
+        failureRedirectUrl: `${window.location.origin}/balance?topup=failure`,
+      }),
     },
     orgId,
   );
@@ -288,7 +309,13 @@ export async function createPersonalTopup(amount: number, currencyCode: string =
 
   return paymentApiRequestPersonal<TopUpResponse>('/topup/personal', {
     method: 'POST',
-    body: JSON.stringify({ userId, amount, currency: currencyCode }),
+    body: JSON.stringify({
+      userId,
+      amount,
+      currency: currencyCode,
+      successRedirectUrl: `${window.location.origin}/balance?topup=success`,
+      failureRedirectUrl: `${window.location.origin}/balance?topup=failure`,
+    }),
   });
 }
 
