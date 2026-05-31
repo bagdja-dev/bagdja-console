@@ -253,6 +253,31 @@ export default function PaymentFeesPage() {
       ),
     },
     {
+      key: 'topupReward',
+      label: 'Topup Reward',
+      render: (_, row) => {
+        const r = row as PaymentMethodFee;
+        const hasReward = r.topupRewardFixedFee > 0 || r.topupRewardPercentageFee > 0;
+        if (!hasReward) {
+          return <span className="text-xs text-[var(--text-secondary)]">—</span>;
+        }
+        return (
+          <div className="flex flex-col gap-1">
+            {r.topupRewardFixedFee > 0 && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-emerald-500/10 text-emerald-600 text-[10px] font-bold rounded border border-emerald-500/20">
+                +{r.topupRewardFixedFee.toLocaleString()}
+              </span>
+            )}
+            {r.topupRewardPercentageFee > 0 && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-emerald-500/10 text-emerald-600 text-[10px] font-bold rounded border border-emerald-500/20">
+                +{r.topupRewardPercentageFee}%
+              </span>
+            )}
+          </div>
+        );
+      },
+    },
+    {
       key: 'updatedAt',
       label: 'Updated',
       sortable: true,

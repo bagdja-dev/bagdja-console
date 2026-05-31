@@ -2,12 +2,11 @@
 
 import { useMemo, useState, useEffect, useCallback, useRef } from 'react';
 import { CheckCircle2, Clock3, Wallet as WalletIcon, Loader2 } from 'lucide-react';
-import { listWallets, activateWallet, type Wallet } from '@/lib/payment-api';
+import { listUserWallets, activateUserWallet, type Wallet } from '@/lib/payment-api';
 import { getSupportedCurrencies } from '@/lib/api';
-import { getActiveOrganizationSlug } from '@/lib/auth';
 import { useLayout } from '@/context/LayoutContext';
-import WalletLedgerGrid from './WalletLedgerGrid';
-import WithdrawalRequestsGrid from './WithdrawalRequestsGrid';
+import WalletLedgerGrid from '../WalletLedgerGrid';
+import WithdrawalRequestsGrid from '../WithdrawalRequestsGrid';
 import TopUpModal from '@/components/TopUpModal';
 
 type Currency = string;
@@ -63,7 +62,7 @@ function WalletCard({
             </div>
             <div>
               <div className="text-sm font-semibold text-[var(--text-primary)]">{wallet.currency}</div>
-              <div className="text-xs text-[var(--text-secondary)]">Wallet</div>
+              <div className="text-xs text-[var(--text-secondary)]">Personal Wallet</div>
             </div>
           </div>
         </div>
@@ -130,7 +129,7 @@ function WalletCard({
   );
 }
 
-export default function WalletPage() {
+export default function PersonalWalletPage() {
   const [walletsData, setWalletsData] = useState<Wallet[]>([]);
   const [supportedCurrencies, setSupportedCurrencies] = useState<string[]>(['IDR', 'USD', 'MYR']);
   const [loading, setLoading] = useState(true);
@@ -142,19 +141,12 @@ export default function WalletPage() {
   const headerRef = useRef<HTMLDivElement>(null);
 
   const fetchWallets = useCallback(async () => {
-    const orgSlug = getActiveOrganizationSlug();
-    if (!orgSlug) {
-      setWalletsData([]);
-      setLoading(false);
-      return;
-    }
-
     try {
       setLoading(true);
-      const data = await listWallets(orgSlug);
+      const data = await listUserWallets();
       setWalletsData(Array.isArray(data) ? data : []);
     } catch (error) {
-      console.error('Failed to fetch wallets:', error);
+      console.error('Failed to fetch personal wallets:', error);
       setWalletsData([]);
     } finally {
       setLoading(false);
@@ -163,12 +155,6 @@ export default function WalletPage() {
 
   useEffect(() => {
     void fetchWallets();
-
-    const onOrganizationChanged = () => {
-      void fetchWallets();
-    };
-    window.addEventListener('organizationChanged', onOrganizationChanged);
-    return () => window.removeEventListener('organizationChanged', onOrganizationChanged);
   }, [fetchWallets]);
 
   useEffect(() => {
@@ -194,7 +180,7 @@ export default function WalletPage() {
     });
   }, [walletsData, supportedCurrencies]);
 
-  // Contextual Topbar Logic based on owned applications detail
+  // Contextual Topbar Logic (reuse from org balance)
   const isHeaderVisibleRef = useRef(true);
 
   useEffect(() => {
@@ -218,14 +204,13 @@ export default function WalletPage() {
                       onClick={() => {
                         setSelectedCurrency(w.currency);
                         setActiveTab('transactions');
-                        //update ref to scroll to top of the page
                         headerRef.current?.scrollIntoView({ behavior: 'smooth' });
                       }}
                       className={[
                         'flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium transition-all whitespace-nowrap',
                         w.currency === selectedCurrency
                           ? 'bg-[var(--action-primary)] text-white shadow-sm'
-                          : 'bg-[var(--bg-main)] text-[var(--text-secondary)] border border-[var(--border-default)] hover:bg-[var(--bg-hover)]'
+                          : 'bg-[var(--bg-main)] text-[var(--text-secondary)] border border-[var(--border-default)] hover:bg-[var(--bg-hover)]',
                       ].join(' ')}
                     >
                       <WalletIcon className={`h-3 w-3 ${w.currency === selectedCurrency ? 'text-white' : 'text-[var(--text-muted)]'}`} />
@@ -245,8 +230,8 @@ export default function WalletPage() {
       },
       {
         threshold: 0,
-        rootMargin: '-64px 0px 0px 0px'
-      }
+        rootMargin: '-64px 0px 0px 0px',
+      },
     );
 
     if (headerRef.current) {
@@ -262,11 +247,11 @@ export default function WalletPage() {
   const handleActivate = async (currency: Currency) => {
     try {
       setActivatingCurrency(currency);
-      await activateWallet(currency);
+      await activateUserWallet(currency);
       await fetchWallets();
       setSelectedCurrency(currency);
     } catch (error) {
-      console.error('Failed to activate wallet:', error);
+      console.error('Failed to activate personal wallet:', error);
       alert('Failed to activate wallet. Please try again.');
     } finally {
       setActivatingCurrency(null);
@@ -274,7 +259,6 @@ export default function WalletPage() {
   };
 
   const selectedWallet = walletsSummary.find((w) => w.currency === selectedCurrency) ?? walletsSummary[0];
-
 
   if (loading && walletsData.length === 0) {
     return (
@@ -287,8 +271,8 @@ export default function WalletPage() {
   return (
     <div className="flex flex-col min-h-full">
       <div ref={headerRef} className="mb-8 flex-shrink-0">
-        <h1 className="text-3xl font-bold text-[var(--text-primary)]">Wallet</h1>
-        <p className="mt-2 text-[var(--text-secondary)]">Manage balances and payouts.</p>
+        <h1 className="text-3xl font-bold text-[var(--text-primary)]">Personal Balance</h1>
+        <p className="mt-2 text-[var(--text-secondary)]">View and manage your personal wallet balances.</p>
       </div>
 
       <div className="mb-8 grid grid-cols-1 gap-4 lg:grid-cols-3 flex-shrink-0">
@@ -349,7 +333,7 @@ export default function WalletPage() {
 
         <div className="flex-1 flex flex-col min-h-0 mt-4 mx-4">
           {activeTab === 'transactions' ? (
-            <WalletLedgerGrid key={`ledger-${selectedCurrency}`} currency={selectedCurrency} />
+            <WalletLedgerGrid key={`ledger-${selectedCurrency}`} currency={selectedCurrency} isPersonal />
           ) : (
             <WithdrawalRequestsGrid key={`withdraw-${selectedCurrency}`} currency={selectedCurrency} />
           )}
@@ -360,7 +344,7 @@ export default function WalletPage() {
         isOpen={topUpCurrency !== null} 
         onClose={() => setTopUpCurrency(null)} 
         currency={topUpCurrency || 'IDR'} 
-        isPersonal={false}
+        isPersonal={true}
       />
     </div>
   );

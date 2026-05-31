@@ -118,9 +118,10 @@ const ledgerFilters: FilterField[] = [
 
 type WalletLedgerGridProps = {
   currency: Currency;
+  isPersonal?: boolean;
 };
 
-export default function WalletLedgerGrid({ currency }: WalletLedgerGridProps) {
+export default function WalletLedgerGrid({ currency, isPersonal }: WalletLedgerGridProps) {
   const [selectedTx, setSelectedTx] = useState<WalletLedgerEntry | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
@@ -135,6 +136,7 @@ export default function WalletLedgerGrid({ currency }: WalletLedgerGridProps) {
           ...params,
           type: params.filter?.type,
           currency,
+          ownerType: isPersonal ? 'personal' : 'organization',
         })
       }
       filterFields={ledgerFilters}

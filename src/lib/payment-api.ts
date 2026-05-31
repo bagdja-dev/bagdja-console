@@ -120,6 +120,58 @@ async function paymentApiRequest<T>(
   return response.json();
 }
 
+async function paymentApiRequestPersonal<T>(
+  endpoint: string,
+  options: RequestInit = {},
+): Promise<T> {
+  const clientToken = await ensureClientToken();
+  const userToken = getAccessToken();
+
+  if (!userToken) {
+    throw new Error('User not authenticated');
+  }
+
+  const url = `${getPaymentApiBase()}${endpoint}`;
+
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    'x-api-key': clientToken,
+    Authorization: `Bearer ${userToken}`,
+    ...(options.headers as Record<string, string>),
+  };
+
+  const response = await fetch(url, {
+    ...options,
+    headers,
+    cache: options.cache || 'no-store',
+  });
+
+  if (!response.ok) {
+    const error: ApiError = { message: 'An error occurred', statusCode: response.status };
+    try {
+      const errorData = await response.json();
+      error.message = errorData.message || errorData.error || error.message;
+    } catch {
+      error.message = response.statusText || error.message;
+    }
+
+    if (response.status === 401) {
+      removeAccessToken();
+      if (typeof window !== 'undefined') {
+        document.cookie = 'bagdja_access_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+      }
+    }
+
+    throw error;
+  }
+
+  if (response.status === 204) {
+    return undefined as T;
+  }
+
+  return response.json();
+}
+
 export type PayoutAccount = {
   id: string;
   org_id: string;
@@ -177,6 +229,10 @@ export async function listWallets(organizationId?: string): Promise<Wallet[]> {
   return paymentApiRequest<Wallet[]>('/wallets', { method: 'GET' }, organizationId);
 }
 
+export async function listUserWallets(): Promise<Wallet[]> {
+  return paymentApiRequestPersonal<Wallet[]>('/wallets/me', { method: 'GET' });
+}
+
 export async function activateWallet(currencyCode: string, organizationId?: string): Promise<Wallet> {
   return paymentApiRequest<Wallet>(
     '/wallets/activate',
@@ -186,6 +242,54 @@ export async function activateWallet(currencyCode: string, organizationId?: stri
     },
     organizationId,
   );
+}
+
+export async function activateUserWallet(currencyCode: string): Promise<Wallet> {
+  return paymentApiRequestPersonal<Wallet>('/wallets/me/activate', {
+    method: 'POST',
+    body: JSON.stringify({ currencyCode }),
+  });
+}
+
+export type TopUpResponse = {
+  success: boolean;
+  checkoutUrl?: string;
+  refNumber?: string;
+  expiryTime?: string;
+};
+
+export async function createOrgTopup(amount: number, currencyCode: string = 'IDR', organizationId?: string): Promise<TopUpResponse> {
+  const orgId = organizationId || getActiveOrganizationId();
+  if (!orgId) throw new Error('Organization ID is required');
+
+  return paymentApiRequest<TopUpResponse>(
+    '/topup/organization',
+    {
+      method: 'POST',
+      body: JSON.stringify({ amount, currency: currencyCode, orgId }),
+    },
+    orgId,
+  );
+}
+
+export async function createPersonalTopup(amount: number, currencyCode: string = 'IDR'): Promise<TopUpResponse> {
+  const token = getAccessToken();
+  let userId = '';
+  if (token) {
+    try {
+      const base64Url = token.split('.')[1];
+      const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+      const payload = JSON.parse(atob(base64));
+      userId = payload.sub || '';
+    } catch (e) {
+      console.warn('Could not parse userId from token', e);
+    }
+  }
+
+  return paymentApiRequestPersonal<TopUpResponse>('/topup/personal', {
+    method: 'POST',
+    body: JSON.stringify({ userId, amount, currency: currencyCode }),
+  });
 }
 
 export type WalletLedgerEntry = {
@@ -224,6 +328,7 @@ export async function getPaymentTransactions(params?: {
   currency?: string;
   sort?: string;
   organizationId?: string;
+  ownerType?: 'organization' | 'personal';
 }): Promise<TransactionListResponse> {
   const qs = new URLSearchParams();
   if (params?.page) qs.append('page', String(params.page));
@@ -232,6 +337,14 @@ export async function getPaymentTransactions(params?: {
   if (params?.type) qs.append('type', params.type);
   if (params?.currency) qs.append('currency', params.currency);
   if (params?.sort) qs.append('sort', params.sort);
+  if (params?.ownerType) qs.append('ownerType', params.ownerType);
+
+  if (params?.ownerType === 'personal') {
+    return paymentApiRequestPersonal<TransactionListResponse>(
+      `/payments/transactions?${qs.toString()}`,
+      { method: 'GET' },
+    );
+  }
 
   return paymentApiRequest<TransactionListResponse>(
     `/payments/transactions?${qs.toString()}`,

@@ -55,6 +55,8 @@ export default function PaymentFeeModal({
     percentageFee: 0,
     currency: 'IDR',
     isActive: true,
+    topupRewardFixedFee: 0,
+    topupRewardPercentageFee: 0,
   });
 
   useEffect(() => {
@@ -68,6 +70,8 @@ export default function PaymentFeeModal({
         percentageFee: 0,
         currency: 'IDR',
         isActive: true,
+        topupRewardFixedFee: 0,
+        topupRewardPercentageFee: 0,
       });
     }
   }, [fee, mode]);
@@ -168,6 +172,36 @@ export default function PaymentFeeModal({
             />
           </div>
 
+          {/* Topup Reward Section */}
+          <div className="pt-3 border-t border-[var(--border-default)]">
+            <p className="text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider mb-3">
+              Topup Reward
+            </p>
+            <p className="text-xs text-[var(--text-secondary)] mb-3">
+              Amount rewarded to the triggering organization when a user completes a topup via this method.
+            </p>
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <Input
+                label="Reward Fixed (IDR)"
+                id="topupRewardFixedFee"
+                type="number"
+                value={formData.topupRewardFixedFee ?? 0}
+                onChange={(e) => setFormData((prev) => ({ ...prev, topupRewardFixedFee: Number(e.target.value) || 0 }))}
+                placeholder="e.g. 1000"
+                disabled={isSubmitting}
+              />
+              <Input
+                label="Reward Percentage (%)"
+                id="topupRewardPercentageFee"
+                type="number"
+                step="0.01"
+                value={formData.topupRewardPercentageFee ?? 0}
+                onChange={(e) => setFormData((prev) => ({ ...prev, topupRewardPercentageFee: Number(e.target.value) || 0 }))}
+                placeholder="e.g. 0.5"
+                disabled={isSubmitting}
+              />
+            </div>
+          </div>
           <FancySelect
             label="Status"
             value={formData.isActive ? 'true' : 'false'}

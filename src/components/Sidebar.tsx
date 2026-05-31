@@ -111,6 +111,12 @@ const menuItems: MenuItem[] = [
         href: '/balance',
       },
       {
+        id: 'payment-personal-wallet',
+        label: 'Personal Balance',
+        icon: Wallet,
+        href: '/balance/personal',
+      },
+      {
         id: 'payment-payout-setup',
         label: 'Payout Setup',
         icon: Settings,

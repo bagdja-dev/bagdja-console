@@ -127,6 +127,8 @@ export interface PaymentMethodFee {
   percentageFee: number;
   currency: string;
   isActive: boolean;
+  topupRewardFixedFee: number;
+  topupRewardPercentageFee: number;
   createdAt: string;
   updatedAt: string;
 }
