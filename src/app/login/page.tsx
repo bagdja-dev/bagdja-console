@@ -170,13 +170,13 @@ function LoginContent() {
                     >
                       Forgot password?
                     </button>
-                    <Button
+                    <button
                       type="button"
                       onClick={handleToLoginPage}
                       className="text-[var(--action-primary)] hover:text-[var(--action-primary-hover)]"
                     >
                       Go to Login Page
-                    </Button>
+                    </button>
                   </div>
           </div>
         </div>
