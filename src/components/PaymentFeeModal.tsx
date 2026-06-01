@@ -18,6 +18,7 @@ interface PaymentFeeModalProps {
 const MIDTRANS_PAYMENT_METHODS = [
   'bank_transfer',
   'credit_card',
+  'qris',
   'gopay',
   'shopeepay',
   'ovo',
