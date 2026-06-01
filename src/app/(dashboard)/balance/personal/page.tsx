@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState, useEffect, useCallback, useRef } from 'react';
-import { CheckCircle2, Clock3, Wallet as WalletIcon, Loader2 } from 'lucide-react';
+import { CheckCircle2, Clock3, Wallet as WalletIcon, Loader2, RefreshCw } from 'lucide-react';
 import { listUserWallets, activateUserWallet, type Wallet } from '@/lib/payment-api';
 import { getSupportedCurrencies } from '@/lib/api';
 import { useLayout } from '@/context/LayoutContext';
@@ -133,6 +133,7 @@ export default function PersonalWalletPage() {
   const [walletsData, setWalletsData] = useState<Wallet[]>([]);
   const [supportedCurrencies, setSupportedCurrencies] = useState<string[]>(['IDR']);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [activatingCurrency, setActivatingCurrency] = useState<Currency | null>(null);
   const [topUpCurrency, setTopUpCurrency] = useState<Currency | null>(null);
   const [selectedCurrency, setSelectedCurrency] = useState<Currency>('IDR');
@@ -155,6 +156,16 @@ export default function PersonalWalletPage() {
 
   useEffect(() => {
     void fetchWallets();
+
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        void fetchWallets();
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+    };
   }, [fetchWallets]);
 
   useEffect(() => {
@@ -198,6 +209,17 @@ export default function PersonalWalletPage() {
               <div className="flex items-center gap-4 animate-in fade-in slide-in-from-left-4 duration-300">
                 <div className="h-4 w-[1px] bg-[var(--border-default)] mx-2 hidden md:block" />
                 <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-1">
+                  <button
+                    onClick={async () => {
+                      setRefreshing(true);
+                      await fetchWallets();
+                      setRefreshing(false);
+                    }}
+                    className="flex items-center justify-center p-1.5 rounded-full text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--action-primary)] transition-colors"
+                    title="Refresh wallets"
+                  >
+                    <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? 'animate-spin' : ''}`} />
+                  </button>
                   {walletsSummary.map((w) => (
                     <button
                       key={w.currency}
@@ -242,7 +264,7 @@ export default function PersonalWalletPage() {
       observer.disconnect();
       setTopbarContent(null);
     };
-  }, [walletsSummary, selectedCurrency, setTopbarContent]);
+  }, [walletsSummary, selectedCurrency, setTopbarContent, refreshing]);
 
   const handleActivate = async (currency: Currency) => {
     try {
@@ -271,7 +293,20 @@ export default function PersonalWalletPage() {
   return (
     <div className="flex flex-col min-h-full" translate="no">
       <div ref={headerRef} className="mb-8 flex-shrink-0">
-        <h1 className="text-3xl font-bold text-[var(--text-primary)]">Personal Balance</h1>
+        <div className="flex items-center gap-3">
+          <h1 className="text-3xl font-bold text-[var(--text-primary)]">Personal Balance</h1>
+          <button
+            onClick={async () => {
+              setRefreshing(true);
+              await fetchWallets();
+              setRefreshing(false);
+            }}
+            className="flex items-center justify-center p-2 rounded-lg text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--action-primary)] transition-colors"
+            title="Refresh wallets"
+          >
+            <RefreshCw className={`h-4.5 w-4.5 ${refreshing ? 'animate-spin' : ''}`} />
+          </button>
+        </div>
         <p className="mt-2 text-[var(--text-secondary)]">View and manage your personal wallet balances.</p>
       </div>
 
@@ -343,6 +378,7 @@ export default function PersonalWalletPage() {
       <TopUpModal 
         isOpen={topUpCurrency !== null} 
         onClose={() => setTopUpCurrency(null)} 
+        onSuccess={() => fetchWallets()}
         currency={topUpCurrency || 'IDR'} 
         isPersonal={true}
       />

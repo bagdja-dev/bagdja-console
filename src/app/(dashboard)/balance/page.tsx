@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState, useEffect, useCallback, useRef } from 'react';
-import { CheckCircle2, Clock3, Wallet as WalletIcon, Loader2 } from 'lucide-react';
+import { CheckCircle2, Clock3, Wallet as WalletIcon, Loader2, RefreshCw } from 'lucide-react';
 import { listWallets, activateWallet, type Wallet } from '@/lib/payment-api';
 import { getSupportedCurrencies } from '@/lib/api';
 import { getActiveOrganizationSlug } from '@/lib/auth';
@@ -58,12 +58,12 @@ function WalletCard({
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[var(--action-primary)]/10">
-              <WalletIcon className="h-5 w-5 text-[var(--action-primary)]" />
-            </div>
             <div>
               <div className="text-sm font-semibold text-[var(--text-primary)]">{wallet.currency}</div>
               <div className="text-xs text-[var(--text-secondary)]">Wallet</div>
+            </div>
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[var(--action-primary)]/10">
+              <WalletIcon className="h-5 w-5 text-[var(--action-primary)]" />
             </div>
           </div>
         </div>
@@ -134,6 +134,7 @@ export default function WalletPage() {
   const [walletsData, setWalletsData] = useState<Wallet[]>([]);
   const [supportedCurrencies, setSupportedCurrencies] = useState<string[]>(['IDR']);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [activatingCurrency, setActivatingCurrency] = useState<Currency | null>(null);
   const [topUpCurrency, setTopUpCurrency] = useState<Currency | null>(null);
   const [selectedCurrency, setSelectedCurrency] = useState<Currency>('IDR');
@@ -167,8 +168,17 @@ export default function WalletPage() {
     const onOrganizationChanged = () => {
       void fetchWallets();
     };
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        void fetchWallets();
+      }
+    };
     window.addEventListener('organizationChanged', onOrganizationChanged);
-    return () => window.removeEventListener('organizationChanged', onOrganizationChanged);
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    return () => {
+      window.removeEventListener('organizationChanged', onOrganizationChanged);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+    };
   }, [fetchWallets]);
 
   useEffect(() => {
@@ -212,6 +222,17 @@ export default function WalletPage() {
               <div className="flex items-center gap-4 animate-in fade-in slide-in-from-left-4 duration-300">
                 <div className="h-4 w-[1px] bg-[var(--border-default)] mx-2 hidden md:block" />
                 <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pb-1">
+                  <button
+                    onClick={async () => {
+                      setRefreshing(true);
+                      await fetchWallets();
+                      setRefreshing(false);
+                    }}
+                    className="flex items-center justify-center p-1.5 rounded-full text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--action-primary)] transition-colors"
+                    title="Refresh wallets"
+                  >
+                    <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? 'animate-spin' : ''}`} />
+                  </button>
                   {walletsSummary.map((w) => (
                     <button
                       key={w.currency}
@@ -257,7 +278,7 @@ export default function WalletPage() {
       observer.disconnect();
       setTopbarContent(null);
     };
-  }, [walletsSummary, selectedCurrency, setTopbarContent]);
+  }, [walletsSummary, selectedCurrency, setTopbarContent, refreshing]);
 
   const handleActivate = async (currency: Currency) => {
     try {
@@ -287,7 +308,20 @@ export default function WalletPage() {
   return (
     <div className="flex flex-col min-h-full" translate="no">
       <div ref={headerRef} className="mb-8 flex-shrink-0">
-        <h1 className="text-3xl font-bold text-[var(--text-primary)]">Wallet</h1>
+        <div className="flex items-center gap-3">
+          <h1 className="text-3xl font-bold text-[var(--text-primary)]">Wallet</h1>
+          <button
+            onClick={async () => {
+              setRefreshing(true);
+              await fetchWallets();
+              setRefreshing(false);
+            }}
+            className="flex items-center justify-center p-2 rounded-lg text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] hover:text-[var(--action-primary)] transition-colors"
+            title="Refresh wallets"
+          >
+            <RefreshCw className={`h-4.5 w-4.5 ${refreshing ? 'animate-spin' : ''}`} />
+          </button>
+        </div>
         <p className="mt-2 text-[var(--text-secondary)]">Manage balances and payouts.</p>
       </div>
 
@@ -356,10 +390,11 @@ export default function WalletPage() {
         </div>
       </div>
 
-      <TopUpModal 
-        isOpen={topUpCurrency !== null} 
-        onClose={() => setTopUpCurrency(null)} 
-        currency={topUpCurrency || 'IDR'} 
+      <TopUpModal
+        isOpen={topUpCurrency !== null}
+        onClose={() => setTopUpCurrency(null)}
+        onSuccess={() => fetchWallets()}
+        currency={topUpCurrency || 'IDR'}
         isPersonal={false}
       />
     </div>

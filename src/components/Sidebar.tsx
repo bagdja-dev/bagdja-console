@@ -106,13 +106,13 @@ const menuItems: MenuItem[] = [
     children: [
       {
         id: 'payment-wallet',
-        label: 'Wallet',
+        label: 'Org\'s Wallet',
         icon: Wallet,
         href: '/balance',
       },
       {
         id: 'payment-personal-wallet',
-        label: 'Personal Balance',
+        label: 'Personal Wallet',
         icon: Wallet,
         href: '/balance/personal',
       },

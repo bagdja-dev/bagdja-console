@@ -8,13 +8,14 @@ import { getAccessToken } from '@/lib/auth';
 type TopUpModalProps = {
   isOpen: boolean;
   onClose: () => void;
+  onSuccess?: () => void;
   currency: string;
   isPersonal?: boolean;
 };
 
 const TOPUP_PRESETS = [50000, 100000, 250000, 500000];
 
-export default function TopUpModal({ isOpen, onClose, currency, isPersonal }: TopUpModalProps) {
+export default function TopUpModal({ isOpen, onClose, onSuccess, currency, isPersonal }: TopUpModalProps) {
   const [amount, setAmount] = useState<number | ''>('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -42,6 +43,7 @@ export default function TopUpModal({ isOpen, onClose, currency, isPersonal }: To
           checkoutUrl.searchParams.set('auth_token', authToken);
         }
 
+        onSuccess?.();
         window.open(checkoutUrl.toString(), '_self');
       } else {
         setError('Checkout URL not returned from server');

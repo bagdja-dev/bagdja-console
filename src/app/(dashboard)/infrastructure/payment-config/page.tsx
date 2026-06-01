@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, type MouseEvent } from 'react';
+import { useState, useCallback, useRef, useEffect, type MouseEvent } from 'react';
 import {
   getBillingSettings,
   getGlobalDefaultBillingSetting,
@@ -17,6 +17,7 @@ import BillingSettingModal from '@/components/BillingSettingModal';
 import GlobalBillingModal from '@/components/GlobalBillingModal';
 import ConfirmModal from '@/components/ConfirmModal';
 import AlertModal, { type AlertType } from '@/components/AlertModal';
+import { useLayout } from '@/context/LayoutContext';
 
 const billingFilters: FilterField[] = [
   {
@@ -85,6 +86,52 @@ export default function PaymentConfigPage() {
     title: string;
     message: string;
   }>({ isOpen: false, type: 'info', title: '', message: '' });
+  const { setTopbarContent } = useLayout();
+  const headerRef = useRef<HTMLDivElement>(null);
+  const isHeaderVisibleRef = useRef(true);
+
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        const currentlyVisible = entry.isIntersecting;
+
+        if (currentlyVisible !== isHeaderVisibleRef.current) {
+          isHeaderVisibleRef.current = currentlyVisible;
+
+          if (!currentlyVisible) {
+            setTopbarContent(
+              <div className="flex items-center gap-4 animate-in fade-in slide-in-from-left-4 duration-300">
+                <div className="h-4 w-[1px] bg-[var(--border-default)] mx-2 hidden md:block" />
+                <div className="flex items-center gap-2">
+                  <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-[var(--action-primary)]/10">
+                    <CreditCard className="h-3.5 w-3.5 text-[var(--action-primary)]" />
+                  </div>
+                  <span className="text-sm font-semibold text-[var(--text-primary)] whitespace-nowrap">
+                    Payment Configuration
+                  </span>
+                </div>
+              </div>
+            );
+          } else {
+            setTopbarContent(null);
+          }
+        }
+      },
+      {
+        threshold: 0,
+        rootMargin: '-64px 0px 0px 0px',
+      },
+    );
+
+    if (headerRef.current) {
+      observer.observe(headerRef.current);
+    }
+
+    return () => {
+      observer.disconnect();
+      setTopbarContent(null);
+    };
+  }, [setTopbarContent]);
 
   const fetchData = useCallback(
     async (params?: {
@@ -357,7 +404,7 @@ export default function PaymentConfigPage() {
   return (
     <>
       {/* Header */}
-      <div className="mb-8 flex items-center justify-between">
+      <div ref={headerRef} className="mb-8 flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-[var(--text-primary)]">
             Payment Configuration
@@ -468,7 +515,7 @@ export default function PaymentConfigPage() {
       </div>
 
       {/* Data Grid */}
-      <div className="bg-[var(--bg-surface)] rounded-xl border border-[var(--border-default)] shadow-sm overflow-hidden p-5">
+      <div className="bg-[var(--bg-surface)] rounded-xl border border-[var(--border-default)] shadow-sm overflow-hidden p-5" style={{ height: 'calc(100vh - 120px)' }}>
         <DataGrid
           title="Billing Rules"
           description="All active and inactive fee configurations"
@@ -488,6 +535,8 @@ export default function PaymentConfigPage() {
             description: "Start by creating a global default or a specific organization rule.",
             icon: <CreditCard className="w-12 h-12 text-[var(--text-secondary)] opacity-20" />
           }}
+          fullHeight={true}
+          isScrollable={true}
         />
       </div>
 
