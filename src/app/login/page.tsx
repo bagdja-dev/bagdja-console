@@ -162,7 +162,7 @@ function LoginContent() {
                       {error}
                     </div>
                   )}
-                  <div className="text-center text-sm">
+                  <div className="text-center text-sm gap-2">
                     <button
                       type="button"
                       onClick={handleForgotPassword}
