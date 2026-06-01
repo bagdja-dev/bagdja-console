@@ -83,6 +83,12 @@ function LoginContent() {
     window.location.href = forgotPasswordUrl.toString();
   };
 
+  const handleToLoginPage = () => {
+    const loginUrl = new URL('/login', LOGIN_URL);
+    loginUrl.searchParams.set('redirect_url', REDIRECT_URI);
+    window.location.href = loginUrl.toString();
+  };
+
   return (
     <div className="flex min-h-screen bg-[var(--bg-main)] relative overflow-hidden">
       {/* Background Gradient Overlay */}
@@ -164,6 +170,13 @@ function LoginContent() {
                     >
                       Forgot password?
                     </button>
+                    <Button
+                      type="button"
+                      onClick={handleToLoginPage}
+                      className="text-[var(--action-primary)] hover:text-[var(--action-primary-hover)]"
+                    >
+                      Go to Login Page
+                    </Button>
                   </div>
           </div>
         </div>
