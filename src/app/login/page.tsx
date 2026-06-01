@@ -173,7 +173,7 @@ function LoginContent() {
                     <button
                       type="button"
                       onClick={handleToLoginPage}
-                      className="text-[var(--action-primary)] hover:text-[var(--action-primary-hover)]"
+                      className="text-[var(--action-primary)] ml-2 hover:text-[var(--action-primary-hover)]"
                     >
                       Go to Login Page
                     </button>
