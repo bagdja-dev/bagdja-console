@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { X, Loader2, ArrowUpRight } from 'lucide-react';
 import { createPersonalTopup, createOrgTopup } from '@/lib/payment-api';
+import { getAccessToken } from '@/lib/auth';
 
 type TopUpModalProps = {
   isOpen: boolean;
@@ -35,8 +36,13 @@ export default function TopUpModal({ isOpen, onClose, currency, isPersonal }: To
         : await createOrgTopup(Number(amount), currency);
 
       if (response.checkoutUrl) {
-        // Open Midtrans Snap/Checkout URL
-        window.open(response.checkoutUrl, '_self');
+        const authToken = getAccessToken();
+        const checkoutUrl = new URL(response.checkoutUrl);
+        if (authToken) {
+          checkoutUrl.searchParams.set('auth_token', authToken);
+        }
+
+        window.open(checkoutUrl.toString(), '_self');
       } else {
         setError('Checkout URL not returned from server');
       }
