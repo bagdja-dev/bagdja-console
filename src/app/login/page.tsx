@@ -84,7 +84,7 @@ function LoginContent() {
   };
 
   const handleToLoginPage = () => {
-    const loginUrl = new URL('/login', LOGIN_URL);
+    const loginUrl = new URL('', LOGIN_URL);
     loginUrl.searchParams.set('redirect_url', REDIRECT_URI);
     window.location.href = loginUrl.toString();
   };
