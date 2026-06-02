@@ -986,3 +986,13 @@ export async function deleteNotification(id: string): Promise<{ success: boolean
   });
 }
 
+/**
+ * Update OAuth redirect URIs for a client app
+ */
+export async function updateOAuthRedirectUris(clientAppId: string, oauthRedirectUris: string[]): Promise<ClientApp> {
+  return apiRequest<ClientApp>(`/auth/client-apps/${clientAppId}/oauth-redirect-uris`, {
+    method: 'PATCH',
+    body: JSON.stringify({ oauthRedirectUris }),
+  });
+}
+

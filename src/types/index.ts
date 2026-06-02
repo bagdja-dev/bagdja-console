@@ -94,6 +94,7 @@ export interface ClientApp {
   appSlug?: string;
   isCoreService?: boolean;
   app_secret?: string; // Only returned once during creation/regeneration
+  oauthRedirectUris?: string[];
 }
 
 export interface CreateClientAppRequest {

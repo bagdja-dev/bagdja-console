@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { getClientApps, getAppUsers } from '@/lib/api';
+import { getClientApps, getAppUsers, updateOAuthRedirectUris } from '@/lib/api';
 import { getProducts, createProduct, updateProduct, deleteProduct } from '@/lib/products-api';
 import { getPlans, createPlan, updatePlan, deletePlan } from '@/lib/plans-api';
 import { getLicenses, getPurchasedLicenses, createLicense, updateLicense, deleteLicense } from '@/lib/licenses-api';
@@ -40,7 +40,8 @@ import {
   ExternalLink,
   XCircle,
   AlertTriangle,
-  Info
+  Info,
+  Settings as SettingsIcon
 } from 'lucide-react';
 import DataGrid, { type GridColumn, type FilterField } from '@/components/DataGrid';
 import ProductModal from '@/components/ProductModal';
@@ -81,7 +82,7 @@ import {
   setupChannel
 } from '@/lib/messages-api';
 
-type TabType = 'users' | 'product' | 'plan' | 'license' | 'subscriptions' | 'events' | 'messaging' | 'logs';
+type TabType = 'users' | 'product' | 'plan' | 'license' | 'subscriptions' | 'events' | 'messaging' | 'logs' | 'settings';
 type EventSubTab = 'broadcast' | 'subscribe' | 'requests' | 'log';
 type MessagingSubTab = 'setup' | 'templates' | 'logs';
 
@@ -99,6 +100,12 @@ export default function AppDetailPage() {
 
   // Contextual Topbar Logic
   const isHeaderVisibleRef = useRef(true);
+
+  useEffect(() => {
+    if (app) {
+      setRedirectUris(app.oauthRedirectUris || []);
+    }
+  }, [app]);
 
   useEffect(() => {
     if (!app) return;
@@ -214,6 +221,10 @@ export default function AppDetailPage() {
   // Platform Logs state
   const [selectedPlatformLog, setSelectedPlatformLog] = useState<any>(null);
   const [refreshPlatformLogs, setRefreshPlatformLogs] = useState(0);
+  
+  // Settings state
+  const [redirectUris, setRedirectUris] = useState<string[]>([]);
+  const [savingRedirectUris, setSavingRedirectUris] = useState(false);
 
   const platformLogColumns: GridColumn[] = [
     {
@@ -426,6 +437,37 @@ export default function AppDetailPage() {
       showAlert('Template deleted successfully.', 'success');
     } catch (err) {
       showAlert('Failed to delete template', 'error');
+    }
+  };
+
+  const handleAddRedirectUri = () => {
+    setRedirectUris(prev => [...prev, '']);
+  };
+
+  const handleUpdateRedirectUri = (index: number, value: string) => {
+    setRedirectUris(prev => {
+      const newUris = [...prev];
+      newUris[index] = value;
+      return newUris;
+    });
+  };
+
+  const handleRemoveRedirectUri = (index: number) => {
+    setRedirectUris(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const handleSaveRedirectUris = async () => {
+    if (!app) return;
+    try {
+      setSavingRedirectUris(true);
+      const cleanedUris = redirectUris.filter(uri => uri.trim() !== '');
+      const updatedApp = await updateOAuthRedirectUris(app.id, cleanedUris);
+      setApp(updatedApp);
+      showAlert('OAuth redirect URIs saved successfully.', 'success');
+    } catch (err: any) {
+      showAlert(err.message || 'Failed to save redirect URIs', 'error');
+    } finally {
+      setSavingRedirectUris(false);
     }
   };
 
@@ -1231,6 +1273,18 @@ export default function AppDetailPage() {
             <div className="flex items-center gap-2">
               <Terminal className="h-4 w-4" />
               Logs
+            </div>
+          </button>
+          <button
+            onClick={() => setActiveTab('settings')}
+            className={`pb-4 px-1 border-b-2 font-medium text-sm transition-colors ${activeTab === 'settings'
+              ? 'border-[var(--action-primary)] text-[var(--action-primary)]'
+              : 'border-transparent text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+              }`}
+          >
+            <div className="flex items-center gap-2">
+              <SettingsIcon className="h-4 w-4" />
+              Settings
             </div>
           </button>
         </nav>
@@ -2930,6 +2984,66 @@ export default function AppDetailPage() {
                 icon: <Terminal className="w-12 h-12 text-[var(--text-secondary)] opacity-20" />
               }}
             />
+          </div>
+        )}
+
+        {/* Settings Tab */}
+        {activeTab === 'settings' && (
+          <div className="p-6 space-y-8">
+            <div>
+              <h2 className="text-lg font-semibold text-[var(--text-primary)]">OAuth Redirect URIs</h2>
+              <p className="text-sm text-[var(--text-secondary)] mt-1">
+                Manage the whitelist of redirect URIs allowed for OAuth authentication.
+              </p>
+            </div>
+
+            <div className="space-y-4">
+              {redirectUris.map((uri, index) => (
+                <div key={index} className="flex items-center gap-4">
+                  <input
+                    type="url"
+                    value={uri}
+                    onChange={(e) => handleUpdateRedirectUri(index, e.target.value)}
+                    placeholder="https://example.com/callback"
+                    className="flex-1 px-4 py-3 bg-[var(--bg-surface)] border border-[var(--border-default)] rounded-lg text-[var(--text-primary)] placeholder-[var(--text-secondary)] focus:outline-none focus:ring-2 focus:ring-[var(--action-primary)] focus:border-transparent"
+                  />
+                  <button
+                    onClick={() => handleRemoveRedirectUri(index)}
+                    className="p-3 text-[var(--text-danger)] hover:bg-[var(--text-danger)]/10 rounded-lg transition-all"
+                  >
+                    <Trash2 className="h-5 w-5" />
+                  </button>
+                </div>
+              ))}
+
+              <button
+                onClick={handleAddRedirectUri}
+                className="flex items-center gap-2 px-4 py-3 bg-white/5 border border-dashed border-[var(--border-default)] text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-[var(--action-primary)] rounded-lg transition-all"
+              >
+                <Plus className="h-4 w-4" />
+                Add Redirect URI
+              </button>
+            </div>
+
+            <div className="flex justify-end pt-4 border-t border-[var(--border-default)]">
+              <button
+                onClick={handleSaveRedirectUris}
+                disabled={savingRedirectUris}
+                className="flex items-center gap-2 px-6 py-3 bg-[var(--action-primary)] text-white rounded-lg hover:opacity-90 transition-all disabled:opacity-50 disabled:cursor-not-allowed font-medium"
+              >
+                {savingRedirectUris ? (
+                  <>
+                    <div className="h-4 w-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  <>
+                    <Check className="h-4 w-4" />
+                    Save Changes
+                  </>
+                )}
+              </button>
+            </div>
           </div>
         )}
       </div>
