@@ -572,3 +572,41 @@ export async function listWithdrawalRequests(params?: {
     params?.organizationId,
   );
 }
+
+export type AppPaymentMethodSetting = {
+  id: string;
+  provider: string;
+  method: string;
+  fixedFee: number;
+  percentageFee: number;
+  currency: string;
+  orgId: string;
+  appId: string;
+  isActive: boolean;
+  isEnabledForApp: boolean;
+};
+
+export async function listAppPaymentMethodSettings(
+  appId: string,
+  organizationId?: string,
+): Promise<AppPaymentMethodSetting[]> {
+  const qs = new URLSearchParams({ appId });
+  return paymentApiRequest<AppPaymentMethodSetting[]>(
+    `/app-payment-method-settings/available?${qs.toString()}`,
+    { method: 'GET' },
+    organizationId,
+  );
+}
+
+export async function setAppPaymentMethodSetting(
+  paymentMethodFeeId: string,
+  appId: string,
+  isEnabled: boolean,
+  organizationId?: string,
+): Promise<void> {
+  return paymentApiRequest<void>(
+    `/app-payment-method-settings/${encodeURIComponent(paymentMethodFeeId)}`,
+    { method: 'PATCH', body: JSON.stringify({ appId, isEnabled }) },
+    organizationId,
+  );
+}

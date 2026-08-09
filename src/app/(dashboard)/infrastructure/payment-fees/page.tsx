@@ -43,6 +43,18 @@ const feeFilters: FilterField[] = [
     ],
   },
   {
+    key: 'orgId',
+    label: 'Org ID',
+    type: 'text',
+    placeholder: "org slug or 'default'",
+  },
+  {
+    key: 'appId',
+    label: 'App ID',
+    type: 'text',
+    placeholder: "app slug or 'default'",
+  },
+  {
     key: 'is_active',
     label: 'Status',
     type: 'select',
@@ -227,6 +239,19 @@ export default function PaymentFeesPage() {
           {val}
         </span>
       ),
+    },
+    {
+      key: 'orgId',
+      label: 'Scope',
+      render: (_, row) => {
+        const r = row as PaymentMethodFee;
+        const isGlobal = r.orgId === 'default' && r.appId === 'default';
+        return (
+          <span className={`font-mono text-xs ${isGlobal ? 'text-primary font-bold' : 'text-[var(--text-primary)]'}`}>
+            {isGlobal ? 'Global' : `${r.orgId === 'default' ? 'all orgs' : r.orgId} / ${r.appId === 'default' ? 'all apps' : r.appId}`}
+          </span>
+        );
+      },
     },
     {
       key: 'fees',

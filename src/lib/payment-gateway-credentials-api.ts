@@ -1,5 +1,9 @@
 /**
- * Payment Method Fees API Client
+ * Payment Gateway Credentials API Client
+ *
+ * Backend only allows core services (isCoreService=true on this console's
+ * client-app registration) to call these endpoints — see
+ * PaymentGatewayCredentialsController in bagdja-payment-service.
  */
 
 import {
@@ -58,11 +62,7 @@ async function ensureClientToken(): Promise<string> {
   return clientToken;
 }
 
-async function paymentFeesApiRequest<T>(
-  endpoint: string,
-  options: RequestInit = {},
-  organizationId?: string,
-): Promise<T> {
+async function credentialsApiRequest<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
   const clientToken = await ensureClientToken();
   const userToken = getAccessToken();
 
@@ -70,11 +70,7 @@ async function paymentFeesApiRequest<T>(
     throw new Error('User not authenticated');
   }
 
-  const orgSlug = organizationId || getActiveOrganizationSlug();
-  if (!orgSlug) {
-    throw new Error('Organization is required');
-  }
-
+  const orgSlug = getActiveOrganizationSlug() || 'all';
   const orgUuid = getActiveOrganizationId();
   const url = `${getPaymentApiBase()}${endpoint}`;
 
@@ -119,91 +115,62 @@ async function paymentFeesApiRequest<T>(
   return response.json();
 }
 
-export interface PaymentMethodFee {
-  id: string;
+export interface PaymentGatewayCredential {
   provider: string;
-  method: string;
-  fixedFee: number;
-  percentageFee: number;
-  currency: string;
-  orgId: string;
-  appId: string;
-  isActive: boolean;
-  topupRewardFixedFee: number;
-  topupRewardPercentageFee: number;
-  createdAt: string;
-  updatedAt: string;
+  org_id: string;
+  app_id: string;
+  credentials: Record<string, string>;
+  is_sandbox: boolean;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
 }
 
-export type PaymentMethodFeeListResponse = {
-  data: PaymentMethodFee[];
-  total: number;
-  page: number;
-  limit: number;
-};
-
-export type PaymentMethodFeesQuery = {
-  page?: number;
-  limit?: number;
-  size?: number;
-  search?: string;
-  sort?: string;
+export async function getPaymentGatewayCredentials(params?: {
   provider?: string;
-  method?: string;
-  currency?: string;
   orgId?: string;
   appId?: string;
-  isActive?: string;
-};
-
-export async function getPaymentMethodFees(
-  params?: PaymentMethodFeesQuery
-): Promise<PaymentMethodFeeListResponse> {
+}): Promise<PaymentGatewayCredential[]> {
   const qs = new URLSearchParams();
-  const page = params?.page;
-  const limit = params?.limit ?? params?.size;
-
-  if (page) qs.append('page', String(page));
-  if (limit) qs.append('limit', String(limit));
-  if (params?.search) qs.append('search', params.search);
-  if (params?.sort) qs.append('sort', params.sort);
   if (params?.provider) qs.append('provider', params.provider);
-  if (params?.method) qs.append('method', params.method);
-  if (params?.currency) qs.append('currency', params.currency);
   if (params?.orgId) qs.append('orgId', params.orgId);
   if (params?.appId) qs.append('appId', params.appId);
-  if (params?.isActive) qs.append('is_active', params.isActive);
-
   const queryString = qs.toString();
-  const url = queryString ? `/payment-method-fees?${queryString}` : '/payment-method-fees';
-
-  return paymentFeesApiRequest<PaymentMethodFeeListResponse>(url, { method: 'GET' }, 'all');
+  const url = queryString
+    ? `/payment-gateway-credentials?${queryString}`
+    : '/payment-gateway-credentials';
+  return credentialsApiRequest<PaymentGatewayCredential[]>(url, { method: 'GET' });
 }
 
-export async function getActivePaymentMethods(): Promise<PaymentMethodFee[]> {
-  const result = await paymentFeesApiRequest<PaymentMethodFeeListResponse>('/payment-methods', { method: 'GET' }, 'all');
-  return result.data;
-}
-
-export async function createPaymentMethodFee(
-  payload: Omit<PaymentMethodFee, 'id' | 'createdAt' | 'updatedAt'>
-): Promise<PaymentMethodFee> {
-  return paymentFeesApiRequest<PaymentMethodFee>('/payment-method-fees', {
+export async function createPaymentGatewayCredential(payload: {
+  provider: string;
+  org_id?: string;
+  app_id?: string;
+  credentials: Record<string, string>;
+  is_sandbox?: boolean;
+  is_active?: boolean;
+}): Promise<PaymentGatewayCredential> {
+  return credentialsApiRequest<PaymentGatewayCredential>('/payment-gateway-credentials', {
     method: 'POST',
     body: JSON.stringify(payload),
-  }, 'all');
+  });
 }
 
-export async function updatePaymentMethodFee(
-  id: string,
-  payload: Partial<Omit<PaymentMethodFee, 'id' | 'createdAt' | 'updatedAt'>>
-): Promise<PaymentMethodFee> {
-  return paymentFeesApiRequest<PaymentMethodFee>(`/payment-method-fees/${id}`, {
-    method: 'PATCH',
-    body: JSON.stringify(payload),
-  }, 'all');
+export async function updatePaymentGatewayCredential(
+  provider: string,
+  orgId: string,
+  appId: string,
+  payload: Partial<Pick<PaymentGatewayCredential, 'credentials' | 'is_sandbox' | 'is_active'>>,
+): Promise<PaymentGatewayCredential> {
+  return credentialsApiRequest<PaymentGatewayCredential>(
+    `/payment-gateway-credentials/${encodeURIComponent(provider)}/${encodeURIComponent(orgId)}/${encodeURIComponent(appId)}`,
+    { method: 'PATCH', body: JSON.stringify(payload) },
+  );
 }
 
-export async function deletePaymentMethodFee(id: string): Promise<void> {
-  return paymentFeesApiRequest<void>(`/payment-method-fees/${id}`, { method: 'DELETE' }, 'all');
+export async function deletePaymentGatewayCredential(provider: string, orgId: string, appId: string): Promise<void> {
+  return credentialsApiRequest<void>(
+    `/payment-gateway-credentials/${encodeURIComponent(provider)}/${encodeURIComponent(orgId)}/${encodeURIComponent(appId)}`,
+    { method: 'DELETE' },
+  );
 }

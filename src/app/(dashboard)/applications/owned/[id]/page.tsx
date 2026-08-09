@@ -81,10 +81,48 @@ import {
   getChannelSettings,
   setupChannel
 } from '@/lib/messages-api';
+import {
+  listAppPaymentMethodSettings,
+  setAppPaymentMethodSetting,
+} from '@/lib/payment-api';
+import type { AppPaymentMethodSetting } from '@/lib/payment-api';
 
-type TabType = 'users' | 'product' | 'plan' | 'license' | 'subscriptions' | 'events' | 'messaging' | 'logs' | 'settings';
+type TabType = 'users' | 'product' | 'plan' | 'license' | 'subscriptions' | 'events' | 'messaging' | 'payment' | 'logs' | 'settings';
 type EventSubTab = 'broadcast' | 'subscribe' | 'requests' | 'log';
 type MessagingSubTab = 'setup' | 'templates' | 'logs';
+
+// Duitku's `method` values are their own short channel codes (BC, SP, etc.) —
+// map them to a friendly label for display. Keep in sync with
+// DUITKU_PAYMENT_METHODS in PaymentFeeModal.tsx (that's where these rows get
+// created) and DUITKU_METHOD_LABELS in bagdja-pay-web's checkout-client.tsx.
+const DUITKU_METHOD_LABELS: Record<string, string> = {
+  BC: 'BCA Virtual Account',
+  M2: 'Mandiri Virtual Account',
+  BT: 'Permata Virtual Account',
+  B1: 'CIMB Niaga Virtual Account',
+  VA: 'Maybank Virtual Account',
+  I1: 'BNI Virtual Account',
+  A1: 'ATM Bersama Virtual Account',
+  OV: 'OVO',
+  DA: 'DANA',
+  SP: 'ShopeePay / QRIS',
+  VC: 'Credit Card',
+  FT: 'Retail (Indomaret/Alfamart)',
+};
+
+function getPaymentMethodLabel(method: AppPaymentMethodSetting): string {
+  if (method.provider === 'duitku') {
+    return DUITKU_METHOD_LABELS[method.method] ?? method.method;
+  }
+  return method.method.replaceAll('_', ' ').toUpperCase();
+}
+
+function getPaymentProviderLabel(provider: string): string {
+  if (provider === 'duitku') return 'Duitku';
+  if (provider === 'midtrans') return 'Midtrans';
+  if (provider === 'internal-wallet' || provider === 'internal') return 'Bagdja Wallet';
+  return provider.replaceAll('_', ' ');
+}
 
 export default function AppDetailPage() {
   const params = useParams();
@@ -217,6 +255,11 @@ export default function AppDetailPage() {
   const [editingTemplate, setEditingTemplate] = useState<any>(null);
   const [msgLogDetailModalOpen, setMsgLogDetailModalOpen] = useState(false);
   const [selectedMsgLog, setSelectedMsgLog] = useState<any>(null);
+
+  // Payment method settings state
+  const [paymentMethodSettings, setPaymentMethodSettings] = useState<AppPaymentMethodSetting[]>([]);
+  const [paymentMethodSettingsLoading, setPaymentMethodSettingsLoading] = useState(false);
+  const [togglingPaymentMethodId, setTogglingPaymentMethodId] = useState<string | null>(null);
 
   // Platform Logs state
   const [selectedPlatformLog, setSelectedPlatformLog] = useState<any>(null);
@@ -365,6 +408,41 @@ export default function AppDetailPage() {
       fetchChannelSettings();
     }
   }, [activeTab, app?.appId]);
+
+  const fetchPaymentMethodSettings = async () => {
+    if (!app?.appId) return;
+    try {
+      setPaymentMethodSettingsLoading(true);
+      const data = await listAppPaymentMethodSettings(app.appId, app.orgId);
+      setPaymentMethodSettings(data);
+    } catch (err) {
+      console.error('Failed to fetch payment method settings:', err);
+    } finally {
+      setPaymentMethodSettingsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'payment' && app?.appId) {
+      fetchPaymentMethodSettings();
+    }
+  }, [activeTab, app?.appId]);
+
+  const handleTogglePaymentMethod = async (method: AppPaymentMethodSetting) => {
+    if (!app?.appId) return;
+    const nextEnabled = !method.isEnabledForApp;
+    try {
+      setTogglingPaymentMethodId(method.id);
+      await setAppPaymentMethodSetting(method.id, app.appId, nextEnabled, app.orgId);
+      setPaymentMethodSettings((prev) =>
+        prev.map((m) => (m.id === method.id ? { ...m, isEnabledForApp: nextEnabled } : m)),
+      );
+    } catch (err: any) {
+      showAlert(err.message || 'Failed to update payment method', 'error', 'Update Failed');
+    } finally {
+      setTogglingPaymentMethodId(null);
+    }
+  };
 
   const handleChannelSetupSubmit = async (data: any) => {
     if (!app?.appId) return;
@@ -1261,6 +1339,18 @@ export default function AppDetailPage() {
             <div className="flex items-center gap-2">
               <Mail className="h-4 w-4" />
               Messaging
+            </div>
+          </button>
+          <button
+            onClick={() => setActiveTab('payment')}
+            className={`pb-4 px-1 border-b-2 font-medium text-sm transition-colors ${activeTab === 'payment'
+              ? 'border-[var(--action-primary)] text-[var(--action-primary)]'
+              : 'border-transparent text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+              }`}
+          >
+            <div className="flex items-center gap-2">
+              <CreditCard className="h-4 w-4" />
+              Payment
             </div>
           </button>
           <button
@@ -2941,6 +3031,63 @@ export default function AppDetailPage() {
                 </div>
               </div>
             )}
+          </div>
+        )}
+
+        {/* Payment Tab */}
+        {activeTab === 'payment' && (
+          <div className="p-6 h-full flex flex-col overflow-hidden">
+            <div className="flex-shrink-0 mb-6">
+              <h2 className="text-lg font-semibold text-[var(--text-primary)]">Payment Methods</h2>
+              <p className="text-sm text-[var(--text-secondary)] mt-1">
+                Enable or disable the payment methods your buyers can use at checkout. Methods here are
+                configured by Bagdja for your app — you can only turn them off, not add new ones.
+              </p>
+            </div>
+
+            <div className="flex-1 overflow-y-auto">
+              {paymentMethodSettingsLoading ? (
+                <div className="flex items-center justify-center py-16 text-[var(--text-secondary)] text-sm">
+                  Loading payment methods...
+                </div>
+              ) : paymentMethodSettings.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-16 text-center">
+                  <CreditCard className="h-8 w-8 text-[var(--text-secondary)] opacity-50 mb-3" />
+                  <p className="text-sm text-[var(--text-secondary)]">
+                    No payment methods have been configured for your app yet.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-3 max-w-2xl">
+                  {paymentMethodSettings.map((method) => (
+                    <div
+                      key={method.id}
+                      className="flex items-center justify-between p-4 rounded-lg border border-[var(--border-default)] bg-white/5"
+                    >
+                      <div>
+                        <p className="text-sm font-bold text-[var(--text-primary)] uppercase tracking-wide">
+                          {getPaymentProviderLabel(method.provider)}
+                        </p>
+                        <p className="text-xs text-[var(--text-secondary)] mt-0.5">{getPaymentMethodLabel(method)}</p>
+                      </div>
+                      <button
+                        role="switch"
+                        aria-checked={method.isEnabledForApp}
+                        disabled={togglingPaymentMethodId === method.id}
+                        onClick={() => handleTogglePaymentMethod(method)}
+                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors disabled:opacity-50 ${method.isEnabledForApp ? 'bg-[var(--action-primary)]' : 'bg-white/10'
+                          }`}
+                      >
+                        <span
+                          className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${method.isEnabledForApp ? 'translate-x-6' : 'translate-x-1'
+                            }`}
+                        />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         )}
 

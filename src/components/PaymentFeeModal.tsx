@@ -4,8 +4,15 @@ import { useState, useEffect } from 'react';
 import { X, Save } from 'lucide-react';
 import { Button } from '@/ui/button';
 import { Input } from '@/ui/input';
-import { FancySelect } from '@/ui/fancy-select';
+import { FancySelect, type FancySelectOption } from '@/ui/fancy-select';
 import type { PaymentMethodFee } from '@/lib/payment-fees-api';
+import { getAllOrganizations, getAppsByOrgSlug } from '@/lib/api';
+
+const GLOBAL_DEFAULT_OPTION: FancySelectOption = {
+  value: 'default',
+  label: 'Global default',
+  description: 'Visible to every organization / app unless a more specific row exists',
+};
 
 interface PaymentFeeModalProps {
   isOpen: boolean;
@@ -34,11 +41,30 @@ const INTERNAL_PAYMENT_METHODS = [
   'wallet',
 ];
 
+// Duitku's `paymentMethod` values are their own short channel codes (not free-form
+// slugs like Midtrans's) — the `value` here is sent as-is to Duitku's API via
+// DuitkuProvider, so it must match their documented codes exactly.
+const DUITKU_PAYMENT_METHODS = [
+  { value: 'BC', label: 'BCA Virtual Account' },
+  { value: 'M2', label: 'Mandiri Virtual Account' },
+  { value: 'BT', label: 'Permata Virtual Account' },
+  { value: 'B1', label: 'CIMB Niaga Virtual Account' },
+  { value: 'VA', label: 'Maybank Virtual Account' },
+  { value: 'I1', label: 'BNI Virtual Account' },
+  { value: 'A1', label: 'ATM Bersama Virtual Account' },
+  { value: 'OV', label: 'OVO' },
+  { value: 'DA', label: 'DANA' },
+  { value: 'SP', label: 'ShopeePay / QRIS' },
+  { value: 'VC', label: 'Credit Card' },
+  { value: 'FT', label: 'Retail (Indomaret/Alfamart)' },
+];
+
 const CURRENCIES = ['IDR', 'USD'];
 
 const providerOptions = [
   { value: 'midtrans', label: 'Midtrans', description: 'Payment gateway Midtrans' },
   { value: 'internal', label: 'Internal', description: 'Internal wallet payment' },
+  { value: 'duitku', label: 'Duitku', description: 'Payment gateway Duitku' },
 ];
 
 const statusOptions = [
@@ -60,10 +86,71 @@ export default function PaymentFeeModal({
     fixedFee: 0,
     percentageFee: 0,
     currency: 'IDR',
+    orgId: 'default',
+    appId: 'default',
     isActive: true,
     topupRewardFixedFee: 0,
     topupRewardPercentageFee: 0,
   });
+
+  const [orgOptions, setOrgOptions] = useState<FancySelectOption[]>([GLOBAL_DEFAULT_OPTION]);
+  const [orgsLoading, setOrgsLoading] = useState(false);
+  const [appOptions, setAppOptions] = useState<FancySelectOption[]>([GLOBAL_DEFAULT_OPTION]);
+  const [appsLoading, setAppsLoading] = useState(false);
+
+  // Load the org picker once when the modal opens.
+  useEffect(() => {
+    if (!isOpen) return;
+    let cancelled = false;
+    setOrgsLoading(true);
+    getAllOrganizations()
+      .then((orgs) => {
+        if (cancelled) return;
+        setOrgOptions([
+          GLOBAL_DEFAULT_OPTION,
+          ...orgs.map((o) => ({ value: o.orgId, label: o.name, description: o.orgId })),
+        ]);
+      })
+      .catch(() => {
+        if (!cancelled) setOrgOptions([GLOBAL_DEFAULT_OPTION]);
+      })
+      .finally(() => {
+        if (!cancelled) setOrgsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen]);
+
+  // Reload the app picker whenever the selected org changes — apps are scoped to an org.
+  useEffect(() => {
+    if (!isOpen) return;
+    const orgId = formData.orgId || 'default';
+    if (orgId === 'default') {
+      setAppOptions([GLOBAL_DEFAULT_OPTION]);
+      return;
+    }
+    let cancelled = false;
+    setAppsLoading(true);
+    getAppsByOrgSlug(orgId)
+      .then((apps) => {
+        if (cancelled) return;
+        setAppOptions([
+          GLOBAL_DEFAULT_OPTION,
+          ...apps.map((a) => ({ value: a.appId, label: a.appName, description: a.appId })),
+        ]);
+      })
+      .catch(() => {
+        if (!cancelled) setAppOptions([GLOBAL_DEFAULT_OPTION]);
+      })
+      .finally(() => {
+        if (!cancelled) setAppsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, formData.orgId]);
 
   useEffect(() => {
     if (fee && mode === 'edit') {
@@ -75,6 +162,8 @@ export default function PaymentFeeModal({
         fixedFee: 0,
         percentageFee: 0,
         currency: 'IDR',
+        orgId: 'default',
+        appId: 'default',
         isActive: true,
         topupRewardFixedFee: 0,
         topupRewardPercentageFee: 0,
@@ -101,17 +190,22 @@ export default function PaymentFeeModal({
     switch (provider) {
       case 'internal':
         return INTERNAL_PAYMENT_METHODS;
+      case 'duitku':
+        return DUITKU_PAYMENT_METHODS.map((m) => m.value);
       case 'midtrans':
       default:
         return MIDTRANS_PAYMENT_METHODS;
     }
   };
 
-  const paymentMethodOptions = getPaymentMethodsForProvider(formData.provider).map((method) => ({
-    value: method,
-    label: method.replace('_', ' '),
-    description: method,
-  }));
+  const paymentMethodOptions = getPaymentMethodsForProvider(formData.provider).map((method) => {
+    const duitkuMethod = DUITKU_PAYMENT_METHODS.find((m) => m.value === method);
+    return {
+      value: method,
+      label: duitkuMethod?.label ?? method.replace('_', ' '),
+      description: method,
+    };
+  });
 
   const currencyOptions = CURRENCIES.map((currency) => ({
     value: currency,
@@ -147,6 +241,33 @@ export default function PaymentFeeModal({
             options={providerOptions}
             placeholder="Select provider"
           />
+
+          <FancySelect
+            label="Organization"
+            value={formData.orgId || 'default'}
+            onChange={(val) => setFormData((prev) => ({ ...prev, orgId: val, appId: 'default' }))}
+            disabled={isSubmitting || orgsLoading}
+            loading={orgsLoading}
+            searchable
+            options={orgOptions}
+            placeholder="Search organization or pick Global default"
+          />
+
+          <FancySelect
+            label="App"
+            value={formData.appId || 'default'}
+            onChange={(val) => setFormData((prev) => ({ ...prev, appId: val }))}
+            disabled={isSubmitting || (formData.orgId || 'default') === 'default' || appsLoading}
+            loading={appsLoading}
+            searchable
+            options={appOptions}
+            placeholder={(formData.orgId || 'default') === 'default' ? 'Pick a specific organization first' : 'Search app or pick Global default'}
+          />
+          <p className="text-xs text-[var(--text-secondary)] -mt-2">
+            If this org/app has ANY active method configured, buyers see <strong>only</strong> those —
+            global methods are hidden for this scope, not merged. Leave both as Global default to
+            keep this method available everywhere.
+          </p>
 
           <FancySelect
             label="Payment Method"
