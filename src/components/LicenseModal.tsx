@@ -21,6 +21,7 @@ export default function LicenseModal({ isOpen, onClose, onSubmit, license, appId
     maxUsers: 1,
     expTime: null,
     price: 0,
+    currency: 'IDR',
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -36,6 +37,7 @@ export default function LicenseModal({ isOpen, onClose, onSubmit, license, appId
         maxUsers: license.maxUsers,
         expTime: license.expTime,
         price: Number(license.price),
+        currency: license.currency || 'IDR',
         metadata: license.metadata || {},
       });
       setExpTimeInput(license.expTime?.toString() || '');
@@ -49,6 +51,7 @@ export default function LicenseModal({ isOpen, onClose, onSubmit, license, appId
         maxUsers: 1,
         expTime: null,
         price: 0,
+        currency: 'IDR',
         metadata: {},
       });
       setExpTimeInput('');
@@ -148,8 +151,8 @@ export default function LicenseModal({ isOpen, onClose, onSubmit, license, appId
               required
               disabled={loading}
             >
-              <option value="org">Organization</option>
-              <option value="app">App</option>
+              <option value={LicenseType.ORG}>Organization</option>
+              <option value={LicenseType.APP}>App</option>
             </Select>
 
             <Input
@@ -198,16 +201,27 @@ export default function LicenseModal({ isOpen, onClose, onSubmit, license, appId
             </div>
           </div>
 
-          <Input
-            label="Price (BP)"
-            type="number"
-            min="0"
-            step="0.01"
-            value={formData.price}
-            onChange={(e) => setFormData({ ...formData, price: parseFloat(e.target.value) || 0 })}
-            required
-            disabled={loading}
-          />
+          <div className="grid grid-cols-2 gap-4">
+            <Input
+              label="Price"
+              type="number"
+              min="0"
+              step="0.01"
+              value={formData.price}
+              onChange={(e) => setFormData({ ...formData, price: parseFloat(e.target.value) || 0 })}
+              required
+              disabled={loading}
+            />
+
+            <Input
+              label="Currency"
+              value={formData.currency || 'IDR'}
+              onChange={(e) => setFormData({ ...formData, currency: e.target.value.toUpperCase() })}
+              disabled={loading}
+              placeholder="IDR"
+              maxLength={3}
+            />
+          </div>
 
           <div className="border-t border-[var(--border-default)] pt-4">
             <div className="flex items-center justify-between mb-3">

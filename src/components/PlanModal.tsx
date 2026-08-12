@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import type { Plan, CreatePlanRequest, UpdatePlanRequest, ApiError } from '@/types';
-import { PlanStatus, PlanDuration } from '@/types';
+import { PlanDuration } from '@/types';
 import { Input } from '@/ui/input';
 import { Select } from '@/ui/select';
 import { X, Plus, Trash2, Code2, AlertCircle } from 'lucide-react';
@@ -17,13 +17,14 @@ interface PlanModalProps {
 
 export default function PlanModal({ isOpen, onClose, onSubmit, plan, appId: _appId }: PlanModalProps) {
   const [formData, setFormData] = useState<CreatePlanRequest>({
+    code: '',
     name: '',
     description: '',
     price: 0,
+    currency: 'IDR',
     duration: PlanDuration.MONTHLY,
-    durationValue: 30,
+    durationValue: 1,
     features: [],
-    status: PlanStatus.ACTIVE,
     isActive: true,
   });
   const [loading, setLoading] = useState(false);
@@ -35,14 +36,15 @@ export default function PlanModal({ isOpen, onClose, onSubmit, plan, appId: _app
   useEffect(() => {
     if (plan) {
       setFormData({
+        code: plan.code,
         name: plan.name,
         description: plan.description || '',
         price: Number(plan.price),
+        currency: plan.currency || 'IDR',
         duration: plan.duration,
         durationValue: plan.durationValue || undefined,
         features: plan.features || [],
         metadata: plan.metadata || {},
-        status: plan.status,
         isActive: plan.isActive,
       });
       // Format metadata as JSON string
@@ -50,14 +52,15 @@ export default function PlanModal({ isOpen, onClose, onSubmit, plan, appId: _app
       setMetadataJson(JSON.stringify(metadata, null, 2));
     } else {
       setFormData({
+        code: '',
         name: '',
         description: '',
         price: 0,
+        currency: 'IDR',
         duration: PlanDuration.MONTHLY,
-        durationValue: 30,
+        durationValue: 1,
         features: [],
         metadata: {},
-        status: PlanStatus.ACTIVE,
         isActive: true,
       });
       setMetadataJson('{}');
@@ -177,6 +180,15 @@ export default function PlanModal({ isOpen, onClose, onSubmit, plan, appId: _app
             placeholder="e.g., Premium Plan"
           />
 
+          <Input
+            label="Code"
+            value={formData.code || ''}
+            onChange={(e) => setFormData({ ...formData, code: e.target.value })}
+            disabled={loading}
+            placeholder="Leave empty to auto-generate from name"
+            helpText="Unique slug per app — auto-generated from name if left empty"
+          />
+
           <div>
             <label className="block text-sm font-medium text-[var(--text-primary)] mb-1">
               Description
@@ -193,7 +205,7 @@ export default function PlanModal({ isOpen, onClose, onSubmit, plan, appId: _app
 
           <div className="grid grid-cols-2 gap-4">
             <Input
-              label="Price (BP)"
+              label="Price"
               type="number"
               min="0"
               step="0.01"
@@ -203,30 +215,41 @@ export default function PlanModal({ isOpen, onClose, onSubmit, plan, appId: _app
               disabled={loading}
             />
 
+            <Input
+              label="Currency"
+              value={formData.currency || 'IDR'}
+              onChange={(e) => setFormData({ ...formData, currency: e.target.value.toUpperCase() })}
+              disabled={loading}
+              placeholder="IDR"
+              maxLength={3}
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
             <Select
-              label="Duration Type"
+              label="Billing Interval"
               value={formData.duration}
               onChange={(e) => setFormData({ ...formData, duration: e.target.value as PlanDuration })}
               required
               disabled={loading}
             >
-              <option value="daily">Daily</option>
-              <option value="weekly">Weekly</option>
-              <option value="monthly">Monthly</option>
-              <option value="yearly">Yearly</option>
+              <option value={PlanDuration.DAILY}>Daily</option>
+              <option value={PlanDuration.WEEKLY}>Weekly</option>
+              <option value={PlanDuration.MONTHLY}>Monthly</option>
+              <option value={PlanDuration.YEARLY}>Yearly</option>
             </Select>
-          </div>
 
-          <Input
-            label="Duration Value"
-            type="number"
-            min="1"
-            value={formData.durationValue || ''}
-            onChange={(e) => setFormData({ ...formData, durationValue: parseInt(e.target.value) || undefined })}
-            disabled={loading}
-            placeholder="e.g., 30 for 30 days"
-            helpText="Number of units (days, weeks, months, or years) based on duration type"
-          />
+            <Input
+              label="Interval Count"
+              type="number"
+              min="1"
+              value={formData.durationValue || ''}
+              onChange={(e) => setFormData({ ...formData, durationValue: parseInt(e.target.value) || undefined })}
+              disabled={loading}
+              placeholder="e.g., 3 for quarterly"
+              helpText="Mis. 3 utk quarterly (interval=Monthly, count=3)"
+            />
+          </div>
 
           <div className="border-t border-[var(--border-default)] pt-4">
             <div className="flex items-center justify-between mb-3">
@@ -334,29 +357,17 @@ export default function PlanModal({ isOpen, onClose, onSubmit, plan, appId: _app
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <Select
-              label="Status"
-              value={formData.status}
-              onChange={(e) => setFormData({ ...formData, status: e.target.value as PlanStatus })}
-              disabled={loading}
-            >
-              <option value="active">Active</option>
-              <option value="inactive">Inactive</option>
-            </Select>
-
-            <div>
-              <label className="flex items-center gap-2 mt-6">
-                <input
-                  type="checkbox"
-                  checked={formData.isActive}
-                  onChange={(e) => setFormData({ ...formData, isActive: e.target.checked })}
-                  disabled={loading}
-                  className="w-4 h-4 rounded border-[var(--border-default)] text-[var(--action-primary)] focus:ring-[var(--action-primary)]"
-                />
-                <span className="text-sm text-[var(--text-primary)]">Is Active</span>
-              </label>
-            </div>
+          <div>
+            <label className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={formData.isActive}
+                onChange={(e) => setFormData({ ...formData, isActive: e.target.checked })}
+                disabled={loading}
+                className="w-4 h-4 rounded border-[var(--border-default)] text-[var(--action-primary)] focus:ring-[var(--action-primary)]"
+              />
+              <span className="text-sm text-[var(--text-primary)]">Is Active</span>
+            </label>
           </div>
 
           <div className="flex justify-end gap-3 pt-4 border-t border-[var(--border-default)]">

@@ -151,16 +151,19 @@ export interface UpdateAssetGroupRequest {
 
 // License Types
 export enum LicenseType {
-  ORG = 'org',
-  APP = 'app',
+  ORG = 'ORG',
+  APP = 'APP',
 }
 
 export enum LicenseStatus {
-  AVAILABLE = 'available',
-  PURCHASED = 'purchased',
-  REVOKED = 'revoked',
+  AVAILABLE = 'AVAILABLE',
+  PURCHASED = 'PURCHASED',
+  REVOKED = 'REVOKED',
 }
 
+// Dipindah dari bagdja-auth ke bagdja-payment-service (lihat
+// refactoring-payment-service.md §3.3). `orgId` sekarang string opaque
+// (slug), bukan lagi FK ke tabel organizations.
 export interface License {
   id: string;
   appId: string;
@@ -169,11 +172,12 @@ export interface License {
   maxUsers: number;
   expTime: number | null;
   price: number;
+  currency: string;
   licenseKey: string;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   metadata: Record<string, any> | null;
   status: LicenseStatus;
-  organizationId: string | null;
+  orgId: string | null;
   organizationName?: string | null;
   purchasedAt: Date | null;
   expiresAt: Date | null;
@@ -186,6 +190,7 @@ export interface CreateLicenseRequest {
   maxUsers: number;
   expTime?: number | null;
   price: number;
+  currency?: string;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   metadata?: Record<string, any>;
 }
@@ -195,76 +200,85 @@ export interface UpdateLicenseRequest {
   maxUsers?: number;
   expTime?: number | null;
   price?: number;
+  currency?: string;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   metadata?: Record<string, any>;
 }
 
 export interface BuyLicenseResponse {
-  licenseKey: string;
   licenseId: string;
-  transactionId: string;
+  licenseKey: string;
+  amount: number;
+  currency: string;
+  platformFeeAmount: number;
+  orgId: string | null;
+  purchasedAt: Date | null;
+  expiresAt: Date | null;
 }
 
-// Plan Types
+// Plan Types — sekarang "Subscription Plan" di bagdja-payment-service
+// (merge dgn Plan lama bagdja-auth, lihat refactoring-payment-service.md §3.2).
 export enum PlanDuration {
-  DAILY = 'daily',
-  WEEKLY = 'weekly',
-  MONTHLY = 'monthly',
-  YEARLY = 'yearly',
-}
-
-export enum PlanStatus {
-  ACTIVE = 'active',
-  INACTIVE = 'inactive',
+  DAILY = 'DAILY',
+  WEEKLY = 'WEEKLY',
+  MONTHLY = 'MONTHLY',
+  YEARLY = 'YEARLY',
 }
 
 export interface Plan {
   id: string;
   appId: string;
+  orgId: string;
+  /** Slug unik per app+org, auto-generate dari `name` kalau tidak diisi */
+  code: string;
   name: string;
   description: string | null;
   price: number;
+  currency: string;
   duration: PlanDuration;
   durationValue: number | null;
+  /** UI tetap menampilkan sbg list string; disimpan sbg `{ list: string[] }` di `features` */
   features: string[] | null;
+  trialPeriodDays: number | null;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   metadata: Record<string, any> | null;
-  status: PlanStatus;
   isActive: boolean;
   createdAt: Date;
   updatedAt: Date;
 }
 
 export interface CreatePlanRequest {
+  code?: string;
   name: string;
   description?: string;
   price: number;
+  currency?: string;
   duration: PlanDuration;
   durationValue?: number;
   features?: string[];
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   metadata?: Record<string, any>;
-  status?: PlanStatus;
   isActive?: boolean;
 }
 
 export interface UpdatePlanRequest {
+  code?: string;
   name?: string;
   description?: string;
   price?: number;
+  currency?: string;
   duration?: PlanDuration;
   durationValue?: number;
   features?: string[];
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   metadata?: Record<string, any>;
-  status?: PlanStatus;
   isActive?: boolean;
 }
 
 // Product Types
 export enum ProductStatus {
-  ACTIVE = 'active',
-  INACTIVE = 'inactive',
+  ACTIVE = 'ACTIVE',
+  INACTIVE = 'INACTIVE',
 }
 
 export interface Product {
@@ -311,6 +325,12 @@ export interface UpdateProductRequest {
 }
 
 // Subscription Types
+/**
+ * @deprecated Endpoint auth `/subscriptions/*` yang men-supply data ini sudah
+ * dihapus di Fase 1.D (refactoring-payment-service.md). Belum ada pengganti
+ * di payment-service utk kasus "org membeli akses Plan app pihak ke-3" —
+ * fitur ini di-nonaktifkan sementara di UI (lihat subscriptions/page.tsx).
+ */
 export enum SubscriptionStatus {
   ACTIVE = 'active',
   EXPIRED = 'expired',

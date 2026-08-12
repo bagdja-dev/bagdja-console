@@ -66,8 +66,8 @@ export default function LicensesPage() {
         }
         setApp(foundApp);
 
-        // Fetch licenses
-        const data = await getLicenses(foundApp.id);
+        // Fetch licenses (appId = slug, sesuai payment-service)
+        const data = await getLicenses(foundApp.appId);
         setLicenses(data);
         setLoading(false);
       } catch (err) {
@@ -103,11 +103,11 @@ export default function LicensesPage() {
 
   const getStatusColor = (status: LicenseStatus) => {
     switch (status) {
-      case 'available':
+      case 'AVAILABLE':
         return 'bg-blue-500/10 text-blue-600';
-      case 'purchased':
+      case 'PURCHASED':
         return 'bg-green-500/10 text-green-600';
-      case 'revoked':
+      case 'REVOKED':
         return 'bg-red-500/10 text-red-600';
       default:
         return 'bg-gray-500/10 text-gray-600';
@@ -125,9 +125,9 @@ export default function LicensesPage() {
   };
 
   const refreshLicenses = async () => {
-    if (!app?.id) return;
+    if (!app?.appId) return;
     try {
-      const data = await getLicenses(app.id);
+      const data = await getLicenses(app.appId);
       setLicenses(data);
     } catch (err) {
       const apiError = err as ApiError;
@@ -137,8 +137,8 @@ export default function LicensesPage() {
   };
 
   const handleCreateLicense = async (data: CreateLicenseRequest) => {
-    if (!app?.id) return;
-    await createLicense(app.id, data);
+    if (!app?.appId) return;
+    await createLicense(app.appId, data);
     await refreshLicenses();
   };
 
@@ -179,7 +179,7 @@ export default function LicensesPage() {
   };
 
   const openEditModal = (license: License) => {
-    if (license.status !== 'available') {
+    if (license.status !== 'AVAILABLE') {
       showAlert('Only available licenses can be edited', 'warning');
       return;
     }
@@ -325,7 +325,7 @@ export default function LicensesPage() {
                     </td>
                     <td className="py-3 px-4">
                       <div className="flex items-center gap-2">
-                        {license.status === 'available' && (
+                        {license.status === 'AVAILABLE' && (
                           <>
                             <button
                               className="p-1 text-[var(--text-secondary)] hover:text-[var(--action-primary)] transition-colors"
@@ -360,7 +360,7 @@ export default function LicensesPage() {
           onClose={closeLicenseModal}
           onSubmit={handleLicenseSubmit}
           license={editingLicense}
-          appId={app.id}
+          appId={app.appId}
         />
       )}
 

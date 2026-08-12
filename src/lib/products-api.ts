@@ -1,21 +1,33 @@
 /**
  * Products API Client
- * Handles all API calls related to products
+ * Handles all API calls related to products.
+ *
+ * Dipindah dari bagdja-auth ke bagdja-payment-service (lihat
+ * refactoring-payment-service.md §5). `appId` yang dipakai di sini adalah
+ * slug app (`ClientApp.appId`), bukan lagi UUID `ClientApp.id`.
  */
 
-import { 
-  getAccessToken, 
+import {
+  getAccessToken,
   removeAccessToken,
   getClientToken,
   setClientToken,
   isClientTokenExpired,
 } from './auth';
-import type { 
+import type {
   Product,
   CreateProductRequest,
   UpdateProductRequest,
   ApiError,
 } from '@/types';
+
+function getPaymentApiBase(): string {
+  const apiBase = process.env.NEXT_PUBLIC_PAYMENT_API;
+  if (!apiBase) {
+    throw new Error('NEXT_PUBLIC_PAYMENT_API environment variable is required. Please set it in your .env file.');
+  }
+  return apiBase;
+}
 
 const AUTH_API_BASE = process.env.NEXT_PUBLIC_AUTH_API || 'https://auth.bagdja.com';
 
@@ -24,14 +36,16 @@ const CLIENT_APP_ID = process.env.NEXT_PUBLIC_CLIENT_APP_ID || 'user-console';
 const CLIENT_APP_SECRET = process.env.NEXT_PUBLIC_CLIENT_APP_SECRET || 'a9F3kL2P8QwZx7C0M5eB1R4H6TnUJDYVSm';
 
 /**
- * Get or refresh client app token (x-api-token)
+ * Get or refresh client app token (x-api-token).
+ * Token tetap didapat dari bagdja-auth (`/auth/client`) — hanya endpoint
+ * resource-nya yang berpindah ke payment-service.
  */
 async function ensureClientToken(): Promise<string> {
   const clientToken = getClientToken();
-  
+
   if (!clientToken || isClientTokenExpired()) {
     const url = `${AUTH_API_BASE}/auth/client`;
-    
+
     const requestBody = {
       app_id: CLIENT_APP_ID,
       app_secret: CLIENT_APP_SECRET,
@@ -63,15 +77,15 @@ async function ensureClientToken(): Promise<string> {
 
     const data = await response.json();
     setClientToken(data['x-api-token'], data.expires_in);
-    
+
     return data['x-api-token'];
   }
-  
+
   return clientToken;
 }
 
 /**
- * Make authenticated API request
+ * Make authenticated API request to bagdja-payment-service
  */
 async function apiRequest<T>(
   endpoint: string,
@@ -79,8 +93,8 @@ async function apiRequest<T>(
 ): Promise<T> {
   const clientToken = await ensureClientToken();
   const userToken = getAccessToken();
-  
-  const url = `${AUTH_API_BASE}${endpoint}`;
+
+  const url = `${getPaymentApiBase()}${endpoint}`;
 
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
@@ -95,6 +109,7 @@ async function apiRequest<T>(
   const response = await fetch(url, {
     ...options,
     headers,
+    cache: options.cache || 'no-store',
   });
 
   if (!response.ok) {
@@ -120,14 +135,18 @@ async function apiRequest<T>(
     throw error;
   }
 
+  if (response.status === 204) {
+    return undefined as T;
+  }
+
   return response.json();
 }
 
 /**
- * Get all products for an app
+ * Get all products for an app (appId = slug, mis. "bagdja-course")
  */
 export async function getProducts(appId: string): Promise<Product[]> {
-  return apiRequest<Product[]>(`/products?appId=${appId}`);
+  return apiRequest<Product[]>(`/products?appId=${encodeURIComponent(appId)}`);
 }
 
 /**
@@ -138,15 +157,16 @@ export async function getProduct(id: string): Promise<Product> {
 }
 
 /**
- * Create a new product
+ * Create a new product. `appId` (slug) dikirim di body, bukan query string
+ * (beda dgn endpoint auth yg lama).
  */
 export async function createProduct(
   appId: string,
   data: CreateProductRequest
 ): Promise<Product> {
-  return apiRequest<Product>(`/products?appId=${appId}`, {
+  return apiRequest<Product>('/products', {
     method: 'POST',
-    body: JSON.stringify(data),
+    body: JSON.stringify({ ...data, appId }),
   });
 }
 
@@ -171,4 +191,3 @@ export async function deleteProduct(id: string): Promise<void> {
     method: 'DELETE',
   });
 }
-

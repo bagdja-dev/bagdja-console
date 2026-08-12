@@ -7,9 +7,8 @@ import { getClientApps, getAppUsers, updateOAuthRedirectUris } from '@/lib/api';
 import { getProducts, createProduct, updateProduct, deleteProduct } from '@/lib/products-api';
 import { getPlans, createPlan, updatePlan, deletePlan } from '@/lib/plans-api';
 import { getLicenses, getPurchasedLicenses, createLicense, updateLicense, deleteLicense } from '@/lib/licenses-api';
-import { getAppSubscriptions } from '@/lib/subscriptions-api';
 import { ChannelType } from '@/types';
-import type { ClientApp, ApiError, Product, Plan, PlanDuration, AppUser, CreateProductRequest, UpdateProductRequest, CreatePlanRequest, UpdatePlanRequest, License, CreateLicenseRequest, UpdateLicenseRequest, LicenseStatus, Subscription, SubscriptionStatus } from '@/types';
+import type { ClientApp, ApiError, Product, Plan, PlanDuration, AppUser, CreateProductRequest, UpdateProductRequest, CreatePlanRequest, UpdatePlanRequest, License, CreateLicenseRequest, UpdateLicenseRequest, LicenseStatus } from '@/types';
 import { getLogs } from '@/lib/logs-api';
 import { 
   ArrowLeft, 
@@ -227,11 +226,6 @@ export default function AppDetailPage() {
   const [purchasedLicensesError, setPurchasedLicensesError] = useState<string | null>(null);
 
   // Subscriptions state
-  const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
-  const [subscriptionsLoading, setSubscriptionsLoading] = useState(false);
-  const [subscriptionsError, setSubscriptionsError] = useState<string | null>(null);
-  const [subscriptionFilter, setSubscriptionFilter] = useState<'all' | 'active' | 'expired' | 'cancelled'>('all');
-
   // Events state
   const [eventSubTab, setEventSubTab] = useState<EventSubTab>('broadcast');
   const [refreshContracts, setRefreshContracts] = useState(0);
@@ -618,7 +612,7 @@ export default function AppDetailPage() {
       try {
         setProductsLoading(true);
         setProductsError(null);
-        const data = await getProducts(app.id);
+        const data = await getProducts(app.appId);
         setProducts(data);
       } catch (err) {
         const apiError = err as ApiError;
@@ -640,7 +634,7 @@ export default function AppDetailPage() {
       try {
         setPlansLoading(true);
         setPlansError(null);
-        const data = await getPlans(app.id);
+        const data = await getPlans(app.appId);
         setPlans(data);
       } catch (err) {
         const apiError = err as ApiError;
@@ -662,7 +656,7 @@ export default function AppDetailPage() {
       try {
         setLicensesLoading(true);
         setLicensesError(null);
-        const data = await getLicenses(app.id);
+        const data = await getLicenses(app.appId);
         setLicenses(data);
       } catch (err) {
         const apiError = err as ApiError;
@@ -684,7 +678,7 @@ export default function AppDetailPage() {
       try {
         setPurchasedLicensesLoading(true);
         setPurchasedLicensesError(null);
-        const data = await getPurchasedLicenses(app.id);
+        const data = await getPurchasedLicenses(app.appId);
         setPurchasedLicenses(data);
       } catch (err) {
         const apiError = err as ApiError;
@@ -698,27 +692,12 @@ export default function AppDetailPage() {
     fetchPurchasedLicenses();
   }, [activeTab, licenseFilter, app?.id]);
 
-  // Fetch subscriptions when subscriptions tab is active
-  useEffect(() => {
-    const fetchSubscriptions = async () => {
-      if (activeTab !== 'subscriptions' || !app?.id) return;
-
-      try {
-        setSubscriptionsLoading(true);
-        setSubscriptionsError(null);
-        const data = await getAppSubscriptions(app.id);
-        setSubscriptions(data);
-      } catch (err) {
-        const apiError = err as ApiError;
-        setSubscriptionsError(apiError.message || 'Failed to fetch subscriptions');
-        console.error('Failed to fetch subscriptions:', err);
-      } finally {
-        setSubscriptionsLoading(false);
-      }
-    };
-
-    fetchSubscriptions();
-  }, [activeTab, app?.id]);
+  // Subscriptions tab — feature dinonaktifkan sementara (lihat render tab
+  // di bawah). Endpoint `bagdja-auth` `/subscriptions/app/:appId` yg dulu
+  // men-supply data ini sudah dihapus di refactoring-payment-service.md
+  // Fase 1.D (Subscription entity di auth tidak lagi dipakai). Belum ada
+  // pengganti di payment-service utk kasus "org lain berlangganan Plan app
+  // ini" — lihat catatan di refactoring-payment-service.md §5.
 
 
 
@@ -764,10 +743,10 @@ export default function AppDetailPage() {
   const getDurationLabel = (duration: PlanDuration, durationValue: number | null): string => {
     if (!durationValue) return duration;
     const labels: Record<PlanDuration, string> = {
-      daily: `${durationValue} day${durationValue > 1 ? 's' : ''}`,
-      weekly: `${durationValue} week${durationValue > 1 ? 's' : ''}`,
-      monthly: `${durationValue} month${durationValue > 1 ? 's' : ''}`,
-      yearly: `${durationValue} year${durationValue > 1 ? 's' : ''}`,
+      DAILY: `${durationValue} day${durationValue > 1 ? 's' : ''}`,
+      WEEKLY: `${durationValue} week${durationValue > 1 ? 's' : ''}`,
+      MONTHLY: `${durationValue} month${durationValue > 1 ? 's' : ''}`,
+      YEARLY: `${durationValue} year${durationValue > 1 ? 's' : ''}`,
     };
     return labels[duration] || duration;
   };
@@ -784,36 +763,15 @@ export default function AppDetailPage() {
 
   const getLicenseStatusColor = (status: LicenseStatus) => {
     switch (status) {
-      case 'available':
+      case 'AVAILABLE':
         return 'bg-blue-500/10 text-blue-600';
-      case 'purchased':
+      case 'PURCHASED':
         return 'bg-green-500/10 text-green-600';
-      case 'revoked':
+      case 'REVOKED':
         return 'bg-red-500/10 text-red-600';
       default:
         return 'bg-gray-500/10 text-gray-600';
     }
-  };
-
-  const getSubscriptionStatusColor = (status: SubscriptionStatus) => {
-    switch (status) {
-      case 'active':
-        return 'bg-green-500/10 text-green-600';
-      case 'expired':
-        return 'bg-gray-500/10 text-gray-600';
-      case 'cancelled':
-        return 'bg-red-500/10 text-red-600';
-      default:
-        return 'bg-gray-500/10 text-gray-600';
-    }
-  };
-
-  const calculateDaysRemaining = (endDate: Date | string): number | null => {
-    const end = typeof endDate === 'string' ? new Date(endDate) : endDate;
-    const now = new Date();
-    const diffTime = end.getTime() - now.getTime();
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    return diffDays > 0 ? diffDays : null;
   };
 
   const handleCopyLicenseKey = async (key: string) => {
@@ -827,11 +785,11 @@ export default function AppDetailPage() {
   };
 
   const refreshProducts = async () => {
-    if (!app?.id) return;
+    if (!app?.appId) return;
     try {
       setProductsLoading(true);
       setProductsError(null);
-      const data = await getProducts(app.id);
+      const data = await getProducts(app.appId);
       setProducts(data);
     } catch (err) {
       const apiError = err as ApiError;
@@ -843,8 +801,8 @@ export default function AppDetailPage() {
   };
 
   const handleCreateProduct = async (data: CreateProductRequest) => {
-    if (!app?.id) return;
-    await createProduct(app.id, data);
+    if (!app?.appId) return;
+    await createProduct(app.appId, data);
     await refreshProducts();
   };
 
@@ -1000,11 +958,11 @@ export default function AppDetailPage() {
   };
 
   const refreshPlans = async () => {
-    if (!app?.id) return;
+    if (!app?.appId) return;
     try {
       setPlansLoading(true);
       setPlansError(null);
-      const data = await getPlans(app.id);
+      const data = await getPlans(app.appId);
       setPlans(data);
     } catch (err) {
       const apiError = err as ApiError;
@@ -1016,8 +974,8 @@ export default function AppDetailPage() {
   };
 
   const handleCreatePlan = async (data: CreatePlanRequest) => {
-    if (!app?.id) return;
-    await createPlan(app.id, data);
+    if (!app?.appId) return;
+    await createPlan(app.appId, data);
     await refreshPlans();
   };
 
@@ -1068,11 +1026,11 @@ export default function AppDetailPage() {
   };
 
   const refreshLicenses = async () => {
-    if (!app?.id) return;
+    if (!app?.appId) return;
     try {
       setLicensesLoading(true);
       setLicensesError(null);
-      const data = await getLicenses(app.id);
+      const data = await getLicenses(app.appId);
       setLicenses(data);
 
       // Also refresh purchased licenses if filter is 'sold'
@@ -1080,7 +1038,7 @@ export default function AppDetailPage() {
         try {
           setPurchasedLicensesLoading(true);
           setPurchasedLicensesError(null);
-          const purchasedData = await getPurchasedLicenses(app.id);
+          const purchasedData = await getPurchasedLicenses(app.appId);
           setPurchasedLicenses(purchasedData);
         } catch (err) {
           const apiError = err as ApiError;
@@ -1100,8 +1058,8 @@ export default function AppDetailPage() {
   };
 
   const handleCreateLicense = async (data: CreateLicenseRequest) => {
-    if (!app?.id) return;
-    await createLicense(app.id, data);
+    if (!app?.appId) return;
+    await createLicense(app.appId, data);
     await refreshLicenses();
   };
 
@@ -1142,7 +1100,7 @@ export default function AppDetailPage() {
   };
 
   const openEditLicenseModal = (license: License) => {
-    if (license.status !== 'available') {
+    if (license.status !== 'AVAILABLE') {
       showAlert('Only available licenses can be edited', 'warning');
       return;
     }
@@ -1591,7 +1549,7 @@ export default function AppDetailPage() {
                         </td>
                         <td className="py-3 px-4">
                           <span
-                            className={`px-2 py-1 rounded text-xs font-medium ${product.status === 'active'
+                            className={`px-2 py-1 rounded text-xs font-medium ${product.status === 'ACTIVE'
                               ? 'bg-green-500/10 text-green-600'
                               : 'bg-gray-500/10 text-gray-600'
                               }`}
@@ -1710,12 +1668,12 @@ export default function AppDetailPage() {
                         </td>
                         <td className="py-3 px-4">
                           <span
-                            className={`px-2 py-1 rounded text-xs font-medium ${plan.status === 'active'
+                            className={`px-2 py-1 rounded text-xs font-medium ${plan.isActive
                               ? 'bg-green-500/10 text-green-600'
                               : 'bg-gray-500/10 text-gray-600'
                               }`}
                           >
-                            {plan.status}
+                            {plan.isActive ? 'Active' : 'Inactive'}
                           </span>
                         </td>
                         <td className="py-3 px-4">
@@ -1804,7 +1762,7 @@ export default function AppDetailPage() {
               if (licenseFilter === 'all') {
                 displayData = licenses;
               } else if (licenseFilter === 'available') {
-                displayData = licenses.filter((l) => l.status === 'available');
+                displayData = licenses.filter((l) => l.status === 'AVAILABLE');
               } else if (licenseFilter === 'sold') {
                 displayData = purchasedLicenses;
               }
@@ -1903,7 +1861,7 @@ export default function AppDetailPage() {
                               </td>
                               <td className="py-3 px-4">
                                 <div className="flex items-center gap-2">
-                                  {license.status === 'available' && (
+                                  {license.status === 'AVAILABLE' && (
                                     <>
                                       <button
                                         className="p-1 text-[var(--text-secondary)] hover:text-[var(--action-primary)] transition-colors"
@@ -1937,153 +1895,16 @@ export default function AppDetailPage() {
 
         {/* Subscriptions Tab */}
         {activeTab === 'subscriptions' && (
-          <div className="p-6">
-            <div className="mb-4 flex items-center justify-between">
-              <div>
-                <h2 className="text-lg font-semibold text-[var(--text-primary)]">Subscriptions</h2>
-                <p className="text-sm text-[var(--text-secondary)] mt-1">
-                  Manage subscriptions for this application
-                </p>
-              </div>
-            </div>
-
-            {/* Segmented Control for Filter */}
-            <div className="mb-6 flex gap-2">
-              <button
-                onClick={() => setSubscriptionFilter('all')}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${subscriptionFilter === 'all'
-                  ? 'bg-[var(--action-primary)] text-white'
-                  : 'bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]'
-                  }`}
-              >
-                All
-              </button>
-              <button
-                onClick={() => setSubscriptionFilter('active')}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${subscriptionFilter === 'active'
-                  ? 'bg-[var(--action-primary)] text-white'
-                  : 'bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]'
-                  }`}
-              >
-                Active
-              </button>
-              <button
-                onClick={() => setSubscriptionFilter('expired')}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${subscriptionFilter === 'expired'
-                  ? 'bg-[var(--action-primary)] text-white'
-                  : 'bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]'
-                  }`}
-              >
-                Expired
-              </button>
-              <button
-                onClick={() => setSubscriptionFilter('cancelled')}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${subscriptionFilter === 'cancelled'
-                  ? 'bg-[var(--action-primary)] text-white'
-                  : 'bg-[var(--bg-surface)] text-[var(--text-secondary)] hover:bg-[var(--bg-hover)]'
-                  }`}
-              >
-                Cancelled
-              </button>
-            </div>
-
-            {/* Determine which data to display based on filter */}
-            {(() => {
-              let displayData: Subscription[] = [];
-
-              if (subscriptionFilter === 'all') {
-                displayData = subscriptions;
-              } else {
-                displayData = subscriptions.filter((s) => s.status === subscriptionFilter);
-              }
-
-              return (
-                <>
-                  {subscriptionsLoading ? (
-                    <div className="flex items-center justify-center py-12">
-                      <div className="text-[var(--text-secondary)]">Loading subscriptions...</div>
-                    </div>
-                  ) : subscriptionsError ? (
-                    <div className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-surface)] p-8 text-center">
-                      <p className="text-[var(--text-danger)]">{subscriptionsError}</p>
-                    </div>
-                  ) : displayData.length === 0 ? (
-                    <div className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-surface)] p-8 text-center">
-                      <p className="text-[var(--text-secondary)]">
-                        {subscriptionFilter === 'all'
-                          ? 'No subscriptions found.'
-                          : `No ${subscriptionFilter} subscriptions found.`}
-                      </p>
-                    </div>
-                  ) : (
-                    <div className="overflow-x-auto">
-                      <table className="w-full">
-                        <thead>
-                          <tr className="border-b border-[var(--border-default)]">
-                            <th className="text-left py-3 px-4 text-sm font-medium text-[var(--text-secondary)]">
-                              User ID
-                            </th>
-                            <th className="text-left py-3 px-4 text-sm font-medium text-[var(--text-secondary)]">
-                              Plan
-                            </th>
-                            <th className="text-left py-3 px-4 text-sm font-medium text-[var(--text-secondary)]">
-                              Start Date
-                            </th>
-                            <th className="text-left py-3 px-4 text-sm font-medium text-[var(--text-secondary)]">
-                              End Date
-                            </th>
-                            <th className="text-left py-3 px-4 text-sm font-medium text-[var(--text-secondary)]">
-                              Status
-                            </th>
-                            <th className="text-left py-3 px-4 text-sm font-medium text-[var(--text-secondary)]">
-                              Purchased
-                            </th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-[var(--border-default)]">
-                          {displayData.map((subscription) => {
-                            const daysRemaining = calculateDaysRemaining(subscription.endDate);
-                            return (
-                              <tr key={subscription.id} className="hover:bg-[var(--bg-hover)] transition-colors">
-                                <td className="py-3 px-4">
-                                  <code className="text-sm font-mono text-[var(--text-primary)]">
-                                    {subscription.userId}
-                                  </code>
-                                </td>
-                                <td className="py-3 px-4 text-sm text-[var(--text-primary)]">
-                                  {subscription.planName || '-'}
-                                </td>
-                                <td className="py-3 px-4 text-sm text-[var(--text-secondary)]">
-                                  {formatDate(subscription.startDate)}
-                                </td>
-                                <td className="py-3 px-4 text-sm text-[var(--text-secondary)]">
-                                  <div className="flex items-center gap-2">
-                                    <span>{formatDate(subscription.endDate)}</span>
-                                    {subscription.status === 'active' && daysRemaining !== null && daysRemaining <= 7 && (
-                                      <span className="px-2 py-0.5 rounded text-xs font-medium bg-yellow-500/10 text-yellow-600">
-                                        {daysRemaining} day{daysRemaining !== 1 ? 's' : ''} left
-                                      </span>
-                                    )}
-                                  </div>
-                                </td>
-                                <td className="py-3 px-4">
-                                  <span className={`px-2 py-1 rounded text-xs font-medium ${getSubscriptionStatusColor(subscription.status)}`}>
-                                    {subscription.status}
-                                  </span>
-                                </td>
-                                <td className="py-3 px-4 text-sm text-[var(--text-secondary)]">
-                                  {formatDate(subscription.createdAt)}
-                                </td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
-                </>
-              );
-            })()}
+          <div className="p-12 text-center">
+            <CreditCard className="mx-auto h-12 w-12 text-[var(--text-muted)]" />
+            <h3 className="mt-4 text-lg font-medium text-[var(--text-primary)]">
+              Subscriptions temporarily unavailable
+            </h3>
+            <p className="mt-2 text-sm text-[var(--text-secondary)] max-w-md mx-auto">
+              This feature relied on the legacy `Subscription` entity in bagdja-auth,
+              which has been removed as part of the Product/Plan/License refactor to
+              bagdja-payment-service. It will return once an equivalent is implemented there.
+            </p>
           </div>
         )}
 
@@ -3203,7 +3024,7 @@ export default function AppDetailPage() {
             onClose={closeProductModal}
             onSubmit={handleProductSubmit}
             product={editingProduct}
-            appId={app.id}
+            appId={app.appId}
           />
         )
       }
@@ -3216,7 +3037,7 @@ export default function AppDetailPage() {
             onClose={closePlanModal}
             onSubmit={handlePlanSubmit}
             plan={editingPlan}
-            appId={app.id}
+            appId={app.appId}
           />
         )
       }
@@ -3229,7 +3050,7 @@ export default function AppDetailPage() {
             onClose={closeLicenseModal}
             onSubmit={handleLicenseSubmit}
             license={editingLicense}
-            appId={app.id}
+            appId={app.appId}
           />
         )
       }

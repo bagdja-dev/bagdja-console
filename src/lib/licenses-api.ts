@@ -1,16 +1,20 @@
 /**
  * Licenses API Client
- * Handles all API calls related to licenses
+ * Handles all API calls related to licenses.
+ *
+ * Dipindah dari bagdja-auth ke bagdja-payment-service (lihat
+ * refactoring-payment-service.md §3.3/§5). `appId` = slug app,
+ * `orgId` = string opaque (bukan lagi FK), `currency` ditambahkan.
  */
 
-import { 
-  getAccessToken, 
+import {
+  getAccessToken,
   removeAccessToken,
   getClientToken,
   setClientToken,
   isClientTokenExpired,
 } from './auth';
-import type { 
+import type {
   License,
   CreateLicenseRequest,
   UpdateLicenseRequest,
@@ -18,21 +22,26 @@ import type {
   ApiError,
 } from '@/types';
 
+function getPaymentApiBase(): string {
+  const apiBase = process.env.NEXT_PUBLIC_PAYMENT_API;
+  if (!apiBase) {
+    throw new Error('NEXT_PUBLIC_PAYMENT_API environment variable is required. Please set it in your .env file.');
+  }
+  return apiBase;
+}
+
 const AUTH_API_BASE = process.env.NEXT_PUBLIC_AUTH_API || 'https://auth.bagdja.com';
 
 // Client app credentials from environment variables
 const CLIENT_APP_ID = process.env.NEXT_PUBLIC_CLIENT_APP_ID || 'user-console';
 const CLIENT_APP_SECRET = process.env.NEXT_PUBLIC_CLIENT_APP_SECRET || 'a9F3kL2P8QwZx7C0M5eB1R4H6TnUJDYVSm';
 
-/**
- * Get or refresh client app token (x-api-token)
- */
 async function ensureClientToken(): Promise<string> {
   const clientToken = getClientToken();
-  
+
   if (!clientToken || isClientTokenExpired()) {
     const url = `${AUTH_API_BASE}/auth/client`;
-    
+
     const requestBody = {
       app_id: CLIENT_APP_ID,
       app_secret: CLIENT_APP_SECRET,
@@ -64,24 +73,21 @@ async function ensureClientToken(): Promise<string> {
 
     const data = await response.json();
     setClientToken(data['x-api-token'], data.expires_in);
-    
+
     return data['x-api-token'];
   }
-  
+
   return clientToken;
 }
 
-/**
- * Make authenticated API request
- */
 async function apiRequest<T>(
   endpoint: string,
   options: RequestInit = {}
 ): Promise<T> {
   const clientToken = await ensureClientToken();
   const userToken = getAccessToken();
-  
-  const url = `${AUTH_API_BASE}${endpoint}`;
+
+  const url = `${getPaymentApiBase()}${endpoint}`;
 
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
@@ -96,6 +102,7 @@ async function apiRequest<T>(
   const response = await fetch(url, {
     ...options,
     headers,
+    cache: options.cache || 'no-store',
   });
 
   if (!response.ok) {
@@ -121,21 +128,25 @@ async function apiRequest<T>(
     throw error;
   }
 
+  if (response.status === 204) {
+    return undefined as T;
+  }
+
   return response.json();
 }
 
 /**
- * Get all licenses for an app
+ * Get all licenses for an app (appId = slug)
  */
 export async function getLicenses(appId: string): Promise<License[]> {
-  return apiRequest<License[]>(`/licenses?appId=${appId}`);
+  return apiRequest<License[]>(`/licenses?appId=${encodeURIComponent(appId)}`);
 }
 
 /**
  * Get all purchased licenses for an app
  */
 export async function getPurchasedLicenses(appId: string): Promise<License[]> {
-  return apiRequest<License[]>(`/licenses/purchased?appId=${appId}`);
+  return apiRequest<License[]>(`/licenses/purchased?appId=${encodeURIComponent(appId)}`);
 }
 
 /**
@@ -146,15 +157,15 @@ export async function getLicense(id: string): Promise<License> {
 }
 
 /**
- * Create a new license
+ * Create a new license. `appId` (slug) dikirim di body.
  */
 export async function createLicense(
   appId: string,
   data: CreateLicenseRequest
 ): Promise<License> {
-  return apiRequest<License>(`/licenses?appId=${appId}`, {
+  return apiRequest<License>('/licenses', {
     method: 'POST',
-    body: JSON.stringify(data),
+    body: JSON.stringify({ ...data, appId }),
   });
 }
 
@@ -181,14 +192,20 @@ export async function deleteLicense(id: string): Promise<void> {
 }
 
 /**
- * Buy a license (organization purchases license)
+ * Buy a license (organization purchases license).
+ *
+ * NB: di payment-service, appId/orgId "pemilik inventory & penerima dana"
+ * diresolve dari identitas app pemanggil (`req.clientApp`), BUKAN dari query
+ * param — beda dari endpoint auth yg lama. `organizationId` di sini murni
+ * jadi `orgId` pembeli (body), dipakai kalau app pemanggil bertindak atas
+ * nama org tersebut. Belum ada pemanggil aktif dari console saat ini.
  */
 export async function buyLicense(
   licenseId: string,
   organizationId: string
 ): Promise<BuyLicenseResponse> {
-  return apiRequest<BuyLicenseResponse>(`/licenses/${licenseId}/buy?organizationId=${organizationId}`, {
+  return apiRequest<BuyLicenseResponse>(`/licenses/${licenseId}/buy`, {
     method: 'POST',
+    body: JSON.stringify({ orgId: organizationId }),
   });
 }
-

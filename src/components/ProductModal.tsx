@@ -375,8 +375,8 @@ export default function ProductModal({ isOpen, onClose, onSubmit, product, appId
               onChange={(e) => setFormData({ ...formData, status: e.target.value as ProductStatus })}
               disabled={loading}
             >
-              <option value="active">Active</option>
-              <option value="inactive">Inactive</option>
+              <option value={ProductStatus.ACTIVE}>Active</option>
+              <option value={ProductStatus.INACTIVE}>Inactive</option>
             </Select>
 
             <div>

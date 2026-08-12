@@ -138,11 +138,11 @@ export default function BillingSettingModal({
       return;
     }
     const app = apps.find((a) => (a.appId || a.id) === form.app_id);
-    if (!app?.id) {
+    if (!app?.appId) {
       setProducts([]);
       return;
     }
-    fetchProducts(app.id);
+    fetchProducts(app.appId);
   }, [form.app_id, apps, canSelectProduct, isOpen]);
 
   async function fetchOrganizations() {
@@ -181,16 +181,16 @@ export default function BillingSettingModal({
     }
   }
 
-  async function fetchProducts(appUuid: string) {
+  async function fetchProducts(appSlug: string) {
     try {
       setLoadingProducts(true);
       setError(null);
-      const data = await getProducts(appUuid);
+      const data = await getProducts(appSlug);
       setProducts(data);
     } catch (err) {
       console.error('Failed to fetch products', err);
       const apiError = err as ApiError;
-      setError(apiError.message || 'Failed to fetch products from Auth Service');
+      setError(apiError.message || 'Failed to fetch products from Payment Service');
     } finally {
       setLoadingProducts(false);
     }
@@ -330,9 +330,9 @@ export default function BillingSettingModal({
       description: 'Applies to any item type',
       icon: <Package className="w-4 h-4 text-primary" />,
     },
-    { value: 'PRODUCT', label: 'PRODUCT', description: 'Product from Auth', icon: <Package className="w-4 h-4 text-amber-500" /> },
-    { value: 'PLAN', label: 'PLAN', description: 'Plan from Auth', icon: <Package className="w-4 h-4 text-amber-500" /> },
-    { value: 'LICENSE', label: 'LICENSE KEY', description: 'License key from Auth', icon: <Package className="w-4 h-4 text-amber-500" /> },
+    { value: 'PRODUCT', label: 'PRODUCT', description: 'Select item', icon: <Package className="w-4 h-4 text-amber-500" /> },
+    { value: 'PLAN', label: 'PLAN', description: 'Select item', icon: <Package className="w-4 h-4 text-amber-500" /> },
+    { value: 'LICENSE', label: 'LICENSE KEY', description: 'Select item', icon: <Package className="w-4 h-4 text-amber-500" /> },
   ];
 
   const currencyOptions = [
