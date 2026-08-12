@@ -5,8 +5,23 @@ import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { getPublicAppDetails } from '@/lib/api';
 import { getMyAppBalance, type AppBalanceResponse } from '@/lib/piece-api';
-import type { ApiError, ClientApp } from '@/types';
-import { ArrowLeft, Package, Wallet, History, CreditCard, Key, Loader2, RefreshCw, Mail, Calendar } from 'lucide-react';
+import { getSubscriptionsForOrg } from '@/lib/subscriptions-api';
+import { getPurchasedLicenses } from '@/lib/licenses-api';
+import { getPlans } from '@/lib/plans-api';
+import type { ApiError, ClientApp, Subscription, License, Plan } from '@/types';
+import {
+  ArrowLeft,
+  Package,
+  Wallet,
+  History,
+  CreditCard,
+  Key,
+  Loader2,
+  RefreshCw,
+  Mail,
+  Calendar,
+  Building2,
+} from 'lucide-react';
 
 type TabType = 'history' | 'subscribed' | 'licenses';
 
@@ -20,6 +35,17 @@ export default function SubscribedAppDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<TabType>('history');
   const [refreshingBalance, setRefreshingBalance] = useState(false);
+
+  const [activeOrgId, setActiveOrgId] = useState<string | null>(null);
+
+  const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
+  const [subscriptionsLoading, setSubscriptionsLoading] = useState(false);
+  const [subscriptionsError, setSubscriptionsError] = useState<string | null>(null);
+  const [plansById, setPlansById] = useState<Record<string, Plan>>({});
+
+  const [licenses, setLicenses] = useState<License[]>([]);
+  const [licensesLoading, setLicensesLoading] = useState(false);
+  const [licensesError, setLicensesError] = useState<string | null>(null);
 
   const fetchBalance = useCallback(async () => {
     if (!appId) return;
@@ -78,6 +104,67 @@ export default function SubscribedAppDetailPage() {
     return () => window.removeEventListener('focus', handleFocus);
   }, [appId, loading, fetchBalance]);
 
+  // Org aktif (console-wide selector, lihat Topbar.tsx) — subscriptions &
+  // licenses di payment-service selalu scoped ke satu orgId (bukan userId,
+  // krn console selalu beraksi atas nama org yang login).
+  useEffect(() => {
+    const readActiveOrg = () => {
+      setActiveOrgId(
+        typeof window !== 'undefined' ? sessionStorage.getItem('activeOrganizationId') : null,
+      );
+    };
+    readActiveOrg();
+
+    window.addEventListener('organizationChanged', readActiveOrg);
+    return () => window.removeEventListener('organizationChanged', readActiveOrg);
+  }, []);
+
+  const fetchSubscriptions = useCallback(async () => {
+    if (!appId || !activeOrgId) return;
+    try {
+      setSubscriptionsLoading(true);
+      setSubscriptionsError(null);
+      const [subs, plans] = await Promise.all([
+        getSubscriptionsForOrg(appId, activeOrgId),
+        getPlans(appId),
+      ]);
+      setSubscriptions(subs);
+      setPlansById(Object.fromEntries(plans.map((p) => [p.id, p])));
+    } catch (err) {
+      console.error('Failed to fetch subscriptions:', err);
+      const apiError = err as ApiError;
+      setSubscriptionsError(apiError.message || 'Failed to fetch subscriptions from Payment Service');
+    } finally {
+      setSubscriptionsLoading(false);
+    }
+  }, [appId, activeOrgId]);
+
+  const fetchLicenses = useCallback(async () => {
+    if (!appId || !activeOrgId) return;
+    try {
+      setLicensesLoading(true);
+      setLicensesError(null);
+      const data = await getPurchasedLicenses(appId, activeOrgId);
+      setLicenses(data);
+    } catch (err) {
+      console.error('Failed to fetch licenses:', err);
+      const apiError = err as ApiError;
+      setLicensesError(apiError.message || 'Failed to fetch licenses from Payment Service');
+    } finally {
+      setLicensesLoading(false);
+    }
+  }, [appId, activeOrgId]);
+
+  // Lazy-load per tab (sama pola dgn BillingSettingModal.tsx) — tidak perlu
+  // fetch kedua-nya di awal kalau user cuma buka tab History.
+  useEffect(() => {
+    if (activeTab === 'subscribed') {
+      fetchSubscriptions();
+    } else if (activeTab === 'licenses') {
+      fetchLicenses();
+    }
+  }, [activeTab, fetchSubscriptions, fetchLicenses]);
+
   const formatDate = (date: string | Date) => {
     const dateObj = typeof date === 'string' ? new Date(date) : date;
     return dateObj.toLocaleDateString('en-US', {
@@ -113,6 +200,41 @@ export default function SubscribedAppDetailPage() {
     if (typeLower === 'distribute') return 'text-blue-600 bg-blue-500/10';
     if (typeLower === 'add_balance') return 'text-purple-600 bg-purple-500/10';
     return 'text-gray-600 bg-gray-500/10';
+  };
+
+  const formatMoney = (amount: number, currency: string) => {
+    return `${new Intl.NumberFormat('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(amount)} ${currency}`;
+  };
+
+  const getSubscriptionStatusColor = (status: string) => {
+    switch (status) {
+      case 'ACTIVE':
+        return 'text-green-600 bg-green-500/10';
+      case 'TRIALING':
+        return 'text-blue-600 bg-blue-500/10';
+      case 'PAST_DUE':
+        return 'text-amber-600 bg-amber-500/10';
+      case 'SUSPENDED':
+        return 'text-red-600 bg-red-500/10';
+      case 'CANCELLED':
+      case 'EXPIRED':
+        return 'text-gray-600 bg-gray-500/10';
+      default:
+        return 'text-gray-600 bg-gray-500/10';
+    }
+  };
+
+  const getLicenseStatusColor = (status: string) => {
+    switch (status) {
+      case 'PURCHASED':
+        return 'text-green-600 bg-green-500/10';
+      case 'AVAILABLE':
+        return 'text-blue-600 bg-blue-500/10';
+      case 'REVOKED':
+        return 'text-red-600 bg-red-500/10';
+      default:
+        return 'text-gray-600 bg-gray-500/10';
+    }
   };
 
   if (loading) {
@@ -384,29 +506,179 @@ export default function SubscribedAppDetailPage() {
           </div>
         )}
 
-        {/* Subscribed Tab (Dummy) */}
+        {/* Subscribed Tab */}
         {activeTab === 'subscribed' && (
-          <div className="p-12 text-center">
-            <CreditCard className="mx-auto h-12 w-12 text-[var(--text-muted)]" />
-            <h3 className="mt-4 text-lg font-medium text-[var(--text-primary)]">
-              Subscriptions
-            </h3>
-            <p className="mt-2 text-sm text-[var(--text-secondary)]">
-              Subscription management feature will be available soon.
-            </p>
+          <div className="p-6">
+            <div className="mb-4">
+              <h2 className="text-lg font-semibold text-[var(--text-primary)]">
+                Subscription Plans
+              </h2>
+              <p className="text-sm text-[var(--text-secondary)] mt-1">
+                Plans your organization is currently subscribed to for this app
+              </p>
+            </div>
+
+            {!activeOrgId ? (
+              <div className="text-center py-12">
+                <Building2 className="mx-auto h-12 w-12 text-[var(--text-muted)]" />
+                <h3 className="mt-4 text-lg font-medium text-[var(--text-primary)]">
+                  Select an organization
+                </h3>
+                <p className="mt-2 text-sm text-[var(--text-secondary)]">
+                  Subscriptions are scoped per organization — pick one from the top bar.
+                </p>
+              </div>
+            ) : subscriptionsLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="h-8 w-8 animate-spin text-[var(--text-secondary)]" />
+              </div>
+            ) : subscriptionsError ? (
+              <div className="rounded-md bg-[var(--brand-error)]/20 border border-[var(--brand-error)]/30 p-4 text-sm text-[var(--brand-error)]">
+                {subscriptionsError}
+              </div>
+            ) : subscriptions.length > 0 ? (
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b border-[var(--border-default)]">
+                      <th className="text-left py-3 px-4 text-sm font-medium text-[var(--text-secondary)]">Plan</th>
+                      <th className="text-left py-3 px-4 text-sm font-medium text-[var(--text-secondary)]">Status</th>
+                      <th className="text-left py-3 px-4 text-sm font-medium text-[var(--text-secondary)]">Amount</th>
+                      <th className="text-left py-3 px-4 text-sm font-medium text-[var(--text-secondary)]">Current Period</th>
+                      <th className="text-left py-3 px-4 text-sm font-medium text-[var(--text-secondary)]">Next Billing</th>
+                      <th className="text-left py-3 px-4 text-sm font-medium text-[var(--text-secondary)]">Auto-renew</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[var(--border-default)]">
+                    {subscriptions.map((sub) => {
+                      const plan = plansById[sub.planId];
+                      return (
+                        <tr key={sub.id} className="hover:bg-[var(--bg-hover)] transition-colors">
+                          <td className="py-3 px-4 text-sm text-[var(--text-primary)]">
+                            <div className="font-medium">{plan?.name || 'Unknown plan'}</div>
+                            {plan?.code && (
+                              <div className="text-xs text-[var(--text-secondary)] font-mono">{plan.code}</div>
+                            )}
+                          </td>
+                          <td className="py-3 px-4">
+                            <span
+                              className={`inline-flex items-center px-2 py-1 rounded text-xs font-medium ${getSubscriptionStatusColor(sub.status)}`}
+                            >
+                              {sub.status}
+                            </span>
+                          </td>
+                          <td className="py-3 px-4 text-sm font-medium text-[var(--text-primary)]">
+                            {formatMoney(sub.lockedAmount, sub.currency)}
+                          </td>
+                          <td className="py-3 px-4 text-sm text-[var(--text-secondary)]">
+                            {formatDate(sub.currentPeriodStart)} – {formatDate(sub.currentPeriodEnd)}
+                          </td>
+                          <td className="py-3 px-4 text-sm text-[var(--text-secondary)]">
+                            {formatDate(sub.nextBillingDate)}
+                          </td>
+                          <td className="py-3 px-4 text-sm text-[var(--text-secondary)]">
+                            {sub.cancelAtPeriodEnd ? 'Cancels at period end' : 'Yes'}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div className="text-center py-12">
+                <CreditCard className="mx-auto h-12 w-12 text-[var(--text-muted)]" />
+                <h3 className="mt-4 text-lg font-medium text-[var(--text-primary)]">
+                  No Subscriptions
+                </h3>
+                <p className="mt-2 text-sm text-[var(--text-secondary)]">
+                  Your organization hasn&apos;t subscribed to any plan for this app yet.
+                </p>
+              </div>
+            )}
           </div>
         )}
 
-        {/* Licenses Tab (Dummy) */}
+        {/* Licenses Tab */}
         {activeTab === 'licenses' && (
-          <div className="p-12 text-center">
-            <Key className="mx-auto h-12 w-12 text-[var(--text-muted)]" />
-            <h3 className="mt-4 text-lg font-medium text-[var(--text-primary)]">
-              Licenses
-            </h3>
-            <p className="mt-2 text-sm text-[var(--text-secondary)]">
-              License management feature will be available soon.
-            </p>
+          <div className="p-6">
+            <div className="mb-4">
+              <h2 className="text-lg font-semibold text-[var(--text-primary)]">
+                Licenses
+              </h2>
+              <p className="text-sm text-[var(--text-secondary)] mt-1">
+                License keys your organization has purchased for this app
+              </p>
+            </div>
+
+            {!activeOrgId ? (
+              <div className="text-center py-12">
+                <Building2 className="mx-auto h-12 w-12 text-[var(--text-muted)]" />
+                <h3 className="mt-4 text-lg font-medium text-[var(--text-primary)]">
+                  Select an organization
+                </h3>
+                <p className="mt-2 text-sm text-[var(--text-secondary)]">
+                  Licenses are scoped per organization — pick one from the top bar.
+                </p>
+              </div>
+            ) : licensesLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="h-8 w-8 animate-spin text-[var(--text-secondary)]" />
+              </div>
+            ) : licensesError ? (
+              <div className="rounded-md bg-[var(--brand-error)]/20 border border-[var(--brand-error)]/30 p-4 text-sm text-[var(--brand-error)]">
+                {licensesError}
+              </div>
+            ) : licenses.length > 0 ? (
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b border-[var(--border-default)]">
+                      <th className="text-left py-3 px-4 text-sm font-medium text-[var(--text-secondary)]">License Key</th>
+                      <th className="text-left py-3 px-4 text-sm font-medium text-[var(--text-secondary)]">Type</th>
+                      <th className="text-left py-3 px-4 text-sm font-medium text-[var(--text-secondary)]">Status</th>
+                      <th className="text-left py-3 px-4 text-sm font-medium text-[var(--text-secondary)]">Max Users</th>
+                      <th className="text-left py-3 px-4 text-sm font-medium text-[var(--text-secondary)]">Purchased</th>
+                      <th className="text-left py-3 px-4 text-sm font-medium text-[var(--text-secondary)]">Expires</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[var(--border-default)]">
+                    {licenses.map((license) => (
+                      <tr key={license.id} className="hover:bg-[var(--bg-hover)] transition-colors">
+                        <td className="py-3 px-4 text-sm font-mono text-[var(--text-primary)]">
+                          {license.licenseKey}
+                        </td>
+                        <td className="py-3 px-4 text-sm text-[var(--text-secondary)]">{license.type}</td>
+                        <td className="py-3 px-4">
+                          <span
+                            className={`inline-flex items-center px-2 py-1 rounded text-xs font-medium ${getLicenseStatusColor(license.status)}`}
+                          >
+                            {license.status}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 text-sm text-[var(--text-secondary)]">{license.maxUsers}</td>
+                        <td className="py-3 px-4 text-sm text-[var(--text-secondary)]">
+                          {license.purchasedAt ? formatDate(license.purchasedAt) : '-'}
+                        </td>
+                        <td className="py-3 px-4 text-sm text-[var(--text-secondary)]">
+                          {license.expiresAt ? formatDate(license.expiresAt) : 'Never'}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div className="text-center py-12">
+                <Key className="mx-auto h-12 w-12 text-[var(--text-muted)]" />
+                <h3 className="mt-4 text-lg font-medium text-[var(--text-primary)]">
+                  No Licenses
+                </h3>
+                <p className="mt-2 text-sm text-[var(--text-secondary)]">
+                  Your organization hasn&apos;t purchased any license for this app yet.
+                </p>
+              </div>
+            )}
           </div>
         )}
       </div>

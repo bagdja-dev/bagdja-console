@@ -7,7 +7,9 @@ import { FancySelect } from '@/ui/fancy-select';
 import { Input } from '@/ui/input';
 import { getAllOrganizations, getAppsByOrgSlug, getSupportedCurrencies } from '@/lib/api';
 import { getProducts } from '@/lib/products-api';
-import type { ApiError, Organization, ClientApp, Product } from '@/types';
+import { getPlans } from '@/lib/plans-api';
+import { getLicenses } from '@/lib/licenses-api';
+import type { ApiError, Organization, ClientApp, Product, Plan, License } from '@/types';
 import type { BillingSetting } from '@/lib/payment-api';
 import {
   percentageFeeFromInput,
@@ -41,6 +43,13 @@ type FormState = {
   is_active: boolean;
 };
 
+const SELECTABLE_ITEM_TYPES = ['PRODUCT', 'PLAN', 'LICENSE'] as const;
+type SelectableItemType = (typeof SELECTABLE_ITEM_TYPES)[number];
+
+function isSelectableItemType(value: string): value is SelectableItemType {
+  return (SELECTABLE_ITEM_TYPES as readonly string[]).includes(value);
+}
+
 export default function BillingSettingModal({
   isOpen,
   mode,
@@ -61,7 +70,9 @@ export default function BillingSettingModal({
   const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [apps, setApps] = useState<ClientApp[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
-  const [loadingProducts, setLoadingProducts] = useState(false);
+  const [plans, setPlans] = useState<Plan[]>([]);
+  const [licenses, setLicenses] = useState<License[]>([]);
+  const [loadingItems, setLoadingItems] = useState(false);
   const [supportedCurrencies, setSupportedCurrencies] = useState<string[]>(['IDR', 'USD', 'MYR']);
   const [loadingLookups, setLoadingLookups] = useState(false);
 
@@ -92,12 +103,12 @@ export default function BillingSettingModal({
 
   const isGlobalOrg = form.org_id === BILLING_DEFAULT_ORG;
   const isDefaultApp = form.app_id === BILLING_DEFAULT_APP;
-  const canSelectProduct =
+  const canSelectItem =
     Boolean(form.org_id) &&
     !isGlobalOrg &&
     Boolean(form.app_id) &&
     !isDefaultApp &&
-    form.item_type === 'PRODUCT';
+    isSelectableItemType(form.item_type);
   const isSystemGlobalRule = isSystemGlobalKeys(
     form.org_id,
     form.app_id,
@@ -133,17 +144,23 @@ export default function BillingSettingModal({
   }, [form.org_id, isOpen]);
 
   useEffect(() => {
-    if (!isOpen || !canSelectProduct) {
+    if (!isOpen || !canSelectItem) {
       setProducts([]);
+      setPlans([]);
+      setLicenses([]);
       return;
     }
     const app = apps.find((a) => (a.appId || a.id) === form.app_id);
     if (!app?.appId) {
       setProducts([]);
+      setPlans([]);
+      setLicenses([]);
       return;
     }
-    fetchProducts(app.appId);
-  }, [form.app_id, apps, canSelectProduct, isOpen]);
+    if (form.item_type === 'PRODUCT') fetchProducts(app.appId);
+    else if (form.item_type === 'PLAN') fetchPlans(app.appId);
+    else if (form.item_type === 'LICENSE') fetchLicenses(app.appId);
+  }, [form.app_id, form.item_type, apps, canSelectItem, isOpen]);
 
   async function fetchOrganizations() {
     try {
@@ -183,7 +200,7 @@ export default function BillingSettingModal({
 
   async function fetchProducts(appSlug: string) {
     try {
-      setLoadingProducts(true);
+      setLoadingItems(true);
       setError(null);
       const data = await getProducts(appSlug);
       setProducts(data);
@@ -192,7 +209,37 @@ export default function BillingSettingModal({
       const apiError = err as ApiError;
       setError(apiError.message || 'Failed to fetch products from Payment Service');
     } finally {
-      setLoadingProducts(false);
+      setLoadingItems(false);
+    }
+  }
+
+  async function fetchPlans(appSlug: string) {
+    try {
+      setLoadingItems(true);
+      setError(null);
+      const data = await getPlans(appSlug);
+      setPlans(data);
+    } catch (err) {
+      console.error('Failed to fetch plans', err);
+      const apiError = err as ApiError;
+      setError(apiError.message || 'Failed to fetch plans from Payment Service');
+    } finally {
+      setLoadingItems(false);
+    }
+  }
+
+  async function fetchLicenses(appSlug: string) {
+    try {
+      setLoadingItems(true);
+      setError(null);
+      const data = await getLicenses(appSlug);
+      setLicenses(data);
+    } catch (err) {
+      console.error('Failed to fetch licenses', err);
+      const apiError = err as ApiError;
+      setError(apiError.message || 'Failed to fetch licenses from Payment Service');
+    } finally {
+      setLoadingItems(false);
     }
   }
 
@@ -306,21 +353,39 @@ export default function BillingSettingModal({
         }))),
   ];
 
-  const productOptions = [
-    {
-      value: BILLING_DEFAULT_ITEM,
-      label: 'Default — all items',
-      description: isDefaultApp
-        ? 'Select a specific app to target one item'
-        : 'Applies to every item in this app',
-      icon: <Package className="w-4 h-4 text-amber-500" />,
-    },
-    ...products.map((product) => ({
+  const defaultItemOption = {
+    value: BILLING_DEFAULT_ITEM,
+    label: 'Default — all items',
+    description: isDefaultApp
+      ? 'Select a specific app to target one item'
+      : 'Applies to every item in this app',
+    icon: <Package className="w-4 h-4 text-amber-500" />,
+  };
+
+  const itemOptionsByType: Record<SelectableItemType, typeof defaultItemOption[]> = {
+    PRODUCT: products.map((product) => ({
       value: product.id,
       label: product.name,
       description: product.id,
       icon: <Package className="w-4 h-4 text-indigo-500" />,
     })),
+    PLAN: plans.map((plan) => ({
+      value: plan.id,
+      label: `${plan.name} (${plan.code})`,
+      description: plan.id,
+      icon: <Package className="w-4 h-4 text-indigo-500" />,
+    })),
+    LICENSE: licenses.map((license) => ({
+      value: license.id,
+      label: license.licenseKey,
+      description: `${license.status} · ${license.id}`,
+      icon: <Package className="w-4 h-4 text-indigo-500" />,
+    })),
+  };
+
+  const itemOptions = [
+    defaultItemOption,
+    ...(isSelectableItemType(form.item_type) ? itemOptionsByType[form.item_type] : []),
   ];
 
   const itemTypeOptions = [
@@ -330,9 +395,9 @@ export default function BillingSettingModal({
       description: 'Applies to any item type',
       icon: <Package className="w-4 h-4 text-primary" />,
     },
-    { value: 'PRODUCT', label: 'PRODUCT', description: 'Select item', icon: <Package className="w-4 h-4 text-amber-500" /> },
-    { value: 'PLAN', label: 'PLAN', description: 'Select item', icon: <Package className="w-4 h-4 text-amber-500" /> },
-    { value: 'LICENSE', label: 'LICENSE KEY', description: 'Select item', icon: <Package className="w-4 h-4 text-amber-500" /> },
+    { value: 'PRODUCT', label: 'PRODUCT', description: 'Pick a product', icon: <Package className="w-4 h-4 text-amber-500" /> },
+    { value: 'PLAN', label: 'PLAN', description: 'Pick a subscription plan', icon: <Package className="w-4 h-4 text-amber-500" /> },
+    { value: 'LICENSE', label: 'LICENSE KEY', description: 'Pick a license key', icon: <Package className="w-4 h-4 text-amber-500" /> },
   ];
 
   const currencyOptions = [
@@ -379,9 +444,9 @@ export default function BillingSettingModal({
             </div>
           )}
 
-          {isLoadingInitial || loadingLookups || loadingProducts ? (
+          {isLoadingInitial || loadingLookups || loadingItems ? (
             <div className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-main)] px-4 py-3 text-sm text-[var(--text-secondary)] animate-pulse">
-              Loading data from Auth Service...
+              Loading data...
             </div>
           ) : null}
 
@@ -448,15 +513,15 @@ export default function BillingSettingModal({
           </div>
 
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            {form.item_type === 'PRODUCT' ? (
+            {isSelectableItemType(form.item_type) ? (
               <FancySelect
-                label="Item (Product)"
+                label={`Item (${form.item_type})`}
                 value={form.item_id}
                 onChange={(val) => setForm((prev) => ({ ...prev, item_id: val }))}
-                disabled={disabled || mode === 'edit' || !canSelectProduct}
+                disabled={disabled || mode === 'edit' || !canSelectItem}
                 placeholder="Default — all items"
-                options={productOptions}
-                loading={loadingProducts}
+                options={itemOptions}
+                loading={loadingItems}
               />
             ) : (
               <Input
@@ -470,11 +535,7 @@ export default function BillingSettingModal({
                 }
                 disabled={disabled || mode === 'edit' || form.item_type === BILLING_DEFAULT_ITEM_TYPE}
                 placeholder="Leave empty for default"
-                helpText={
-                  form.item_type === BILLING_DEFAULT_ITEM_TYPE
-                    ? 'Select an item type to target a specific item.'
-                    : 'Leave empty to apply to all items of this type.'
-                }
+                helpText="Select an item type to target a specific item."
               />
             )}
           </div>

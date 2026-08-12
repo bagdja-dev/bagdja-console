@@ -324,28 +324,40 @@ export interface UpdateProductRequest {
   prices?: { currency: string; price: number }[];
 }
 
-// Subscription Types
-/**
- * @deprecated Endpoint auth `/subscriptions/*` yang men-supply data ini sudah
- * dihapus di Fase 1.D (refactoring-payment-service.md). Belum ada pengganti
- * di payment-service utk kasus "org membeli akses Plan app pihak ke-3" —
- * fitur ini di-nonaktifkan sementara di UI (lihat subscriptions/page.tsx).
- */
+// Subscription Types — model BARU dari `bagdja-payment-service`
+// (`SubscriptionDto`, lihat refactoring-payment-service.md §7 Track 2
+// Fase 1.G). BUKAN pengganti 1:1 model lama `bagdja-auth` yang dihapus di
+// Fase 1.D — beda skema total (billing period, proration, wallet-based).
 export enum SubscriptionStatus {
-  ACTIVE = 'active',
-  EXPIRED = 'expired',
-  CANCELLED = 'cancelled',
+  TRIALING = 'TRIALING',
+  ACTIVE = 'ACTIVE',
+  PAST_DUE = 'PAST_DUE',
+  SUSPENDED = 'SUSPENDED',
+  CANCELLED = 'CANCELLED',
+  EXPIRED = 'EXPIRED',
 }
 
 export interface Subscription {
   id: string;
-  userId: string;
   planId: string;
+  /** Diisi client-side dari `getPlans(appId)` — payment-service tidak nge-join plan di response ini */
   planName?: string;
-  startDate: Date;
-  endDate: Date;
+  planCode?: string;
+  appId: string;
+  orgId: string | null;
+  userId: string | null;
+  walletId: string;
+  platformOrgId: string;
+  lockedAmount: number;
+  currency: string;
   status: SubscriptionStatus;
-  transactionId: string | null;
+  currentPeriodStart: Date;
+  currentPeriodEnd: Date;
+  nextBillingDate: Date;
+  cancelAtPeriodEnd: boolean;
+  cancelledAt: Date | null;
+  failedAttemptCount: number;
+  gracePeriodEndsAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
 }

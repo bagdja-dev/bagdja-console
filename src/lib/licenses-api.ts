@@ -143,10 +143,16 @@ export async function getLicenses(appId: string): Promise<License[]> {
 }
 
 /**
- * Get all purchased licenses for an app
+ * Get all purchased licenses for an app. Pass `orgId` to scope to a single
+ * buyer org (used by `applications/subscribed/[appId]/page.tsx` — "my
+ * licenses for this app" — vs no `orgId` which lists every purchased
+ * license, i.e. seller/app-owner perspective).
  */
-export async function getPurchasedLicenses(appId: string): Promise<License[]> {
-  return apiRequest<License[]>(`/licenses/purchased?appId=${encodeURIComponent(appId)}`);
+export async function getPurchasedLicenses(appId: string, orgId?: string): Promise<License[]> {
+  const query = orgId
+    ? `appId=${encodeURIComponent(appId)}&orgId=${encodeURIComponent(orgId)}`
+    : `appId=${encodeURIComponent(appId)}`;
+  return apiRequest<License[]>(`/licenses/purchased?${query}`);
 }
 
 /**

@@ -7,8 +7,9 @@ import { getClientApps, getAppUsers, updateOAuthRedirectUris } from '@/lib/api';
 import { getProducts, createProduct, updateProduct, deleteProduct } from '@/lib/products-api';
 import { getPlans, createPlan, updatePlan, deletePlan } from '@/lib/plans-api';
 import { getLicenses, getPurchasedLicenses, createLicense, updateLicense, deleteLicense } from '@/lib/licenses-api';
+import { getAllSubscriptionsForApp } from '@/lib/subscriptions-api';
 import { ChannelType } from '@/types';
-import type { ClientApp, ApiError, Product, Plan, PlanDuration, AppUser, CreateProductRequest, UpdateProductRequest, CreatePlanRequest, UpdatePlanRequest, License, CreateLicenseRequest, UpdateLicenseRequest, LicenseStatus } from '@/types';
+import type { ClientApp, ApiError, Product, Plan, PlanDuration, AppUser, CreateProductRequest, UpdateProductRequest, CreatePlanRequest, UpdatePlanRequest, License, CreateLicenseRequest, UpdateLicenseRequest, LicenseStatus, Subscription } from '@/types';
 import { getLogs } from '@/lib/logs-api';
 import { 
   ArrowLeft, 
@@ -224,6 +225,11 @@ export default function AppDetailPage() {
   const [purchasedLicenses, setPurchasedLicenses] = useState<License[]>([]);
   const [purchasedLicensesLoading, setPurchasedLicensesLoading] = useState(false);
   const [purchasedLicensesError, setPurchasedLicensesError] = useState<string | null>(null);
+
+  const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
+  const [subscriptionsLoading, setSubscriptionsLoading] = useState(false);
+  const [subscriptionsError, setSubscriptionsError] = useState<string | null>(null);
+  const [subscriptionPlansById, setSubscriptionPlansById] = useState<Record<string, Plan>>({});
 
   // Subscriptions state
   // Events state
@@ -692,14 +698,53 @@ export default function AppDetailPage() {
     fetchPurchasedLicenses();
   }, [activeTab, licenseFilter, app?.id]);
 
-  // Subscriptions tab — feature dinonaktifkan sementara (lihat render tab
-  // di bawah). Endpoint `bagdja-auth` `/subscriptions/app/:appId` yg dulu
-  // men-supply data ini sudah dihapus di refactoring-payment-service.md
-  // Fase 1.D (Subscription entity di auth tidak lagi dipakai). Belum ada
-  // pengganti di payment-service utk kasus "org lain berlangganan Plan app
-  // ini" — lihat catatan di refactoring-payment-service.md §5.
+  // Subscriptions tab — org/user manapun yang subscribe ke Plan app ini
+  // ("owner view", tanpa filter orgId/userId, lihat
+  // refactoring-payment-service.md §7 Track 2 Fase 1.G). Model BARU dari
+  // payment-service (`SubscriptionDto`), BUKAN pengganti 1:1 endpoint
+  // `bagdja-auth` `/subscriptions/app/:appId` yang sudah dihapus di Fase 1.D.
+  useEffect(() => {
+    const fetchSubscriptions = async () => {
+      if (activeTab !== 'subscriptions' || !app?.appId) return;
 
+      try {
+        setSubscriptionsLoading(true);
+        setSubscriptionsError(null);
+        const [subs, plans] = await Promise.all([
+          getAllSubscriptionsForApp(app.appId),
+          getPlans(app.appId),
+        ]);
+        setSubscriptions(subs);
+        setSubscriptionPlansById(Object.fromEntries(plans.map((p) => [p.id, p])));
+      } catch (err) {
+        const apiError = err as ApiError;
+        setSubscriptionsError(apiError.message || 'Failed to fetch subscriptions');
+        console.error('Failed to fetch subscriptions:', err);
+      } finally {
+        setSubscriptionsLoading(false);
+      }
+    };
 
+    fetchSubscriptions();
+  }, [activeTab, app?.appId]);
+
+  const getSubscriptionStatusColor = (status: string) => {
+    switch (status) {
+      case 'ACTIVE':
+        return 'text-green-600 bg-green-500/10';
+      case 'TRIALING':
+        return 'text-blue-600 bg-blue-500/10';
+      case 'PAST_DUE':
+        return 'text-amber-600 bg-amber-500/10';
+      case 'SUSPENDED':
+        return 'text-red-600 bg-red-500/10';
+      case 'CANCELLED':
+      case 'EXPIRED':
+        return 'text-gray-600 bg-gray-500/10';
+      default:
+        return 'text-gray-600 bg-gray-500/10';
+    }
+  };
 
   // Fetch subscription requests when events/requests tab is active
   useEffect(() => {
@@ -1895,16 +1940,82 @@ export default function AppDetailPage() {
 
         {/* Subscriptions Tab */}
         {activeTab === 'subscriptions' && (
-          <div className="p-12 text-center">
-            <CreditCard className="mx-auto h-12 w-12 text-[var(--text-muted)]" />
-            <h3 className="mt-4 text-lg font-medium text-[var(--text-primary)]">
-              Subscriptions temporarily unavailable
-            </h3>
-            <p className="mt-2 text-sm text-[var(--text-secondary)] max-w-md mx-auto">
-              This feature relied on the legacy `Subscription` entity in bagdja-auth,
-              which has been removed as part of the Product/Plan/License refactor to
-              bagdja-payment-service. It will return once an equivalent is implemented there.
-            </p>
+          <div className="p-6">
+            <div className="mb-4">
+              <h2 className="text-lg font-semibold text-[var(--text-primary)]">Subscribers</h2>
+              <p className="text-sm text-[var(--text-secondary)] mt-1">
+                Organizations and users currently subscribed to this app&apos;s plans
+              </p>
+            </div>
+
+            {subscriptionsLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[var(--action-primary)]"></div>
+              </div>
+            ) : subscriptionsError ? (
+              <div className="rounded-md bg-[var(--brand-error)]/20 border border-[var(--brand-error)]/30 p-4 text-sm text-[var(--brand-error)]">
+                {subscriptionsError}
+              </div>
+            ) : subscriptions.length > 0 ? (
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b border-[var(--border-default)]">
+                      <th className="text-left py-3 px-4 text-sm font-medium text-[var(--text-secondary)]">Subscriber</th>
+                      <th className="text-left py-3 px-4 text-sm font-medium text-[var(--text-secondary)]">Plan</th>
+                      <th className="text-left py-3 px-4 text-sm font-medium text-[var(--text-secondary)]">Status</th>
+                      <th className="text-left py-3 px-4 text-sm font-medium text-[var(--text-secondary)]">Amount</th>
+                      <th className="text-left py-3 px-4 text-sm font-medium text-[var(--text-secondary)]">Current Period</th>
+                      <th className="text-left py-3 px-4 text-sm font-medium text-[var(--text-secondary)]">Next Billing</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[var(--border-default)]">
+                    {subscriptions.map((sub) => {
+                      const plan = subscriptionPlansById[sub.planId];
+                      return (
+                        <tr key={sub.id} className="hover:bg-[var(--bg-hover)] transition-colors">
+                          <td className="py-3 px-4 text-sm text-[var(--text-primary)] font-mono">
+                            {sub.orgId || sub.userId || '-'}
+                          </td>
+                          <td className="py-3 px-4 text-sm text-[var(--text-primary)]">
+                            {plan?.name || 'Unknown plan'}
+                            {plan?.code && (
+                              <div className="text-xs text-[var(--text-secondary)] font-mono">{plan.code}</div>
+                            )}
+                          </td>
+                          <td className="py-3 px-4">
+                            <span
+                              className={`inline-flex items-center px-2 py-1 rounded text-xs font-medium ${getSubscriptionStatusColor(sub.status)}`}
+                            >
+                              {sub.status}
+                            </span>
+                          </td>
+                          <td className="py-3 px-4 text-sm font-medium text-[var(--text-primary)]">
+                            {formatCurrency(sub.lockedAmount, sub.currency)}
+                          </td>
+                          <td className="py-3 px-4 text-sm text-[var(--text-secondary)]">
+                            {formatDate(sub.currentPeriodStart)} – {formatDate(sub.currentPeriodEnd)}
+                          </td>
+                          <td className="py-3 px-4 text-sm text-[var(--text-secondary)]">
+                            {sub.cancelAtPeriodEnd ? 'Cancels at period end' : formatDate(sub.nextBillingDate)}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div className="text-center py-12">
+                <CreditCard className="mx-auto h-12 w-12 text-[var(--text-muted)]" />
+                <h3 className="mt-4 text-lg font-medium text-[var(--text-primary)]">
+                  No Subscribers
+                </h3>
+                <p className="mt-2 text-sm text-[var(--text-secondary)]">
+                  No one has subscribed to a plan of this app yet.
+                </p>
+              </div>
+            )}
           </div>
         )}
 
