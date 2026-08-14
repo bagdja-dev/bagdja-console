@@ -5,7 +5,8 @@ import type { Plan, CreatePlanRequest, UpdatePlanRequest, ApiError } from '@/typ
 import { PlanDuration } from '@/types';
 import { Input } from '@/ui/input';
 import { Select } from '@/ui/select';
-import { X, Plus, Trash2, Code2, AlertCircle } from 'lucide-react';
+import { X, Plus, Trash2, Code2, AlertCircle, Sparkles } from 'lucide-react';
+import { parseMetadataJson } from '@/lib/json-metadata';
 
 interface PlanModalProps {
   isOpen: boolean;
@@ -32,6 +33,7 @@ export default function PlanModal({ isOpen, onClose, onSubmit, plan, appId: _app
   const [featureInput, setFeatureInput] = useState<string>('');
   const [metadataJson, setMetadataJson] = useState<string>('{}');
   const [jsonError, setJsonError] = useState<string | null>(null);
+  const [jsonFixNotice, setJsonFixNotice] = useState<string | null>(null);
 
   useEffect(() => {
     if (plan) {
@@ -68,31 +70,28 @@ export default function PlanModal({ isOpen, onClose, onSubmit, plan, appId: _app
     setFeatureInput('');
     setError(null);
     setJsonError(null);
+    setJsonFixNotice(null);
   }, [plan, isOpen]);
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const validateJson = (jsonString: string): Record<string, any> | null => {
-    if (!jsonString.trim()) {
-      return {};
-    }
-    try {
-      const parsed = JSON.parse(jsonString);
-      if (typeof parsed !== 'object' || Array.isArray(parsed)) {
-        setJsonError('Metadata must be a JSON object');
-        return null;
-      }
-      setJsonError(null);
-      return parsed;
-    } catch (err) {
-      setJsonError(err instanceof Error ? err.message : 'Invalid JSON format');
-      return null;
-    }
+    const result = parseMetadataJson(jsonString);
+    setJsonError(result.error);
+    return result.value;
   };
 
   const formatJson = () => {
-    const parsed = validateJson(metadataJson);
-    if (parsed !== null) {
-      setMetadataJson(JSON.stringify(parsed, null, 2));
+    const result = parseMetadataJson(metadataJson);
+    setJsonError(result.error);
+    if (result.fixedText) {
+      // Input had minor mistakes (e.g. `=` instead of `:`, unquoted keys) that were auto-repaired.
+      setMetadataJson(result.fixedText);
+      setJsonFixNotice('Beberapa kesalahan sintaks kecil otomatis diperbaiki — cek lagi sebelum menyimpan.');
+    } else {
+      setJsonFixNotice(null);
+      if (result.value !== null) {
+        setMetadataJson(JSON.stringify(result.value, null, 2));
+      }
     }
   };
 
@@ -102,13 +101,18 @@ export default function PlanModal({ isOpen, onClose, onSubmit, plan, appId: _app
     setLoading(true);
 
     try {
-      // Validate and parse JSON metadata
-      const metadata = validateJson(metadataJson);
-      if (metadata === null) {
+      // Validate and parse JSON metadata (auto-fixes minor syntax mistakes if possible)
+      const metadataResult = parseMetadataJson(metadataJson);
+      setJsonError(metadataResult.error);
+      if (metadataResult.value === null) {
         setError('Please fix JSON errors in metadata');
         setLoading(false);
         return;
       }
+      if (metadataResult.fixedText) {
+        setMetadataJson(metadataResult.fixedText);
+      }
+      const metadata = metadataResult.value;
 
       const submitData = {
         ...formData,
@@ -270,6 +274,7 @@ export default function PlanModal({ isOpen, onClose, onSubmit, plan, appId: _app
                 value={metadataJson}
                 onChange={(e) => {
                   setMetadataJson(e.target.value);
+                  setJsonFixNotice(null);
                   // Clear error when user starts typing
                   if (jsonError) {
                     validateJson(e.target.value);

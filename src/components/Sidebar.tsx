@@ -33,7 +33,13 @@ interface MenuItem {
   href?: string;
   children?: MenuItem[];
   isSystemOnly?: boolean;
+  /** When true, `href` is an absolute URL opened in a new tab instead of client-side routing. */
+  external?: boolean;
 }
+
+// Base URL of bagdja-payment-service, used for links to admin UIs it hosts itself
+// (e.g. Bull Board queue monitoring) that don't have a first-party console page.
+const PAYMENT_API_BASE = process.env.NEXT_PUBLIC_PAYMENT_API || '';
 
 const menuItems: MenuItem[] = [
   {
@@ -159,6 +165,13 @@ const menuItems: MenuItem[] = [
         label: 'Platform Logs',
         icon: List,
         href: '/infrastructure/logs',
+      },
+      {
+        id: 'infra-billing-queues',
+        label: 'Billing Queues',
+        icon: Activity,
+        href: `${PAYMENT_API_BASE}/admin/queues`,
+        external: true,
       },
     ],
   },
@@ -323,10 +336,13 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
     });
   };
 
-  const handleNavigation = (href?: string) => {
-    if (href) {
-      router.push(href);
+  const handleNavigation = (item: MenuItem) => {
+    if (!item.href) return;
+    if (item.external) {
+      window.open(item.href, '_blank', 'noopener,noreferrer');
+      return;
     }
+    router.push(item.href);
   };
 
   const isActive = (href?: string, isChild = false) => {
@@ -491,7 +507,7 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
                       onClick={(e) => {
                         e.preventDefault();
                         e.stopPropagation();
-                        handleNavigation(child.href);
+                        handleNavigation(child);
                         if (!isExpanded) {
                           setHoveredItemId(null);
                           setPopupPosition(null);
@@ -520,7 +536,7 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
       return (
         <Tooltip key={item.id} content={item.label} side="right">
           <button
-            onClick={() => handleNavigation(item.href)}
+            onClick={() => handleNavigation(item)}
             className={cn(
               'w-full flex items-center justify-center p-3 rounded-lg transition-colors',
               'hover:bg-[var(--bg-surface)]',
@@ -541,7 +557,7 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
             if (hasChildren) {
               toggleExpanded(item.id);
             } else {
-              handleNavigation(item.href);
+              handleNavigation(item);
             }
           }}
           className={cn(
