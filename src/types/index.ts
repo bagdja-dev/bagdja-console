@@ -324,6 +324,56 @@ export interface UpdateProductRequest {
   prices?: { currency: string; price: number }[];
 }
 
+// Escrow Product Types — katalog/policy untuk item yang dijual via escrow
+// milestone (`bagdja-payment-service` `escrow_products`, tabel dedicated
+// sejak 2026-08-19, lihat
+// plan/payment-service/escrow-milestone-decision.md §3.0 supersede #12).
+// Terpisah dari `Product` di atas — beda tabel, beda tujuan (policy escrow,
+// bukan katalog jualan generik).
+export interface EscrowProduct {
+  id: string;
+  appId: string;
+  name: string;
+  description: string | null;
+  currency: string;
+  price: number | null;
+  isDynamic: boolean;
+  isActive: boolean;
+  status: ProductStatus;
+  releaseMode: string;
+  milestoneRequired: boolean;
+  allowPartialMilestoneRelease: boolean;
+  disputeEnabled: boolean;
+  releaseWindowEnforced: boolean;
+  fullPaymentRequired: boolean;
+  allowedPaymentMethods: string[] | null;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  metadata: Record<string, any> | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreateEscrowProductRequest {
+  name: string;
+  description?: string;
+  currency?: string;
+  price?: number;
+  isDynamic?: boolean;
+  isActive?: boolean;
+  status?: ProductStatus;
+  releaseMode?: string;
+  milestoneRequired?: boolean;
+  allowPartialMilestoneRelease?: boolean;
+  disputeEnabled?: boolean;
+  releaseWindowEnforced?: boolean;
+  fullPaymentRequired?: boolean;
+  allowedPaymentMethods?: string[];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  metadata?: Record<string, any>;
+}
+
+export type UpdateEscrowProductRequest = Partial<CreateEscrowProductRequest>;
+
 // Subscription Types — model BARU dari `bagdja-payment-service`
 // (`SubscriptionDto`, lihat refactoring-payment-service.md §7 Track 2
 // Fase 1.G). BUKAN pengganti 1:1 model lama `bagdja-auth` yang dihapus di

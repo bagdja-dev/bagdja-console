@@ -8,8 +8,9 @@ import { getProducts, createProduct, updateProduct, deleteProduct } from '@/lib/
 import { getPlans, createPlan, updatePlan, deletePlan } from '@/lib/plans-api';
 import { getLicenses, getPurchasedLicenses, createLicense, updateLicense, deleteLicense } from '@/lib/licenses-api';
 import { getAllSubscriptionsForApp } from '@/lib/subscriptions-api';
+import { getEscrowProducts, createEscrowProduct, updateEscrowProduct, deleteEscrowProduct } from '@/lib/escrow-products-api';
 import { ChannelType } from '@/types';
-import type { ClientApp, ApiError, Product, Plan, PlanDuration, AppUser, CreateProductRequest, UpdateProductRequest, CreatePlanRequest, UpdatePlanRequest, License, CreateLicenseRequest, UpdateLicenseRequest, LicenseStatus, Subscription } from '@/types';
+import type { ClientApp, ApiError, Product, Plan, PlanDuration, AppUser, CreateProductRequest, UpdateProductRequest, CreatePlanRequest, UpdatePlanRequest, License, CreateLicenseRequest, UpdateLicenseRequest, LicenseStatus, Subscription, EscrowProduct, CreateEscrowProductRequest, UpdateEscrowProductRequest } from '@/types';
 import { getLogs } from '@/lib/logs-api';
 import { 
   ArrowLeft, 
@@ -41,10 +42,12 @@ import {
   XCircle,
   AlertTriangle,
   Info,
-  Settings as SettingsIcon
+  Settings as SettingsIcon,
+  ShieldCheck
 } from 'lucide-react';
 import DataGrid, { type GridColumn, type FilterField } from '@/components/DataGrid';
 import ProductModal from '@/components/ProductModal';
+import EscrowProductModal from '@/components/EscrowProductModal';
 import PlanModal from '@/components/PlanModal';
 import LicenseModal from '@/components/LicenseModal';
 import DistributePieceModal from '@/components/DistributePieceModal';
@@ -87,7 +90,7 @@ import {
 } from '@/lib/payment-api';
 import type { AppPaymentMethodSetting } from '@/lib/payment-api';
 
-type TabType = 'users' | 'product' | 'plan' | 'license' | 'subscriptions' | 'events' | 'messaging' | 'payment' | 'logs' | 'settings';
+type TabType = 'users' | 'product' | 'escrow-product' | 'plan' | 'license' | 'subscriptions' | 'events' | 'messaging' | 'payment' | 'logs' | 'settings';
 type EventSubTab = 'broadcast' | 'subscribe' | 'requests' | 'log';
 type MessagingSubTab = 'setup' | 'templates' | 'logs';
 
@@ -206,6 +209,13 @@ export default function AppDetailPage() {
   const [productsError, setProductsError] = useState<string | null>(null);
   const [productModalOpen, setProductModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+
+  // Escrow Products state
+  const [escrowProducts, setEscrowProducts] = useState<EscrowProduct[]>([]);
+  const [escrowProductsLoading, setEscrowProductsLoading] = useState(false);
+  const [escrowProductsError, setEscrowProductsError] = useState<string | null>(null);
+  const [escrowProductModalOpen, setEscrowProductModalOpen] = useState(false);
+  const [editingEscrowProduct, setEditingEscrowProduct] = useState<EscrowProduct | null>(null);
 
   // Plans state
   const [plans, setPlans] = useState<Plan[]>([]);
@@ -632,6 +642,28 @@ export default function AppDetailPage() {
     fetchProducts();
   }, [activeTab, app?.id]);
 
+  // Fetch escrow products when escrow-product tab is active
+  useEffect(() => {
+    const fetchEscrowProducts = async () => {
+      if (activeTab !== 'escrow-product' || !app?.id) return;
+
+      try {
+        setEscrowProductsLoading(true);
+        setEscrowProductsError(null);
+        const data = await getEscrowProducts(app.appId);
+        setEscrowProducts(data);
+      } catch (err) {
+        const apiError = err as ApiError;
+        setEscrowProductsError(apiError.message || 'Failed to fetch escrow products');
+        console.error('Failed to fetch escrow products:', err);
+      } finally {
+        setEscrowProductsLoading(false);
+      }
+    };
+
+    fetchEscrowProducts();
+  }, [activeTab, app?.id]);
+
   // Fetch plans when plan tab is active
   useEffect(() => {
     const fetchPlans = async () => {
@@ -1002,6 +1034,74 @@ export default function AppDetailPage() {
     setEditingProduct(null);
   };
 
+  const refreshEscrowProducts = async () => {
+    if (!app?.appId) return;
+    try {
+      setEscrowProductsLoading(true);
+      setEscrowProductsError(null);
+      const data = await getEscrowProducts(app.appId);
+      setEscrowProducts(data);
+    } catch (err) {
+      const apiError = err as ApiError;
+      setEscrowProductsError(apiError.message || 'Failed to fetch escrow products');
+      console.error('Failed to fetch escrow products:', err);
+    } finally {
+      setEscrowProductsLoading(false);
+    }
+  };
+
+  const handleCreateEscrowProduct = async (data: CreateEscrowProductRequest) => {
+    if (!app?.appId) return;
+    await createEscrowProduct(app.appId, data);
+    await refreshEscrowProducts();
+  };
+
+  const handleUpdateEscrowProduct = async (data: UpdateEscrowProductRequest) => {
+    if (!editingEscrowProduct) return;
+    await updateEscrowProduct(editingEscrowProduct.id, data);
+    await refreshEscrowProducts();
+    setEditingEscrowProduct(null);
+  };
+
+  const handleEscrowProductSubmit = async (data: CreateEscrowProductRequest | UpdateEscrowProductRequest) => {
+    if (editingEscrowProduct) {
+      await handleUpdateEscrowProduct(data as UpdateEscrowProductRequest);
+    } else {
+      await handleCreateEscrowProduct(data as CreateEscrowProductRequest);
+    }
+  };
+
+  const handleDeleteEscrowProduct = async (id: string) => {
+    if (!confirm('Are you sure you want to delete this escrow product? This action cannot be undone.')) {
+      return;
+    }
+
+    try {
+      await deleteEscrowProduct(id);
+      await refreshEscrowProducts();
+      showAlert('Escrow product deleted successfully.', 'success');
+    } catch (err) {
+      const apiError = err as ApiError;
+      showAlert(apiError.message || 'Failed to delete escrow product', 'error');
+      console.error('Failed to delete escrow product:', err);
+    }
+  };
+
+  const openCreateEscrowProductModal = () => {
+    setEditingEscrowProduct(null);
+    setEscrowProductModalOpen(true);
+  };
+
+  const openEditEscrowProductModal = (escrowProduct: EscrowProduct) => {
+    setEditingEscrowProduct(escrowProduct);
+    setEscrowProductModalOpen(true);
+  };
+
+  const closeEscrowProductModal = () => {
+    setEscrowProductModalOpen(false);
+    setEditingEscrowProduct(null);
+  };
+
   const refreshPlans = async () => {
     if (!app?.appId) return;
     try {
@@ -1282,6 +1382,18 @@ export default function AppDetailPage() {
             <div className="flex items-center gap-2">
               <ShoppingBag className="h-4 w-4" />
               Product
+            </div>
+          </button>
+          <button
+            onClick={() => setActiveTab('escrow-product')}
+            className={`pb-4 px-1 border-b-2 font-medium text-sm transition-colors ${activeTab === 'escrow-product'
+              ? 'border-[var(--action-primary)] text-[var(--action-primary)]'
+              : 'border-transparent text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+              }`}
+          >
+            <div className="flex items-center gap-2">
+              <ShieldCheck className="h-4 w-4" />
+              Escrow Product
             </div>
           </button>
           <button
@@ -1614,6 +1726,136 @@ export default function AppDetailPage() {
                             <button
                               className="p-1 text-[var(--text-secondary)] hover:text-[var(--text-danger)] transition-colors"
                               onClick={() => handleDeleteProduct(product.id)}
+                              title="Delete"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Escrow Product Tab */}
+        {activeTab === 'escrow-product' && (
+          <div className="p-6">
+            <div className="mb-4 flex items-center justify-between">
+              <div>
+                <h2 className="text-lg font-semibold text-[var(--text-primary)]">Escrow Products</h2>
+                <p className="text-sm text-[var(--text-secondary)] mt-1">
+                  Katalog/policy escrow milik app ini — biasanya 1 per website tenant, dipakai saat checkout via escrow milestone.
+                </p>
+              </div>
+              <button
+                className="inline-flex items-center gap-2 px-4 py-2 bg-[var(--action-primary)] text-white rounded-lg hover:opacity-90 transition-opacity text-sm font-medium"
+                onClick={openCreateEscrowProductModal}
+              >
+                <Plus className="h-4 w-4" />
+                Create Escrow Product
+              </button>
+            </div>
+
+            {escrowProductsLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <div className="text-[var(--text-secondary)]">Loading escrow products...</div>
+              </div>
+            ) : escrowProductsError ? (
+              <div className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-surface)] p-8 text-center">
+                <p className="text-[var(--text-danger)]">{escrowProductsError}</p>
+              </div>
+            ) : escrowProducts.length === 0 ? (
+              <div className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-surface)] p-8 text-center">
+                <p className="text-[var(--text-secondary)]">No escrow products found. Create one to enable escrow checkout for this app.</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b border-[var(--border-default)]">
+                      <th className="text-left py-3 px-4 text-sm font-medium text-[var(--text-secondary)]">
+                        Name
+                      </th>
+                      <th className="text-left py-3 px-4 text-sm font-medium text-[var(--text-secondary)]">
+                        Escrow Product ID
+                      </th>
+                      <th className="text-left py-3 px-4 text-sm font-medium text-[var(--text-secondary)]">
+                        Pricing
+                      </th>
+                      <th className="text-left py-3 px-4 text-sm font-medium text-[var(--text-secondary)]">
+                        Policy
+                      </th>
+                      <th className="text-left py-3 px-4 text-sm font-medium text-[var(--text-secondary)]">
+                        Status
+                      </th>
+                      <th className="text-left py-3 px-4 text-sm font-medium text-[var(--text-secondary)]">
+                        Actions
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[var(--border-default)]">
+                    {escrowProducts.map((ep) => (
+                      <tr key={ep.id} className="hover:bg-[var(--bg-hover)] transition-colors">
+                        <td className="py-3 px-4 text-sm font-medium text-[var(--text-primary)]">
+                          {ep.name}
+                        </td>
+                        <td className="py-3 px-4 text-sm font-mono text-[var(--text-secondary)]">
+                          <div className="flex items-center gap-1">
+                            <span className="truncate max-w-[120px]" title={ep.id}>
+                              {ep.id}
+                            </span>
+                            <button
+                              onClick={() => {
+                                navigator.clipboard.writeText(ep.id);
+                                setCopiedKey(ep.id);
+                                setTimeout(() => setCopiedKey(null), 2000);
+                              }}
+                              className="p-1 hover:text-[var(--action-primary)] transition-colors"
+                            >
+                              {copiedKey === ep.id ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+                            </button>
+                          </div>
+                        </td>
+                        <td className="py-3 px-4 text-sm text-[var(--text-primary)]">
+                          {ep.isDynamic ? (
+                            <span className="text-[var(--text-secondary)]">Dynamic amount</span>
+                          ) : (
+                            formatCurrency(Number(ep.price ?? 0), ep.currency)
+                          )}
+                        </td>
+                        <td className="py-3 px-4 text-xs text-[var(--text-secondary)]">
+                          <div className="flex flex-wrap gap-1">
+                            <span className="px-1.5 py-0.5 bg-[var(--bg-sidebar)] rounded">{ep.releaseMode}</span>
+                            {ep.milestoneRequired && <span className="px-1.5 py-0.5 bg-[var(--bg-sidebar)] rounded">milestone</span>}
+                            {ep.disputeEnabled && <span className="px-1.5 py-0.5 bg-[var(--bg-sidebar)] rounded">dispute</span>}
+                          </div>
+                        </td>
+                        <td className="py-3 px-4">
+                          <span
+                            className={`px-2 py-1 rounded text-xs font-medium ${ep.status === 'ACTIVE'
+                              ? 'bg-green-500/10 text-green-600'
+                              : 'bg-gray-500/10 text-gray-600'
+                              }`}
+                          >
+                            {ep.status}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4">
+                          <div className="flex items-center gap-2">
+                            <button
+                              className="p-1 text-[var(--text-secondary)] hover:text-[var(--action-primary)] transition-colors"
+                              onClick={() => openEditEscrowProductModal(ep)}
+                              title="Edit"
+                            >
+                              <Edit className="h-4 w-4" />
+                            </button>
+                            <button
+                              className="p-1 text-[var(--text-secondary)] hover:text-[var(--text-danger)] transition-colors"
+                              onClick={() => handleDeleteEscrowProduct(ep.id)}
                               title="Delete"
                             >
                               <Trash2 className="h-4 w-4" />
@@ -3136,6 +3378,18 @@ export default function AppDetailPage() {
             onSubmit={handleProductSubmit}
             product={editingProduct}
             appId={app.appId}
+          />
+        )
+      }
+
+      {/* Escrow Product Modal */}
+      {
+        app && (
+          <EscrowProductModal
+            isOpen={escrowProductModalOpen}
+            onClose={closeEscrowProductModal}
+            onSubmit={handleEscrowProductSubmit}
+            escrowProduct={editingEscrowProduct}
           />
         )
       }

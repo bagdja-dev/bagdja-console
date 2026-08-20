@@ -9,15 +9,25 @@ import {
   deleteBillingSetting,
   type BillingSetting
 } from '@/lib/payment-api';
+import {
+  listEscrowFeeConfigs,
+  upsertEscrowFeeConfig,
+  type EscrowFeeConfig,
+  type UpsertEscrowFeeConfigRequest,
+} from '@/lib/escrow-fee-configs-api';
+import { getEscrowProducts } from '@/lib/escrow-products-api';
 import { formatPercentageFeeForDisplay } from '@/lib/billing-utils';
 import { formatRuleKeyLabel, getHierarchyStep } from '@/lib/billing-hierarchy';
-import { CreditCard, Plus, Info, CheckCircle2, XCircle, Settings2, Edit2, Trash2 } from 'lucide-react';
+import { CreditCard, Plus, Info, CheckCircle2, XCircle, Settings2, Edit2, Trash2, ShieldCheck } from 'lucide-react';
 import DataGrid, { GridColumn, GridAction, FilterField } from '@/components/DataGrid';
 import BillingSettingModal from '@/components/BillingSettingModal';
+import EscrowFeeConfigModal from '@/components/EscrowFeeConfigModal';
 import GlobalBillingModal from '@/components/GlobalBillingModal';
 import ConfirmModal from '@/components/ConfirmModal';
 import AlertModal, { type AlertType } from '@/components/AlertModal';
 import { useLayout } from '@/context/LayoutContext';
+
+type ConfigTab = 'billing' | 'escrow-fee';
 
 const billingFilters: FilterField[] = [
   {
@@ -72,6 +82,7 @@ const billingFilters: FilterField[] = [
 ];
 
 export default function PaymentConfigPage() {
+  const [configTab, setConfigTab] = useState<ConfigTab>('billing');
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isGlobalModalOpen, setIsGlobalModalOpen] = useState(false);
@@ -80,6 +91,14 @@ export default function PaymentConfigPage() {
   const [globalDefault, setGlobalDefault] = useState<BillingSetting | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<BillingSetting | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+
+  // Escrow Fee Config state
+  const [escrowFeeConfigs, setEscrowFeeConfigs] = useState<EscrowFeeConfig[]>([]);
+  const [escrowFeeConfigsLoading, setEscrowFeeConfigsLoading] = useState(false);
+  const [escrowFeeConfigsError, setEscrowFeeConfigsError] = useState<string | null>(null);
+  const [escrowProductNameById, setEscrowProductNameById] = useState<Record<string, string>>({});
+  const [escrowFeeModalOpen, setEscrowFeeModalOpen] = useState(false);
+  const [selectedEscrowFeeConfig, setSelectedEscrowFeeConfig] = useState<EscrowFeeConfig | null>(null);
   const [alertState, setAlertState] = useState<{
     isOpen: boolean;
     type: AlertType;
@@ -183,6 +202,44 @@ export default function PaymentConfigPage() {
   const handleUpdateGlobal = async (payload: Partial<BillingSetting>) => {
     await updateGlobalDefaultBillingSetting(payload);
     setRefreshTrigger(prev => prev + 1);
+  };
+
+  const fetchEscrowFeeConfigs = useCallback(async () => {
+    try {
+      setEscrowFeeConfigsLoading(true);
+      setEscrowFeeConfigsError(null);
+      const data = await listEscrowFeeConfigs();
+      setEscrowFeeConfigs(data);
+
+      // Resolve product names for display — fetch escrow products per distinct app
+      // referenced by the configs (scope 'default' has no app to resolve against).
+      const appIds = Array.from(
+        new Set(data.filter((c) => c.appId !== 'default').map((c) => c.appId)),
+      );
+      const productLists = await Promise.all(appIds.map((appId) => getEscrowProducts(appId)));
+      const nameById: Record<string, string> = {};
+      productLists.flat().forEach((p) => {
+        nameById[p.id] = p.name;
+      });
+      setEscrowProductNameById(nameById);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to fetch escrow fee configs';
+      setEscrowFeeConfigsError(message);
+      console.error('Failed to fetch escrow fee configs:', err);
+    } finally {
+      setEscrowFeeConfigsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (configTab === 'escrow-fee') {
+      fetchEscrowFeeConfigs();
+    }
+  }, [configTab, fetchEscrowFeeConfigs]);
+
+  const handleUpsertEscrowFeeConfig = async (payload: UpsertEscrowFeeConfigRequest) => {
+    await upsertEscrowFeeConfig(payload);
+    await fetchEscrowFeeConfigs();
   };
 
   const isGlobalDefault = (row: BillingSetting) =>
@@ -415,6 +472,174 @@ export default function PaymentConfigPage() {
         </div>
       </div>
 
+      {/* Tab Switcher */}
+      <div className="mb-8 border-b border-[var(--border-default)]">
+        <nav className="flex gap-8">
+          <button
+            onClick={() => setConfigTab('billing')}
+            className={`pb-3 px-1 border-b-2 font-medium text-sm transition-colors ${configTab === 'billing'
+              ? 'border-[var(--action-primary)] text-[var(--action-primary)]'
+              : 'border-transparent text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+              }`}
+          >
+            <div className="flex items-center gap-2">
+              <CreditCard className="h-4 w-4" />
+              Billing Settings
+            </div>
+          </button>
+          <button
+            onClick={() => setConfigTab('escrow-fee')}
+            className={`pb-3 px-1 border-b-2 font-medium text-sm transition-colors ${configTab === 'escrow-fee'
+              ? 'border-[var(--action-primary)] text-[var(--action-primary)]'
+              : 'border-transparent text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+              }`}
+          >
+            <div className="flex items-center gap-2">
+              <ShieldCheck className="h-4 w-4" />
+              Escrow Fee Config
+            </div>
+          </button>
+        </nav>
+      </div>
+
+      {configTab === 'escrow-fee' ? (
+        <>
+          <div className="mb-8 p-6 bg-[var(--bg-surface)] border border-[var(--border-default)] rounded-xl shadow-sm flex items-start gap-3">
+            <div className="p-2 bg-blue-500/10 rounded-lg shrink-0">
+              <Info className="w-5 h-5 text-blue-500" />
+            </div>
+            <div className="text-sm text-[var(--text-secondary)] space-y-1">
+              <p>
+                Fee di sini dipotong dari dana milestone escrow saat <span className="font-medium text-[var(--text-primary)]">release</span> ke seller — beda dari Billing Settings di atas (fee payment gateway saat checkout).
+              </p>
+              <p>
+                Resolusi (spesifik menang): <span className="font-mono text-xs">(org, app, product) → (org, app, default) → (org, default, default) → (default, default, default)</span>.
+                Kalau tidak ada config sama sekali di scope manapun, fee = 0 (seller terima penuh).
+              </p>
+            </div>
+          </div>
+
+          <div className="bg-[var(--bg-surface)] rounded-xl border border-[var(--border-default)] shadow-sm overflow-hidden">
+            <div className="p-5 flex items-center justify-between border-b border-[var(--border-default)]">
+              <div>
+                <h3 className="font-bold text-[var(--text-primary)]">Escrow Fee Configs</h3>
+                <p className="text-sm text-[var(--text-secondary)] mt-0.5">
+                  {escrowFeeConfigs.length} config{escrowFeeConfigs.length === 1 ? '' : 's'}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedEscrowFeeConfig(null);
+                  setEscrowFeeModalOpen(true);
+                }}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-[var(--action-primary)] text-white rounded-lg hover:opacity-90 transition-opacity text-sm font-medium"
+              >
+                <Plus className="h-4 w-4" />
+                Create Config
+              </button>
+            </div>
+
+            {escrowFeeConfigsLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <div className="text-[var(--text-secondary)]">Loading escrow fee configs...</div>
+              </div>
+            ) : escrowFeeConfigsError ? (
+              <div className="p-8 text-center">
+                <p className="text-[var(--text-danger)]">{escrowFeeConfigsError}</p>
+              </div>
+            ) : escrowFeeConfigs.length === 0 ? (
+              <div className="p-8 text-center">
+                <p className="text-[var(--text-secondary)]">No escrow fee configs found. Create one to start charging platform/app fees on escrow releases.</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b border-[var(--border-default)]">
+                      <th className="text-left py-3 px-4 text-sm font-medium text-[var(--text-secondary)]">Scope</th>
+                      <th className="text-left py-3 px-4 text-sm font-medium text-[var(--text-secondary)]">Platform Fee</th>
+                      <th className="text-left py-3 px-4 text-sm font-medium text-[var(--text-secondary)]">App Fee</th>
+                      <th className="text-left py-3 px-4 text-sm font-medium text-[var(--text-secondary)]">Status</th>
+                      <th className="text-left py-3 px-4 text-sm font-medium text-[var(--text-secondary)]"></th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[var(--border-default)]">
+                    {escrowFeeConfigs.map((c) => (
+                      <tr
+                        key={c.id}
+                        className="hover:bg-[var(--bg-hover)] transition-colors cursor-pointer"
+                        onClick={() => {
+                          setSelectedEscrowFeeConfig(c);
+                          setEscrowFeeModalOpen(true);
+                        }}
+                      >
+                        <td className="py-3 px-4 text-sm">
+                          <div className="flex flex-col">
+                            <span className={`font-bold ${c.orgId === 'default' ? 'text-primary' : 'text-[var(--text-primary)]'}`}>
+                              {c.orgId === 'default' ? 'Global Default' : c.orgId}
+                            </span>
+                            <span className="text-xs text-[var(--text-secondary)]">
+                              {c.appId === 'default' ? 'All apps' : c.appId}
+                              {' · '}
+                              {c.productId ? (escrowProductNameById[c.productId] || c.productId) : 'All escrow products'}
+                            </span>
+                          </div>
+                        </td>
+                        <td className="py-3 px-4 text-sm">
+                          <div className="flex flex-col gap-0.5">
+                            <span>Fixed: {c.platformFixedFee.toLocaleString()}</span>
+                            <span>%: {c.platformPercentageFee}%</span>
+                          </div>
+                        </td>
+                        <td className="py-3 px-4 text-sm">
+                          <div className="flex flex-col gap-0.5">
+                            <span>Fixed: {c.appFixedFee.toLocaleString()}</span>
+                            <span>%: {c.appPercentageFee}%</span>
+                          </div>
+                        </td>
+                        <td className="py-3 px-4">
+                          {c.isActive ? (
+                            <span className="flex items-center gap-1 w-fit px-2 py-1 bg-green-500/10 text-green-600 text-[10px] font-bold uppercase rounded-md border border-green-500/20">
+                              <CheckCircle2 className="w-3 h-3" /> Active
+                            </span>
+                          ) : (
+                            <span className="flex items-center gap-1 w-fit px-2 py-1 bg-red-500/10 text-red-600 text-[10px] font-bold uppercase rounded-md border border-red-500/20">
+                              <XCircle className="w-3 h-3" /> Inactive
+                            </span>
+                          )}
+                        </td>
+                        <td className="py-3 px-4">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedEscrowFeeConfig(c);
+                              setEscrowFeeModalOpen(true);
+                            }}
+                            className="p-1.5 text-[var(--text-secondary)] hover:text-primary transition-colors"
+                            title="Edit"
+                          >
+                            <Edit2 className="h-4 w-4" />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
+          <EscrowFeeConfigModal
+            isOpen={escrowFeeModalOpen}
+            config={selectedEscrowFeeConfig}
+            onClose={() => setEscrowFeeModalOpen(false)}
+            onSubmit={handleUpsertEscrowFeeConfig}
+          />
+        </>
+      ) : (
+      <>
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
         {/* Default Setting Quick View */}
         <div className="lg:col-span-1 flex flex-col gap-4">
@@ -582,6 +807,8 @@ export default function PaymentConfigPage() {
         title={alertState.title}
         message={alertState.message}
       />
+      </>
+      )}
     </>
   );
 }
