@@ -3,7 +3,15 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { getClientApps, getAppUsers, updateOAuthRedirectUris } from '@/lib/api';
+import { getClientApps, getAppUsers, updateOAuthRedirectUris, getUserById } from '@/lib/api';
+import {
+  listDisputedEscrows,
+  unfreezeEscrow,
+  forceReleaseDispute,
+  refundEscrow,
+  getWalletById,
+  type EscrowDetail,
+} from '@/lib/escrow-disputes-api';
 import { getProducts, createProduct, updateProduct, deleteProduct } from '@/lib/products-api';
 import { getPlans, createPlan, updatePlan, deletePlan } from '@/lib/plans-api';
 import { getLicenses, getPurchasedLicenses, createLicense, updateLicense, deleteLicense } from '@/lib/licenses-api';
@@ -43,11 +51,16 @@ import {
   AlertTriangle,
   Info,
   Settings as SettingsIcon,
-  ShieldCheck
+  ShieldCheck,
+  MessageSquareWarning,
+  ShieldOff,
+  CheckCircle2,
+  RotateCcw
 } from 'lucide-react';
 import DataGrid, { type GridColumn, type FilterField } from '@/components/DataGrid';
 import ProductModal from '@/components/ProductModal';
 import EscrowProductModal from '@/components/EscrowProductModal';
+import DisputeActionModal, { type DisputeAction } from '@/components/DisputeActionModal';
 import PlanModal from '@/components/PlanModal';
 import LicenseModal from '@/components/LicenseModal';
 import DistributePieceModal from '@/components/DistributePieceModal';
@@ -90,7 +103,7 @@ import {
 } from '@/lib/payment-api';
 import type { AppPaymentMethodSetting } from '@/lib/payment-api';
 
-type TabType = 'users' | 'product' | 'escrow-product' | 'plan' | 'license' | 'subscriptions' | 'events' | 'messaging' | 'payment' | 'logs' | 'settings';
+type TabType = 'users' | 'product' | 'escrow-product' | 'dispute' | 'plan' | 'license' | 'subscriptions' | 'events' | 'messaging' | 'payment' | 'logs' | 'settings';
 type EventSubTab = 'broadcast' | 'subscribe' | 'requests' | 'log';
 type MessagingSubTab = 'setup' | 'templates' | 'logs';
 
@@ -216,6 +229,18 @@ export default function AppDetailPage() {
   const [escrowProductsError, setEscrowProductsError] = useState<string | null>(null);
   const [escrowProductModalOpen, setEscrowProductModalOpen] = useState(false);
   const [editingEscrowProduct, setEditingEscrowProduct] = useState<EscrowProduct | null>(null);
+
+  // Dispute state (Order Handling Phase 2 — plan/website-builder/order-hanlde-plan.md §2 D1)
+  const [disputedEscrows, setDisputedEscrows] = useState<EscrowDetail[]>([]);
+  const [disputesLoading, setDisputesLoading] = useState(false);
+  const [disputesError, setDisputesError] = useState<string | null>(null);
+  const [disputeProductById, setDisputeProductById] = useState<Record<string, EscrowProduct>>({});
+  const [disputeBuyerById, setDisputeBuyerById] = useState<
+    Record<string, { name?: string; email?: string; username?: string }>
+  >({});
+  const [disputeActionTarget, setDisputeActionTarget] = useState<{ action: DisputeAction; escrow: EscrowDetail } | null>(
+    null,
+  );
 
   // Plans state
   const [plans, setPlans] = useState<Plan[]>([]);
@@ -664,6 +689,53 @@ export default function AppDetailPage() {
     fetchEscrowProducts();
   }, [activeTab, app?.id]);
 
+  // Fetch disputed escrows (+ resolve buyer identity & product info) when dispute tab is active
+  useEffect(() => {
+    const fetchDisputes = async () => {
+      if (activeTab !== 'dispute' || !app?.appId) return;
+
+      try {
+        setDisputesLoading(true);
+        setDisputesError(null);
+        const result = await listDisputedEscrows({ appId: app.appId });
+        setDisputedEscrows(result.data);
+
+        const [products, wallets] = await Promise.all([
+          getEscrowProducts(app.appId).catch(() => [] as EscrowProduct[]),
+          Promise.all(
+            Array.from(new Set(result.data.map((e) => e.buyer_wallet_id))).map((walletId) =>
+              getWalletById(walletId).catch(() => null),
+            ),
+          ),
+        ]);
+
+        setDisputeProductById(Object.fromEntries(products.map((p) => [p.id, p])));
+
+        const userIds = Array.from(
+          new Set(wallets.filter((w): w is NonNullable<typeof w> => Boolean(w?.user_id)).map((w) => w.user_id as string)),
+        );
+        const users = await Promise.all(userIds.map((id) => getUserById(id).catch(() => null)));
+        const userById = new Map(users.filter((u): u is NonNullable<typeof u> => Boolean(u)).map((u) => [u.id, u]));
+
+        const buyerMap: Record<string, { name?: string; email?: string; username?: string }> = {};
+        wallets.forEach((wallet) => {
+          if (!wallet?.user_id) return;
+          const user = userById.get(wallet.user_id);
+          if (user) buyerMap[wallet.id] = { name: user.name, email: user.email, username: user.username };
+        });
+        setDisputeBuyerById(buyerMap);
+      } catch (err) {
+        const apiError = err as ApiError;
+        setDisputesError(apiError.message || 'Failed to fetch disputes');
+        console.error('Failed to fetch disputes:', err);
+      } finally {
+        setDisputesLoading(false);
+      }
+    };
+
+    fetchDisputes();
+  }, [activeTab, app?.appId]);
+
   // Fetch plans when plan tab is active
   useEffect(() => {
     const fetchPlans = async () => {
@@ -1102,6 +1174,29 @@ export default function AppDetailPage() {
     setEditingEscrowProduct(null);
   };
 
+  const DISPUTE_ACTION_SUCCESS_MESSAGE: Record<DisputeAction, string> = {
+    unfreeze: 'Dispute unfrozen — escrow is back to HELD.',
+    release: 'Funds released to the seller.',
+    refund: 'Funds refunded to the buyer.',
+  };
+
+  const handleDisputeAction = async (note: string) => {
+    if (!disputeActionTarget) return;
+    const { action, escrow } = disputeActionTarget;
+
+    if (action === 'unfreeze') {
+      await unfreezeEscrow(escrow.id, note);
+    } else if (action === 'release') {
+      await forceReleaseDispute(escrow, note);
+    } else {
+      await refundEscrow(escrow.id, note);
+    }
+
+    setDisputedEscrows((prev) => prev.filter((e) => e.id !== escrow.id));
+    setDisputeActionTarget(null);
+    showAlert(DISPUTE_ACTION_SUCCESS_MESSAGE[action], 'success');
+  };
+
   const refreshPlans = async () => {
     if (!app?.appId) return;
     try {
@@ -1394,6 +1489,23 @@ export default function AppDetailPage() {
             <div className="flex items-center gap-2">
               <ShieldCheck className="h-4 w-4" />
               Escrow Product
+            </div>
+          </button>
+          <button
+            onClick={() => setActiveTab('dispute')}
+            className={`pb-4 px-1 border-b-2 font-medium text-sm transition-colors ${activeTab === 'dispute'
+              ? 'border-[var(--action-primary)] text-[var(--action-primary)]'
+              : 'border-transparent text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
+              }`}
+          >
+            <div className="flex items-center gap-2">
+              <MessageSquareWarning className="h-4 w-4" />
+              Disputes
+              {disputedEscrows.length > 0 && (
+                <span className="rounded-full bg-red-500/10 px-1.5 py-0.5 text-[10px] font-bold text-red-600">
+                  {disputedEscrows.length}
+                </span>
+              )}
             </div>
           </button>
           <button
@@ -1864,6 +1976,146 @@ export default function AppDetailPage() {
                         </td>
                       </tr>
                     ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Dispute Tab */}
+        {activeTab === 'dispute' && (
+          <div className="p-6">
+            <div className="mb-4">
+              <h2 className="text-lg font-semibold text-[var(--text-primary)]">Disputes</h2>
+              <p className="text-sm text-[var(--text-secondary)] mt-1">
+                Escrows for this app currently disputed by a buyer (status DISPUTED). Unfreeze the dispute if the
+                complaint is invalid or has already been resolved outside the system (e.g. via WhatsApp) — funds are
+                NOT refunded from here, that remains the seller&apos;s refund action (bagdja-website-admin for Website Builder).
+              </p>
+            </div>
+
+            {disputesLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <div className="text-[var(--text-secondary)]">Loading disputes...</div>
+              </div>
+            ) : disputesError ? (
+              <div className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-surface)] p-8 text-center">
+                <p className="text-[var(--text-danger)]">{disputesError}</p>
+              </div>
+            ) : disputedEscrows.length === 0 ? (
+              <div className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-surface)] p-8 text-center">
+                <p className="text-[var(--text-secondary)]">No active disputes for this app.</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b border-[var(--border-default)]">
+                      <th className="text-left py-3 px-4 text-sm font-medium text-[var(--text-secondary)]">Escrow ID</th>
+                      <th className="text-left py-3 px-4 text-sm font-medium text-[var(--text-secondary)]">Buyer</th>
+                      <th className="text-left py-3 px-4 text-sm font-medium text-[var(--text-secondary)]">Product</th>
+                      <th className="text-left py-3 px-4 text-sm font-medium text-[var(--text-secondary)]">Amount</th>
+                      <th className="text-left py-3 px-4 text-sm font-medium text-[var(--text-secondary)]">Disputed Since</th>
+                      <th className="text-left py-3 px-4 text-sm font-medium text-[var(--text-secondary)]">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[var(--border-default)]">
+                    {disputedEscrows.map((escrow) => {
+                      const buyer = disputeBuyerById[escrow.buyer_wallet_id];
+                      const product = disputeProductById[escrow.product_id];
+                      return (
+                        <tr key={escrow.id} className="hover:bg-[var(--bg-hover)] transition-colors">
+                          <td className="py-3 px-4 text-xs font-mono text-[var(--text-secondary)]">
+                            <span className="truncate max-w-[120px] block" title={escrow.id}>
+                              {escrow.id}
+                            </span>
+                          </td>
+                          <td className="py-3 px-4 text-sm">
+                            {buyer ? (
+                              <div className="flex flex-col">
+                                <span className="font-medium text-[var(--text-primary)]">
+                                  {buyer.name || buyer.username || buyer.email || '—'}
+                                </span>
+                                {buyer.email && (
+                                  <span className="text-xs text-[var(--text-secondary)]">{buyer.email}</span>
+                                )}
+                              </div>
+                            ) : (
+                              <span className="font-mono text-xs text-[var(--text-secondary)]">
+                                {escrow.buyer_wallet_id}
+                              </span>
+                            )}
+                          </td>
+                          <td className="py-3 px-4 text-sm">
+                            <div className="flex flex-col gap-1">
+                              <span className="font-medium text-[var(--text-primary)]">
+                                {product?.name ?? escrow.product_id}
+                              </span>
+                              {product?.metadata && Object.keys(product.metadata).length > 0 && (
+                                <div className="flex flex-wrap gap-1">
+                                  {Object.entries(product.metadata).map(([key, value]) => (
+                                    <span
+                                      key={key}
+                                      className="px-1.5 py-0.5 bg-[var(--bg-sidebar)] rounded text-[10px] text-[var(--text-secondary)]"
+                                      title={key}
+                                    >
+                                      {key}: {String(value)}
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
+                              {escrow.external_item_id && (
+                                <span className="text-[10px] text-[var(--text-secondary)]">
+                                  item: {escrow.external_item_id}
+                                </span>
+                              )}
+                            </div>
+                          </td>
+                          <td className="py-3 px-4 text-sm text-[var(--text-primary)]">
+                            <div className="flex flex-col">
+                              <span className="font-medium">
+                                {formatCurrency(Number(escrow.amount_total ?? 0), escrow.currency)}
+                              </span>
+                              <span className="text-xs text-[var(--text-secondary)]">
+                                Held: {Number(escrow.amount_held ?? 0).toLocaleString('en-US')}
+                              </span>
+                            </div>
+                          </td>
+                          <td className="py-3 px-4 text-xs text-[var(--text-secondary)]">
+                            {escrow.frozen_at ? new Date(escrow.frozen_at).toLocaleString('en-US') : '—'}
+                          </td>
+                          <td className="py-3 px-4">
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              <button
+                                onClick={() => setDisputeActionTarget({ action: 'unfreeze', escrow })}
+                                className="flex items-center gap-1.5 rounded-lg border border-amber-500/20 bg-amber-500/10 px-2.5 py-1.5 text-xs font-semibold text-amber-600 transition-colors hover:bg-amber-500/20"
+                                title="Lift the dispute lock without releasing or refunding"
+                              >
+                                <ShieldOff className="h-3.5 w-3.5" />
+                                Unfreeze
+                              </button>
+                              <button
+                                onClick={() => setDisputeActionTarget({ action: 'release', escrow })}
+                                className="flex items-center gap-1.5 rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-2.5 py-1.5 text-xs font-semibold text-emerald-600 transition-colors hover:bg-emerald-500/20"
+                                title="Force release funds to the seller — complaint proven invalid"
+                              >
+                                <CheckCircle2 className="h-3.5 w-3.5" />
+                                Release
+                              </button>
+                              <button
+                                onClick={() => setDisputeActionTarget({ action: 'refund', escrow })}
+                                className="flex items-center gap-1.5 rounded-lg border border-red-500/20 bg-red-500/10 px-2.5 py-1.5 text-xs font-semibold text-red-600 transition-colors hover:bg-red-500/20"
+                                title="Force refund the buyer — complaint proven valid"
+                              >
+                                <RotateCcw className="h-3.5 w-3.5" />
+                                Refund
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
@@ -3393,6 +3645,15 @@ export default function AppDetailPage() {
           />
         )
       }
+
+      {/* Dispute Action Modal (unfreeze / force release / force refund) */}
+      <DisputeActionModal
+        isOpen={Boolean(disputeActionTarget)}
+        action={disputeActionTarget?.action ?? 'unfreeze'}
+        escrow={disputeActionTarget?.escrow ?? null}
+        onClose={() => setDisputeActionTarget(null)}
+        onSubmit={handleDisputeAction}
+      />
 
       {/* Plan Modal */}
       {
