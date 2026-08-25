@@ -144,8 +144,20 @@ export type EscrowFeeConfig = {
   productId: string | null;
   platformFixedFee: number;
   platformPercentageFee: number;
+  /** Floor untuk platform_fee — lihat rumus clamp di payment-service (2026-08-26). */
+  platformMinimumFee: number;
+  /** Cap untuk platform_fee. `null` = tidak ada cap. */
+  platformMaximumFee: number | null;
+  /** Ambang bebas-fee KHUSUS platform_fee — di bawah nilai ini, platform_fee = 0. */
+  platformMinimumTransactionAmount: number;
   appFixedFee: number;
   appPercentageFee: number;
+  /** Floor untuk app_fee — lihat rumus clamp di payment-service (2026-08-26). */
+  appMinimumFee: number;
+  /** Cap untuk app_fee. `null` = tidak ada cap. */
+  appMaximumFee: number | null;
+  /** Ambang bebas-fee KHUSUS app_fee — di bawah nilai ini, app_fee = 0. */
+  appMinimumTransactionAmount: number;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
@@ -157,8 +169,16 @@ export type UpsertEscrowFeeConfigRequest = {
   product_id?: string;
   platform_fixed_fee?: number;
   platform_percentage_fee?: number;
+  platform_minimum_fee?: number;
+  /** `null` = hapus cap. */
+  platform_maximum_fee?: number | null;
+  platform_minimum_transaction_amount?: number;
   app_fixed_fee?: number;
   app_percentage_fee?: number;
+  app_minimum_fee?: number;
+  /** `null` = hapus cap. */
+  app_maximum_fee?: number | null;
+  app_minimum_transaction_amount?: number;
   is_active?: boolean;
 };
 

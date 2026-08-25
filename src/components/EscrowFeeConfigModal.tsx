@@ -19,8 +19,14 @@ type FormState = {
   product_id: string;
   platform_fixed_fee: string;
   platform_percentage_fee: string;
+  platform_minimum_fee: string;
+  platform_maximum_fee: string;
+  platform_minimum_transaction_amount: string;
   app_fixed_fee: string;
   app_percentage_fee: string;
+  app_minimum_fee: string;
+  app_maximum_fee: string;
+  app_minimum_transaction_amount: string;
   is_active: boolean;
 };
 
@@ -30,8 +36,14 @@ const emptyForm: FormState = {
   product_id: DEFAULT_SCOPE,
   platform_fixed_fee: '',
   platform_percentage_fee: '',
+  platform_minimum_fee: '',
+  platform_maximum_fee: '',
+  platform_minimum_transaction_amount: '',
   app_fixed_fee: '',
   app_percentage_fee: '',
+  app_minimum_fee: '',
+  app_maximum_fee: '',
+  app_minimum_transaction_amount: '',
   is_active: true,
 };
 
@@ -141,8 +153,18 @@ export default function EscrowFeeConfigModal({
         product_id: config.productId || DEFAULT_SCOPE,
         platform_fixed_fee: config.platformFixedFee != null ? String(config.platformFixedFee) : '',
         platform_percentage_fee: config.platformPercentageFee != null ? String(config.platformPercentageFee) : '',
+        platform_minimum_fee: config.platformMinimumFee != null ? String(config.platformMinimumFee) : '',
+        platform_maximum_fee: config.platformMaximumFee != null ? String(config.platformMaximumFee) : '',
+        platform_minimum_transaction_amount:
+          config.platformMinimumTransactionAmount != null
+            ? String(config.platformMinimumTransactionAmount)
+            : '',
         app_fixed_fee: config.appFixedFee != null ? String(config.appFixedFee) : '',
         app_percentage_fee: config.appPercentageFee != null ? String(config.appPercentageFee) : '',
+        app_minimum_fee: config.appMinimumFee != null ? String(config.appMinimumFee) : '',
+        app_maximum_fee: config.appMaximumFee != null ? String(config.appMaximumFee) : '',
+        app_minimum_transaction_amount:
+          config.appMinimumTransactionAmount != null ? String(config.appMinimumTransactionAmount) : '',
         is_active: config.isActive,
       });
     } else {
@@ -166,8 +188,18 @@ export default function EscrowFeeConfigModal({
         product_id: form.product_id !== DEFAULT_SCOPE ? form.product_id : undefined,
         platform_fixed_fee: form.platform_fixed_fee ? Number(form.platform_fixed_fee) : 0,
         platform_percentage_fee: form.platform_percentage_fee ? Number(form.platform_percentage_fee) : 0,
+        platform_minimum_fee: form.platform_minimum_fee ? Number(form.platform_minimum_fee) : 0,
+        platform_maximum_fee: form.platform_maximum_fee ? Number(form.platform_maximum_fee) : null,
+        platform_minimum_transaction_amount: form.platform_minimum_transaction_amount
+          ? Number(form.platform_minimum_transaction_amount)
+          : 0,
         app_fixed_fee: form.app_fixed_fee ? Number(form.app_fixed_fee) : 0,
         app_percentage_fee: form.app_percentage_fee ? Number(form.app_percentage_fee) : 0,
+        app_minimum_fee: form.app_minimum_fee ? Number(form.app_minimum_fee) : 0,
+        app_maximum_fee: form.app_maximum_fee ? Number(form.app_maximum_fee) : null,
+        app_minimum_transaction_amount: form.app_minimum_transaction_amount
+          ? Number(form.app_minimum_transaction_amount)
+          : 0,
         is_active: form.is_active,
       };
 
@@ -318,6 +350,38 @@ export default function EscrowFeeConfigModal({
                 onChange={(val) => setForm((prev) => ({ ...prev, platform_percentage_fee: val }))}
                 disabled={disabled}
               />
+              <Input
+                label="Minimum fee"
+                type="number"
+                min={0}
+                value={form.platform_minimum_fee}
+                onChange={(e) => setForm((prev) => ({ ...prev, platform_minimum_fee: e.target.value }))}
+                disabled={disabled}
+                placeholder="0"
+                helpText="Floor — dipakai kalau (fixed + persen) di bawah nilai ini. 0 = tidak ada floor."
+              />
+              <Input
+                label="Maximum fee"
+                type="number"
+                min={0}
+                value={form.platform_maximum_fee}
+                onChange={(e) => setForm((prev) => ({ ...prev, platform_maximum_fee: e.target.value }))}
+                disabled={disabled}
+                placeholder="Tidak ada cap"
+                helpText="Cap — dipakai kalau (fixed + persen) di atas nilai ini. Kosongkan = tidak ada cap."
+              />
+              <Input
+                label="Minimum transaction amount"
+                type="number"
+                min={0}
+                value={form.platform_minimum_transaction_amount}
+                onChange={(e) =>
+                  setForm((prev) => ({ ...prev, platform_minimum_transaction_amount: e.target.value }))
+                }
+                disabled={disabled}
+                placeholder="0"
+                helpText="Ambang bebas-fee KHUSUS platform_fee — di bawah nilai ini, platform_fee = 0 (release tetap jalan). 0 = selalu dipungut."
+              />
             </div>
           </div>
 
@@ -343,6 +407,38 @@ export default function EscrowFeeConfigModal({
                 onChange={(val) => setForm((prev) => ({ ...prev, app_percentage_fee: val }))}
                 disabled={disabled}
               />
+              <Input
+                label="Minimum fee"
+                type="number"
+                min={0}
+                value={form.app_minimum_fee}
+                onChange={(e) => setForm((prev) => ({ ...prev, app_minimum_fee: e.target.value }))}
+                disabled={disabled}
+                placeholder="0"
+                helpText="Floor — dipakai kalau (fixed + persen) di bawah nilai ini. 0 = tidak ada floor."
+              />
+              <Input
+                label="Maximum fee"
+                type="number"
+                min={0}
+                value={form.app_maximum_fee}
+                onChange={(e) => setForm((prev) => ({ ...prev, app_maximum_fee: e.target.value }))}
+                disabled={disabled}
+                placeholder="Tidak ada cap"
+                helpText="Cap — dipakai kalau (fixed + persen) di atas nilai ini. Kosongkan = tidak ada cap."
+              />
+              <Input
+                label="Minimum transaction amount"
+                type="number"
+                min={0}
+                value={form.app_minimum_transaction_amount}
+                onChange={(e) =>
+                  setForm((prev) => ({ ...prev, app_minimum_transaction_amount: e.target.value }))
+                }
+                disabled={disabled}
+                placeholder="0"
+                helpText="Ambang bebas-fee KHUSUS app_fee — di bawah nilai ini, app_fee = 0 (release tetap jalan). 0 = selalu dipungut."
+              />
             </div>
           </div>
 
@@ -361,7 +457,7 @@ export default function EscrowFeeConfigModal({
           <div className="flex items-start gap-2 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2.5 text-xs">
             <Info className="h-4 w-4 text-primary shrink-0 mt-0.5" />
             <p className="text-[var(--text-secondary)]">
-              seller_credit = amount − platform_fee − app_fee. Kalau tidak ada config sama sekali di scope manapun, fee = 0 (seller terima penuh).
+platform_fee = 0 kalau amount di bawah "Minimum transaction amount" platform, selain itu clamp(fixed+persen×amount, minimum, maximum) — app_fee sama, dengan ambangnya sendiri · seller_credit = amount − platform_fee − app_fee. Kalau tidak ada config sama sekali di scope manapun, fee = 0 (seller terima penuh).
             </p>
           </div>
 

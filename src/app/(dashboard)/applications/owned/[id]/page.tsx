@@ -17,6 +17,8 @@ import { getPlans, createPlan, updatePlan, deletePlan } from '@/lib/plans-api';
 import { getLicenses, getPurchasedLicenses, createLicense, updateLicense, deleteLicense } from '@/lib/licenses-api';
 import { getAllSubscriptionsForApp } from '@/lib/subscriptions-api';
 import { getEscrowProducts, createEscrowProduct, updateEscrowProduct, deleteEscrowProduct } from '@/lib/escrow-products-api';
+import { upsertEscrowFeeConfig } from '@/lib/escrow-fee-configs-api';
+import type { EscrowProductFeeOverride } from '@/components/EscrowProductModal';
 import { ChannelType } from '@/types';
 import type { ClientApp, ApiError, Product, Plan, PlanDuration, AppUser, CreateProductRequest, UpdateProductRequest, CreatePlanRequest, UpdatePlanRequest, License, CreateLicenseRequest, UpdateLicenseRequest, LicenseStatus, Subscription, EscrowProduct, CreateEscrowProductRequest, UpdateEscrowProductRequest } from '@/types';
 import { getLogs } from '@/lib/logs-api';
@@ -1123,23 +1125,69 @@ export default function AppDetailPage() {
   };
 
   const handleCreateEscrowProduct = async (data: CreateEscrowProductRequest) => {
-    if (!app?.appId) return;
-    await createEscrowProduct(app.appId, data);
+    if (!app?.appId) return null;
+    const created = await createEscrowProduct(app.appId, data);
     await refreshEscrowProducts();
+    return created;
   };
 
   const handleUpdateEscrowProduct = async (data: UpdateEscrowProductRequest) => {
-    if (!editingEscrowProduct) return;
-    await updateEscrowProduct(editingEscrowProduct.id, data);
+    if (!editingEscrowProduct) return null;
+    const updated = await updateEscrowProduct(editingEscrowProduct.id, data);
     await refreshEscrowProducts();
     setEditingEscrowProduct(null);
+    return updated;
   };
 
-  const handleEscrowProductSubmit = async (data: CreateEscrowProductRequest | UpdateEscrowProductRequest) => {
-    if (editingEscrowProduct) {
-      await handleUpdateEscrowProduct(data as UpdateEscrowProductRequest);
+  /**
+   * Fee override per-produk (opsional) — dikirim `feeOverride` dari
+   * `EscrowProductModal` setelah produk berhasil dibuat/diupdate, karena
+   * `product_id` baru diketahui setelah create sukses. Scope selalu
+   * (org, app) MILIK app pemilik produk ini — bukan global default — supaya
+   * jelas 1 override 1 aggregator, konsisten dengan otorisasi
+   * `EscrowFeeConfigService.upsertConfig` (app hanya boleh set scope sendiri).
+   */
+  const applyEscrowProductFeeOverride = async (
+    productId: string,
+    feeOverride: EscrowProductFeeOverride,
+  ) => {
+    if (!feeOverride || !app?.orgId || !app?.appId) return;
+    if (feeOverride.active) {
+      await upsertEscrowFeeConfig({
+        org_id: app.orgId,
+        app_id: app.appId,
+        product_id: productId,
+        platform_fixed_fee: feeOverride.platform_fixed_fee,
+        platform_percentage_fee: feeOverride.platform_percentage_fee,
+        platform_minimum_fee: feeOverride.platform_minimum_fee,
+        platform_maximum_fee: feeOverride.platform_maximum_fee,
+        platform_minimum_transaction_amount: feeOverride.platform_minimum_transaction_amount,
+        app_fixed_fee: feeOverride.app_fixed_fee,
+        app_percentage_fee: feeOverride.app_percentage_fee,
+        app_minimum_fee: feeOverride.app_minimum_fee,
+        app_maximum_fee: feeOverride.app_maximum_fee,
+        app_minimum_transaction_amount: feeOverride.app_minimum_transaction_amount,
+        is_active: true,
+      });
     } else {
-      await handleCreateEscrowProduct(data as CreateEscrowProductRequest);
+      await upsertEscrowFeeConfig({
+        org_id: app.orgId,
+        app_id: app.appId,
+        product_id: productId,
+        is_active: false,
+      });
+    }
+  };
+
+  const handleEscrowProductSubmit = async (
+    data: CreateEscrowProductRequest | UpdateEscrowProductRequest,
+    feeOverride: EscrowProductFeeOverride,
+  ) => {
+    const product = editingEscrowProduct
+      ? await handleUpdateEscrowProduct(data as UpdateEscrowProductRequest)
+      : await handleCreateEscrowProduct(data as CreateEscrowProductRequest);
+    if (product?.id) {
+      await applyEscrowProductFeeOverride(product.id, feeOverride);
     }
   };
 
