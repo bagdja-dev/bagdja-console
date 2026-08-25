@@ -1534,7 +1534,7 @@ export default function AppDetailPage() {
               : 'border-transparent text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
               }`}
           >
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 text-nowrap">
               <ShieldCheck className="h-4 w-4" />
               Escrow Product
             </div>
@@ -3690,6 +3690,8 @@ export default function AppDetailPage() {
             onClose={closeEscrowProductModal}
             onSubmit={handleEscrowProductSubmit}
             escrowProduct={editingEscrowProduct}
+            orgId={app.orgId}
+            appId={app.appId}
           />
         )
       }

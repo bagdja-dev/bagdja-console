@@ -6,8 +6,46 @@ import { ProductStatus } from '@/types';
 import { Input } from '@/ui/input';
 import { Select } from '@/ui/select';
 import { X, Code2, AlertCircle } from 'lucide-react';
-import { listEscrowFeeConfigs } from '@/lib/escrow-fee-configs-api';
+import { listEscrowFeeConfigs, type EscrowFeeConfig } from '@/lib/escrow-fee-configs-api';
 import { PercentFeeInput } from '@/components/billing/FeeInputFields';
+
+const DEFAULT_SCOPE = 'default';
+
+/**
+ * Resolusi fee config efektif untuk (org, app, product) — MIRIP
+ * `EscrowFeeConfigService.resolveFeeConfig()` di payment-service (spesifik
+ * menang): (org,app,product) -> (org,app,NULL) -> (org,default,NULL) ->
+ * (default,default,NULL). Dipakai di sini BUKAN untuk menghitung fee (itu
+ * urusan backend saat release), tapi untuk tahu nilai `platform_fee` yang
+ * SEDANG BERLAKU sebelum override produk ini dibuat — supaya saat app owner
+ * cuma mau ubah app_fee, `platform_fee` yang tersimpan di baris override
+ * baru TETAP sama dengan yang berlaku sekarang (bukan diam-diam jadi 0
+ * karena field-nya tidak pernah diisi).
+ */
+function resolveEffectiveFeeConfig(
+  configs: EscrowFeeConfig[],
+  orgId: string,
+  appId: string,
+  productId?: string,
+): EscrowFeeConfig | null {
+  const tries: Array<[string, string, string | null]> = [
+    ...(productId ? ([[orgId, appId, productId]] as Array<[string, string, string | null]>) : []),
+    [orgId, appId, null],
+    [orgId, DEFAULT_SCOPE, null],
+    [DEFAULT_SCOPE, DEFAULT_SCOPE, null],
+  ];
+  for (const [o, a, pid] of tries) {
+    const found = configs.find(
+      (c) =>
+        c.isActive &&
+        c.orgId === o &&
+        c.appId === a &&
+        (pid ? c.productId === pid : c.productId === null),
+    );
+    if (found) return found;
+  }
+  return null;
+}
 
 /**
  * Fee override khusus 1 escrow product, opsional. `active: false` berarti
@@ -41,6 +79,9 @@ interface EscrowProductModalProps {
     feeOverride: EscrowProductFeeOverride,
   ) => Promise<void>;
   escrowProduct?: EscrowProduct | null;
+  /** Scope org/app pemilik produk ini — dipakai resolusi `platform_fee` efektif (lihat `resolveEffectiveFeeConfig`). */
+  orgId: string;
+  appId: string;
 }
 
 const CURRENCIES = ['IDR', 'USD', 'MYR', 'SGD'];
@@ -105,7 +146,14 @@ const emptyForm: FormState = {
   allowedPaymentMethodsText: '',
 };
 
-export default function EscrowProductModal({ isOpen, onClose, onSubmit, escrowProduct }: EscrowProductModalProps) {
+export default function EscrowProductModal({
+  isOpen,
+  onClose,
+  onSubmit,
+  escrowProduct,
+  orgId,
+  appId,
+}: EscrowProductModalProps) {
   const [formData, setFormData] = useState<FormState>(emptyForm);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -144,48 +192,55 @@ export default function EscrowProductModal({ isOpen, onClose, onSubmit, escrowPr
     setJsonError(null);
   }, [escrowProduct, isOpen]);
 
-  // Fee override — hanya ada kalau produk sudah punya id (mode edit).
-  // Mode create: belum ada product_id untuk di-filter, jadi mulai kosong
-  // (checkbox tetap bisa diaktifkan; override baru benar-benar disubmit
-  // setelah produk berhasil dibuat — lihat parent `handleEscrowProductSubmit`).
+  /**
+   * Fee override — checkbox otomatis ON hanya kalau sudah ADA baris scope
+   * PERSIS (org, app, product_id) ini. Tapi form TETAP di-pre-fill dari fee
+   * yang sedang BERLAKU efektif (`resolveEffectiveFeeConfig`, ikut fallback
+   * (org,app,NULL) -> (org,default,NULL) -> (default,default,NULL)) walau
+   * belum ada override — supaya kalau app owner baru MENGAKTIFKAN checkbox,
+   * `platform_fee` (yang tidak mereka lihat/edit di UI ini — lihat komentar
+   * di JSX) ikut terbawa dari fee yang sudah berlaku, BUKAN diam-diam jadi 0
+   * cuma karena field-nya tidak pernah diisi siapa pun.
+   */
   useEffect(() => {
     if (!isOpen) return;
-    if (!escrowProduct?.id) {
-      setFeeOverrideEnabled(false);
-      setFeeForm(emptyFeeForm);
-      setHadExistingFeeOverride(false);
-      return;
-    }
     let cancelled = false;
     (async () => {
       setFeeLoading(true);
       try {
-        const configs = await listEscrowFeeConfigs({ product_id: escrowProduct.id });
-        const active = configs.find((c) => c.isActive) ?? null;
+        const configs = await listEscrowFeeConfigs({ is_active: true });
         if (cancelled) return;
-        if (active) {
-          setFeeOverrideEnabled(true);
-          setHadExistingFeeOverride(true);
+        const productId = escrowProduct?.id;
+        const effective = resolveEffectiveFeeConfig(configs, orgId, appId, productId);
+        const isExactProductOverride = Boolean(
+          productId &&
+            effective &&
+            effective.orgId === orgId &&
+            effective.appId === appId &&
+            effective.productId === productId,
+        );
+        setHadExistingFeeOverride(isExactProductOverride);
+        setFeeOverrideEnabled(isExactProductOverride);
+        if (effective) {
           setFeeForm({
-            platform_fixed_fee: String(active.platformFixedFee ?? 0),
-            platform_percentage_fee: String(active.platformPercentageFee ?? 0),
-            platform_minimum_fee: String(active.platformMinimumFee ?? 0),
-            platform_maximum_fee: active.platformMaximumFee != null ? String(active.platformMaximumFee) : '',
-            platform_minimum_transaction_amount: String(active.platformMinimumTransactionAmount ?? 0),
-            app_fixed_fee: String(active.appFixedFee ?? 0),
-            app_percentage_fee: String(active.appPercentageFee ?? 0),
-            app_minimum_fee: String(active.appMinimumFee ?? 0),
-            app_maximum_fee: active.appMaximumFee != null ? String(active.appMaximumFee) : '',
-            app_minimum_transaction_amount: String(active.appMinimumTransactionAmount ?? 0),
+            platform_fixed_fee: String(effective.platformFixedFee ?? 0),
+            platform_percentage_fee: String(effective.platformPercentageFee ?? 0),
+            platform_minimum_fee: String(effective.platformMinimumFee ?? 0),
+            platform_maximum_fee:
+              effective.platformMaximumFee != null ? String(effective.platformMaximumFee) : '',
+            platform_minimum_transaction_amount: String(effective.platformMinimumTransactionAmount ?? 0),
+            app_fixed_fee: String(effective.appFixedFee ?? 0),
+            app_percentage_fee: String(effective.appPercentageFee ?? 0),
+            app_minimum_fee: String(effective.appMinimumFee ?? 0),
+            app_maximum_fee: effective.appMaximumFee != null ? String(effective.appMaximumFee) : '',
+            app_minimum_transaction_amount: String(effective.appMinimumTransactionAmount ?? 0),
           });
         } else {
-          setFeeOverrideEnabled(false);
-          setHadExistingFeeOverride(false);
           setFeeForm(emptyFeeForm);
         }
       } catch (err) {
         // Non-fatal — override section cukup mulai kosong/nonaktif kalau gagal fetch.
-        console.error('Failed to fetch existing escrow fee override', err);
+        console.error('Failed to fetch effective escrow fee config', err);
       } finally {
         if (!cancelled) setFeeLoading(false);
       }
@@ -193,7 +248,7 @@ export default function EscrowProductModal({ isOpen, onClose, onSubmit, escrowPr
     return () => {
       cancelled = true;
     };
-  }, [escrowProduct, isOpen]);
+  }, [escrowProduct, isOpen, orgId, appId]);
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const validateJson = (jsonString: string): Record<string, any> | null => {
@@ -460,66 +515,11 @@ export default function EscrowProductModal({ isOpen, onClose, onSubmit, escrowPr
               </span>
             </label>
             <p className="text-xs text-[var(--text-secondary)]">
-              Kosongkan / matikan untuk memakai fee yang di-set platform (default global atau scope org/app Anda) saat release.
+              Kosongkan / matikan untuk memakai app fee yang di-set platform (default global atau scope app Anda) saat release. Fee platform (Bagdja) tidak bisa diubah dari sini — halaman ini untuk pemilik app.
             </p>
 
             {feeOverrideEnabled && (
               <div className="space-y-4 pt-2">
-                <div className="rounded-lg border border-[var(--border-default)] p-3 space-y-3">
-                  <h4 className="text-xs font-semibold uppercase text-[var(--text-secondary)]">Platform fee (Bagdja)</h4>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <Input
-                      label="Fixed fee"
-                      type="number"
-                      min={0}
-                      value={feeForm.platform_fixed_fee}
-                      onChange={(e) => setFeeForm((prev) => ({ ...prev, platform_fixed_fee: e.target.value }))}
-                      disabled={loading}
-                      placeholder="0"
-                    />
-                    <PercentFeeInput
-                      id="escrow-product-platform-percentage-fee"
-                      label="Percentage fee"
-                      value={feeForm.platform_percentage_fee}
-                      onChange={(val) => setFeeForm((prev) => ({ ...prev, platform_percentage_fee: val }))}
-                      disabled={loading}
-                    />
-                    <Input
-                      label="Minimum fee"
-                      type="number"
-                      min={0}
-                      value={feeForm.platform_minimum_fee}
-                      onChange={(e) => setFeeForm((prev) => ({ ...prev, platform_minimum_fee: e.target.value }))}
-                      disabled={loading}
-                      placeholder="0"
-                    />
-                    <Input
-                      label="Maximum fee"
-                      type="number"
-                      min={0}
-                      value={feeForm.platform_maximum_fee}
-                      onChange={(e) => setFeeForm((prev) => ({ ...prev, platform_maximum_fee: e.target.value }))}
-                      disabled={loading}
-                      placeholder="Tidak ada cap"
-                    />
-                    <Input
-                      label="Minimum transaction amount"
-                      type="number"
-                      min={0}
-                      value={feeForm.platform_minimum_transaction_amount}
-                      onChange={(e) =>
-                        setFeeForm((prev) => ({
-                          ...prev,
-                          platform_minimum_transaction_amount: e.target.value,
-                        }))
-                      }
-                      disabled={loading}
-                      placeholder="0"
-                      helpText="Ambang bebas-fee khusus platform_fee — di bawah nominal ini, platform_fee = 0."
-                    />
-                  </div>
-                </div>
-
                 <div className="rounded-lg border border-[var(--border-default)] p-3 space-y-3">
                   <h4 className="text-xs font-semibold uppercase text-[var(--text-secondary)]">App fee (aggregator)</h4>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
