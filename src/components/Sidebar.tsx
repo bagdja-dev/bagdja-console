@@ -19,7 +19,8 @@ import {
   Settings,
   ShieldCheck,
   Server,
-  Activity
+  Activity,
+  Truck
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Tooltip } from './Tooltip';
@@ -159,6 +160,12 @@ const menuItems: MenuItem[] = [
         label: 'PG Credentials',
         icon: CreditCard,
         href: '/infrastructure/payment-gateway-credentials',
+      },
+      {
+        id: 'infra-shipping-gateway-credentials',
+        label: 'Shipping Credentials',
+        icon: Truck,
+        href: '/infrastructure/shipping-gateway-credentials',
       },
       {
         id: 'infra-logs',
