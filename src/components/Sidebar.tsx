@@ -168,6 +168,12 @@ const menuItems: MenuItem[] = [
         href: '/infrastructure/shipping-gateway-credentials',
       },
       {
+        id: 'infra-storage-credentials',
+        label: 'Storage Credentials',
+        icon: Server,
+        href: '/infrastructure/storage-credentials',
+      },
+      {
         id: 'infra-logs',
         label: 'Platform Logs',
         icon: List,
