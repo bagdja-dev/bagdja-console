@@ -240,6 +240,8 @@ export interface Plan {
   /** UI tetap menampilkan sbg list string; disimpan sbg `{ list: string[] }` di `features` */
   features: string[] | null;
   trialPeriodDays: number | null;
+  /** Fase 1 freemium-and-trial-subscription-decision.md §2 — null = tidak dibatasi */
+  maxRedemptionsPerOwner: number | null;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   metadata: Record<string, any> | null;
   isActive: boolean;
@@ -256,6 +258,7 @@ export interface CreatePlanRequest {
   duration: PlanDuration;
   durationValue?: number;
   features?: string[];
+  maxRedemptionsPerOwner?: number;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   metadata?: Record<string, any>;
   isActive?: boolean;
@@ -270,6 +273,7 @@ export interface UpdatePlanRequest {
   duration?: PlanDuration;
   durationValue?: number;
   features?: string[];
+  maxRedemptionsPerOwner?: number;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   metadata?: Record<string, any>;
   isActive?: boolean;

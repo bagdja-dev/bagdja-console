@@ -26,6 +26,7 @@ export default function PlanModal({ isOpen, onClose, onSubmit, plan, appId: _app
     duration: PlanDuration.MONTHLY,
     durationValue: 1,
     features: [],
+    maxRedemptionsPerOwner: undefined,
     isActive: true,
   });
   const [loading, setLoading] = useState(false);
@@ -46,6 +47,7 @@ export default function PlanModal({ isOpen, onClose, onSubmit, plan, appId: _app
         duration: plan.duration,
         durationValue: plan.durationValue || undefined,
         features: plan.features || [],
+        maxRedemptionsPerOwner: plan.maxRedemptionsPerOwner || undefined,
         metadata: plan.metadata || {},
         isActive: plan.isActive,
       });
@@ -62,6 +64,7 @@ export default function PlanModal({ isOpen, onClose, onSubmit, plan, appId: _app
         duration: PlanDuration.MONTHLY,
         durationValue: 1,
         features: [],
+        maxRedemptionsPerOwner: undefined,
         metadata: {},
         isActive: true,
       });
@@ -118,6 +121,9 @@ export default function PlanModal({ isOpen, onClose, onSubmit, plan, appId: _app
         ...formData,
         features: formData.features && formData.features.length > 0 ? formData.features : undefined,
         durationValue: formData.durationValue || undefined,
+        // Kosong = tidak dibatasi (undefined, bukan 0 — 0 berarti "langsung
+        // limit habis" di backend, lihat freemium-and-trial-subscription-decision.md §7).
+        maxRedemptionsPerOwner: formData.maxRedemptionsPerOwner || undefined,
         metadata: Object.keys(metadata).length > 0 ? metadata : undefined,
       };
 
@@ -254,6 +260,22 @@ export default function PlanModal({ isOpen, onClose, onSubmit, plan, appId: _app
               helpText="Mis. 3 utk quarterly (interval=Monthly, count=3)"
             />
           </div>
+
+          <Input
+            label="Batas Klaim per Pengguna"
+            type="number"
+            min="1"
+            value={formData.maxRedemptionsPerOwner || ''}
+            onChange={(e) =>
+              setFormData({
+                ...formData,
+                maxRedemptionsPerOwner: parseInt(e.target.value) || undefined,
+              })
+            }
+            disabled={loading}
+            placeholder="Kosongkan utk tidak dibatasi"
+            helpText="Kosongkan untuk tidak dibatasi. Isi 1 untuk plan freemium/trial yang hanya boleh dicoba sekali per pengguna (org/user)."
+          />
 
           <div className="border-t border-[var(--border-default)] pt-4">
             <div className="flex items-center justify-between mb-3">

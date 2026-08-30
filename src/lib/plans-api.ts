@@ -151,6 +151,7 @@ type RawSubscriptionPlan = {
   billingInterval: string;
   intervalCount: number;
   trialPeriodDays: number | null;
+  maxRedemptionsPerOwner: number | null;
   features: { list?: string[] } | Record<string, unknown> | null;
   metadata: Record<string, unknown> | null;
   isActive: boolean;
@@ -177,6 +178,7 @@ function mapFromApi(raw: RawSubscriptionPlan): Plan {
     durationValue: raw.intervalCount,
     features: featuresList,
     trialPeriodDays: raw.trialPeriodDays,
+    maxRedemptionsPerOwner: raw.maxRedemptionsPerOwner,
     metadata: raw.metadata,
     isActive: raw.isActive,
     createdAt: new Date(raw.createdAt),
@@ -192,6 +194,7 @@ function mapToApiBody(data: CreatePlanRequest | UpdatePlanRequest): Record<strin
     currency: data.currency,
     billingInterval: data.duration,
     intervalCount: data.durationValue,
+    maxRedemptionsPerOwner: data.maxRedemptionsPerOwner,
     metadata: data.metadata,
     isActive: data.isActive,
   };
