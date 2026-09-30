@@ -31,7 +31,7 @@ function getAssetsApiBase(): string {
 // Client app credentials from environment variables
 // Fallback to hardcoded values for development (should be set in .env.local)
 const CLIENT_APP_ID = process.env.NEXT_PUBLIC_CLIENT_APP_ID || 'user-console';
-const CLIENT_APP_SECRET = process.env.NEXT_PUBLIC_CLIENT_APP_SECRET || 'a9F3kL2P8QwZx7C0M5eB1R4H6TnUJDYVSm';
+const CLIENT_APP_SECRET = process.env.NEXT_PUBLIC_CLIENT_APP_SECRET || '';
 
 /**
  * Get or refresh client app token (x-api-token)
