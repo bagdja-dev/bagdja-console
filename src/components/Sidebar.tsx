@@ -34,6 +34,11 @@ interface MenuItem {
   href?: string;
   children?: MenuItem[];
   isSystemOnly?: boolean;
+  /**
+   * bagdja-auth permission key required to see this item (checked against the
+   * user's system-org memberships, GET /auth/organizations `permissions`).
+   */
+  permission?: string;
   /** When true, `href` is an absolute URL opened in a new tab instead of client-side routing. */
   external?: boolean;
 }
@@ -142,48 +147,56 @@ const menuItems: MenuItem[] = [
         label: 'Infra Settings',
         icon: Settings,
         href: '/infrastructure/settings',
+        permission: 'console.infra.settings.view',
       },
       {
         id: 'infra-payment-config',
         label: 'Payment Config',
         icon: CreditCard,
         href: '/infrastructure/payment-config',
+        permission: 'console.infra.payment-config.view',
       },
       {
         id: 'infra-payment-fees',
         label: 'PG Fees',
         icon: CreditCard,
         href: '/infrastructure/payment-fees',
+        permission: 'console.infra.payment-fees.view',
       },
       {
         id: 'infra-payment-gateway-credentials',
         label: 'PG Credentials',
         icon: CreditCard,
         href: '/infrastructure/payment-gateway-credentials',
+        permission: 'console.infra.payment-gateway-credentials.view',
       },
       {
         id: 'infra-shipping-gateway-credentials',
         label: 'Shipping Credentials',
         icon: Truck,
         href: '/infrastructure/shipping-gateway-credentials',
+        permission: 'console.infra.shipping-credentials.view',
       },
       {
         id: 'infra-storage-credentials',
         label: 'Storage Credentials',
         icon: Server,
         href: '/infrastructure/storage-credentials',
+        permission: 'console.infra.storage-credentials.view',
       },
       {
         id: 'infra-logs',
         label: 'Platform Logs',
         icon: List,
         href: '/infrastructure/logs',
+        permission: 'console.infra.logs.view',
       },
       {
         id: 'infra-billing-queues',
         label: 'Billing Queues',
         icon: Activity,
         href: `${PAYMENT_API_BASE}/admin/queues`,
+        permission: 'console.infra.billing-queues.view',
         external: true,
       },
     ],
@@ -195,13 +208,15 @@ interface SidebarProps {
   onToggle: () => void;
 }
 
-/** Same key payment-service uses for platform admin features. */
-const PLATFORM_ADMIN_PERMISSION = 'payment.platform.admin';
-
 export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
-  const [isSystemAdmin, setIsSystemAdmin] = useState(false);
+  // Permissions held through system-org memberships, and the legacy rule
+  // "Owner of a system org sees every system menu".
+  const [systemPermissions, setSystemPermissions] = useState<Set<string>>(
+    () => new Set(),
+  );
+  const [isSystemOwner, setIsSystemOwner] = useState(false);
   // Track manually collapsed items (user has explicitly collapsed these)
   const manuallyCollapsedRef = useRef<Set<string>>(new Set());
   const previousPathnameRef = useRef<string>(pathname);
@@ -211,17 +226,15 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
     async function checkSystemAdmin() {
       try {
         const orgs = await getOrganizations();
-        // System admin: in a System Organization, the user's role grants the
-        // platform admin permission (bagdja-auth role_permissions), or the
-        // user is that org's Owner (legacy rule, kept for existing owners).
-        const isSystemAdminOrg = orgs.some(
-          (org) =>
-            org.isSystemOrg &&
-            ((org.permissions ?? []).includes(PLATFORM_ADMIN_PERMISSION) ||
-              org.role?.slug === 'owner' ||
-              org.role?.name === 'Owner'),
+        const systemOrgs = orgs.filter((org) => org.isSystemOrg);
+        setSystemPermissions(
+          new Set(systemOrgs.flatMap((org) => org.permissions ?? [])),
         );
-        setIsSystemAdmin(isSystemAdminOrg);
+        setIsSystemOwner(
+          systemOrgs.some(
+            (org) => org.role?.slug === 'owner' || org.role?.name === 'Owner',
+          ),
+        );
       } catch (error) {
         console.error('Failed to check system admin status:', error);
       }
@@ -229,8 +242,23 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
     checkSystemAdmin();
   }, []);
 
-  // Filter menu items based on system admin status
-  const visibleMenuItems = menuItems.filter(item => !item.isSystemOnly || isSystemAdmin);
+  /** Item permission check; Owners of a system org keep seeing everything. */
+  const canSee = (item: MenuItem): boolean =>
+    !item.permission || isSystemOwner || systemPermissions.has(item.permission);
+
+  // Filter menu items by permission. A system-only group is shown only when at
+  // least one of its children is visible.
+  const visibleMenuItems = menuItems
+    .map((item) =>
+      item.children
+        ? { ...item, children: item.children.filter(canSee) }
+        : item,
+    )
+    .filter(
+      (item) =>
+        canSee(item) &&
+        (!item.isSystemOnly || (item.children?.length ?? 0) > 0),
+    );
 
   // Initialize expanded items based on active pathname (only once on mount)
   const getInitialExpanded = () => {
@@ -392,7 +420,7 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
 
   const renderMenuItem = (item: MenuItem, level = 0) => {
     // Only render if user is system admin or item is not system-only
-    if (item.isSystemOnly && !isSystemAdmin) return null;
+    if (!canSee(item)) return null;
 
     const Icon = item.icon;
     const hasChildren = item.children && item.children.length > 0;
@@ -644,7 +672,7 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
 
       {/* Menu Items */}
       <nav className="flex-1 overflow-y-auto overflow-x-visible p-3 space-y-1" style={{ position: 'relative', isolation: 'isolate' }}>
-        {menuItems.map((item) => renderMenuItem(item))}
+        {visibleMenuItems.map((item) => renderMenuItem(item))}
       </nav>
     </div>
   );
