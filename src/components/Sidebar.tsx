@@ -195,6 +195,9 @@ interface SidebarProps {
   onToggle: () => void;
 }
 
+/** Same key payment-service uses for platform admin features. */
+const PLATFORM_ADMIN_PERMISSION = 'payment.platform.admin';
+
 export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
@@ -208,11 +211,17 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
     async function checkSystemAdmin() {
       try {
         const orgs = await getOrganizations();
-        // User is system admin if they are an "Owner" in a System Organization
-        const hasSystemOwnerRole = orgs.some(org => 
-          org.isSystemOrg && (org.role?.slug === 'owner' || org.role?.name === 'Owner')
+        // System admin: in a System Organization, the user's role grants the
+        // platform admin permission (bagdja-auth role_permissions), or the
+        // user is that org's Owner (legacy rule, kept for existing owners).
+        const isSystemAdminOrg = orgs.some(
+          (org) =>
+            org.isSystemOrg &&
+            ((org.permissions ?? []).includes(PLATFORM_ADMIN_PERMISSION) ||
+              org.role?.slug === 'owner' ||
+              org.role?.name === 'Owner'),
         );
-        setIsSystemAdmin(hasSystemOwnerRole);
+        setIsSystemAdmin(isSystemAdminOrg);
       } catch (error) {
         console.error('Failed to check system admin status:', error);
       }

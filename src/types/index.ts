@@ -50,6 +50,8 @@ export interface Organization {
   description?: string;
   isActive: boolean;
   isSystemOrg?: boolean;
+  /** Permission keys of the user's role in this org (bagdja-auth role_permissions). */
+  permissions?: string[];
   logo?: string;
   contactEmail?: string;
   createdAt?: Date;
