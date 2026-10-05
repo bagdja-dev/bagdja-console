@@ -2,8 +2,7 @@
  * Storage Account Credentials API Client
  *
  * Backend only allows core services (isCoreService=true on this console's
- * client-app registration) to call these endpoints — see
- * StorageAccountCredentialsController in bagdja-storage-service.
+ * client-app registration) to call these endpoints.
  */
 
 import {
@@ -115,60 +114,98 @@ async function credentialsApiRequest<T>(endpoint: string, options: RequestInit =
   return response.json();
 }
 
-export interface StorageAccountCredential {
+export interface StorageBucketConfiguration {
   provider: string;
+  access_key_configured: boolean;
+  secret_access_key_configured: boolean;
+  accessKeyId?: string;
+  secretAccessKey?: string;
+  endpoint: string;
+  bucketName: string;
+  region?: string;
+  accountId?: string;
+  publicUrlBase?: string;
+}
+
+export interface StorageAccountConfiguration {
   org_id: string;
   app_id: string;
-  credentials: Record<string, string>;
+  buckets: {
+    public: StorageBucketConfiguration;
+    private: StorageBucketConfiguration | null;
+  };
   is_active: boolean;
   created_at: string;
   updated_at: string;
 }
 
-export async function getStorageAccountCredentials(params?: {
-  provider?: string;
+export interface StorageBucketInput {
+  provider: string;
+  accessKeyId?: string;
+  secretAccessKey?: string;
+  endpoint: string;
+  bucketName: string;
+  region?: string;
+  accountId?: string;
+  publicUrlBase?: string;
+}
+
+export interface BucketProvisioningResult {
+  visibility: 'public' | 'private';
+  bucket_name: string;
+  status: 'ready' | 'failed';
+  message?: string;
+}
+
+export type StorageConfigurationMutationResult = StorageAccountConfiguration & {
+  bucket_provisioning?: BucketProvisioningResult[];
+};
+
+export interface StorageConfigurationPayload {
+  org_id?: string;
+  app_id?: string;
+  buckets: {
+    public: StorageBucketInput;
+    private: StorageBucketInput;
+  };
+  is_active?: boolean;
+}
+
+export async function getStorageAccountConfigurations(params?: {
   orgId?: string;
   appId?: string;
-}): Promise<StorageAccountCredential[]> {
+}): Promise<StorageAccountConfiguration[]> {
   const qs = new URLSearchParams();
-  if (params?.provider) qs.append('provider', params.provider);
   if (params?.orgId) qs.append('orgId', params.orgId);
   if (params?.appId) qs.append('appId', params.appId);
   const queryString = qs.toString();
   const url = queryString
-    ? `/storage-account-credentials?${queryString}`
-    : '/storage-account-credentials';
-  return credentialsApiRequest<StorageAccountCredential[]>(url, { method: 'GET' });
+    ? `/storage-account-configurations?${queryString}`
+    : '/storage-account-configurations';
+  return credentialsApiRequest<StorageAccountConfiguration[]>(url, { method: 'GET' });
 }
 
-export async function createStorageAccountCredential(payload: {
-  provider: string;
-  org_id?: string;
-  app_id?: string;
-  credentials: Record<string, string>;
-  is_active?: boolean;
-}): Promise<StorageAccountCredential> {
-  return credentialsApiRequest<StorageAccountCredential>('/storage-account-credentials', {
+export async function createStorageAccountConfiguration(payload: StorageConfigurationPayload): Promise<StorageConfigurationMutationResult> {
+  return credentialsApiRequest<StorageConfigurationMutationResult>('/storage-account-configurations', {
     method: 'POST',
     body: JSON.stringify(payload),
   });
 }
 
-export async function updateStorageAccountCredential(
-  provider: string,
+export async function updateStorageAccountConfiguration(
   orgId: string,
   appId: string,
-  payload: Partial<Pick<StorageAccountCredential, 'credentials' | 'is_active'>>,
-): Promise<StorageAccountCredential> {
-  return credentialsApiRequest<StorageAccountCredential>(
-    `/storage-account-credentials/${encodeURIComponent(provider)}/${encodeURIComponent(orgId)}/${encodeURIComponent(appId)}`,
+  payload: Partial<Pick<StorageConfigurationPayload, 'buckets' | 'is_active'>>,
+): Promise<StorageConfigurationMutationResult> {
+  return credentialsApiRequest<StorageConfigurationMutationResult>(
+    `/storage-account-configurations/${encodeURIComponent(orgId)}/${encodeURIComponent(appId)}`,
     { method: 'PATCH', body: JSON.stringify(payload) },
   );
 }
 
-export async function deleteStorageAccountCredential(provider: string, orgId: string, appId: string): Promise<void> {
+export async function deleteStorageAccountConfiguration(orgId: string, appId: string): Promise<void> {
   return credentialsApiRequest<void>(
-    `/storage-account-credentials/${encodeURIComponent(provider)}/${encodeURIComponent(orgId)}/${encodeURIComponent(appId)}`,
+    `/storage-account-configurations/${encodeURIComponent(orgId)}/${encodeURIComponent(appId)}`,
     { method: 'DELETE' },
   );
 }
