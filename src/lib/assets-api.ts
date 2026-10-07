@@ -5,7 +5,6 @@
 
 import { 
   requireAccessToken,
-  removeAccessToken,
   getClientToken,
   setClientToken,
   isClientTokenExpired,
@@ -134,14 +133,6 @@ export async function createAsset(data: CreateAssetRequest, organizationId: stri
       error.message = response.statusText || error.message;
     }
 
-    // Clear user token on 401
-    if (response.status === 401) {
-      removeAccessToken();
-      if (typeof window !== 'undefined') {
-        document.cookie = 'bagdja_access_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
-      }
-    }
-
     throw error;
   }
 
@@ -199,14 +190,6 @@ async function assetsApiRequest<T>(
       error.message = errorData.message || errorData.error || error.message;
     } catch {
       error.message = response.statusText || error.message;
-    }
-
-    // Clear user token on 401
-    if (response.status === 401) {
-      removeAccessToken();
-      if (typeof window !== 'undefined') {
-        document.cookie = 'bagdja_access_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
-      }
     }
 
     throw error;
