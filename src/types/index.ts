@@ -50,6 +50,7 @@ export interface Organization {
   description?: string;
   isActive: boolean;
   isSystemOrg?: boolean;
+  permissions?: string[];
   logo?: string;
   contactEmail?: string;
   createdAt?: Date;
