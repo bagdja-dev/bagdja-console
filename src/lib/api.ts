@@ -5,6 +5,7 @@
 
 import { 
   getAccessToken, 
+  requireAccessToken,
   removeAccessToken, 
   setAccessToken,
   getClientToken,
@@ -155,13 +156,14 @@ export async function refreshClientToken(): Promise<string> {
  */
 async function apiRequest<T>(
   endpoint: string,
-  options: RequestInit = {}
+  options: RequestInit = {},
+  requireUserAuth = true,
 ): Promise<T> {
   // Ensure we have a valid client token (x-api-token)
   const clientToken = await ensureClientToken();
   
   // Get user access token (if authenticated)
-  const userToken = getAccessToken();
+  const userToken = requireUserAuth ? requireAccessToken() : getAccessToken();
   
   const url = `${AUTH_API_BASE}${endpoint}`;
 
@@ -228,7 +230,7 @@ export async function login(credentials: LoginRequest): Promise<AuthResponse> {
   const response = await apiRequest<AuthResponse>('/auth/login', {
     method: 'POST',
     body: JSON.stringify(credentials),
-  });
+  }, false);
 
   // Store access token
   if (response.access_token) {
@@ -257,7 +259,7 @@ export async function register(data: RegisterRequest): Promise<AuthResponse> {
   const response = await apiRequest<AuthResponse>('/auth/register', {
     method: 'POST',
     body: JSON.stringify(cleanData),
-  });
+  }, false);
 
   // Store access token
   if (response.access_token) {
@@ -333,10 +335,7 @@ function getActiveOrganizationId(): string | null {
  * Get user's client apps (owned apps)
  */
 export async function getUserById(userId: string): Promise<User> {
-  const token = getAccessToken();
-  if (!token) {
-    throw new Error('No access token found');
-  }
+  const token = requireAccessToken();
 
   const response = await fetch(`${AUTH_API_BASE}/auth/users/${userId}`, {
     method: 'GET',
@@ -361,10 +360,7 @@ export async function getUserById(userId: string): Promise<User> {
  * Find user by username or email
  */
 export async function findUserByUsernameOrEmail(identifier: string): Promise<User> {
-  const token = getAccessToken();
-  if (!token) {
-    throw new Error('No access token found');
-  }
+  const token = requireAccessToken();
 
   const response = await fetch(`${AUTH_API_BASE}/auth/users/search/${encodeURIComponent(identifier)}`, {
     method: 'GET',
@@ -402,11 +398,11 @@ export async function createClientApp(data: CreateClientAppRequest): Promise<Cli
     throw new Error('No active organization selected');
   }
   // Ensure user access token is sent explicitly for endpoints requiring user authentication
-  const userToken = getAccessToken();
+  const userToken = requireAccessToken();
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
+    Authorization: `Bearer ${userToken}`,
   };
-  if (userToken) headers['Authorization'] = `Bearer ${userToken}`;
 
   return apiRequest<ClientApp>(`/auth/client-apps?orgId=${encodeURIComponent(orgId)}`, {
     method: 'POST',
@@ -461,12 +457,12 @@ const EVENT_API_BASE = process.env.NEXT_PUBLIC_EVENT_API || 'http://localhost:40
  */
 export async function getInfraApps(): Promise<any[]> {
   const clientToken = await ensureClientToken();
-  const userToken = getAccessToken();
+  const userToken = requireAccessToken();
   
   const response = await fetch(`${EVENT_API_BASE}/registry/apps`, {
     headers: {
       'x-api-key': clientToken,
-      'Authorization': userToken ? `Bearer ${userToken}` : '',
+      'Authorization': `Bearer ${userToken}`,
     },
   });
   
@@ -485,7 +481,7 @@ export async function getInfraContracts(params?: {
   sort?: string;
 }): Promise<{ data: any[]; meta: any }> {
   const clientToken = await ensureClientToken();
-  const userToken = getAccessToken();
+  const userToken = requireAccessToken();
   
   const queryParams = new URLSearchParams();
   if (params) {
@@ -503,7 +499,7 @@ export async function getInfraContracts(params?: {
   const response = await fetch(`${EVENT_API_BASE}/registry/contracts?${queryParams.toString()}`, {
     headers: {
       'x-api-key': clientToken,
-      'Authorization': userToken ? `Bearer ${userToken}` : '',
+      'Authorization': `Bearer ${userToken}`,
     },
   });
   
@@ -528,14 +524,14 @@ export async function registerAppInHub(data: {
   publicKey?: string;
 }): Promise<any> {
   const clientToken = await ensureClientToken();
-  const userToken = getAccessToken();
+  const userToken = requireAccessToken();
 
   const response = await fetch(`${EVENT_API_BASE}/registry/apps`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       'x-api-key': clientToken,
-      'Authorization': userToken ? `Bearer ${userToken}` : '',
+      'Authorization': `Bearer ${userToken}`,
     },
     body: JSON.stringify(data),
   });
@@ -556,14 +552,14 @@ export async function createEventContract(appId: string, data: {
   isPublic?: boolean;
 }): Promise<any> {
   const clientToken = await ensureClientToken();
-  const userToken = getAccessToken();
+  const userToken = requireAccessToken();
 
   const response = await fetch(`${EVENT_API_BASE}/registry/apps/${appId}/contracts`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       'x-api-key': clientToken,
-      'Authorization': userToken ? `Bearer ${userToken}` : '',
+      'Authorization': `Bearer ${userToken}`,
     },
     body: JSON.stringify(data),
   });
@@ -580,12 +576,12 @@ export async function createEventContract(appId: string, data: {
  */
 export async function getAppContracts(appId: string): Promise<any[]> {
   const clientToken = await ensureClientToken();
-  const userToken = getAccessToken();
+  const userToken = requireAccessToken();
 
   const response = await fetch(`${EVENT_API_BASE}/registry/contracts?appId=${appId}`, {
     headers: {
       'x-api-key': clientToken,
-      'Authorization': userToken ? `Bearer ${userToken}` : '',
+      'Authorization': `Bearer ${userToken}`,
     },
   });
 
@@ -603,14 +599,14 @@ export async function updateEventContract(contractId: string, data: {
   isActive?: boolean;
 }): Promise<any> {
   const clientToken = await ensureClientToken();
-  const userToken = getAccessToken();
+  const userToken = requireAccessToken();
 
   const response = await fetch(`${EVENT_API_BASE}/registry/contracts/${contractId}`, {
     method: 'PATCH',
     headers: {
       'Content-Type': 'application/json',
       'x-api-key': clientToken,
-      'Authorization': userToken ? `Bearer ${userToken}` : '',
+      'Authorization': `Bearer ${userToken}`,
     },
     body: JSON.stringify(data),
   });
@@ -627,13 +623,13 @@ export async function updateEventContract(contractId: string, data: {
  */
 export async function deleteEventContract(contractId: string): Promise<any> {
   const clientToken = await ensureClientToken();
-  const userToken = getAccessToken();
+  const userToken = requireAccessToken();
 
   const response = await fetch(`${EVENT_API_BASE}/registry/contracts/${contractId}`, {
     method: 'DELETE',
     headers: {
       'x-api-key': clientToken,
-      'Authorization': userToken ? `Bearer ${userToken}` : '',
+      'Authorization': `Bearer ${userToken}`,
     },
   });
 
@@ -660,7 +656,7 @@ export async function getEventLogs(
   }
 ): Promise<{ data: any[]; meta: any }> {
   const clientToken = await ensureClientToken();
-  const userToken = getAccessToken();
+  const userToken = requireAccessToken();
 
   const queryParams = new URLSearchParams();
   if (appId) queryParams.append('appId', appId);
@@ -680,7 +676,7 @@ export async function getEventLogs(
   const response = await fetch(`${EVENT_API_BASE}/broadcast/logs?${queryParams.toString()}`, {
     headers: {
       'x-api-key': clientToken,
-      'Authorization': userToken ? `Bearer ${userToken}` : '',
+      'Authorization': `Bearer ${userToken}`,
     },
   });
   
@@ -714,7 +710,7 @@ export async function getAppsByOrgSlug(orgSlug: string): Promise<ClientApp[]> {
  */
 export async function resendEventLog(logId: string, appId?: string): Promise<any> {
   const clientToken = await ensureClientToken();
-  const userToken = getAccessToken();
+  const userToken = requireAccessToken();
 
   const queryParams = new URLSearchParams();
   if (appId) queryParams.append('appId', appId);
@@ -723,7 +719,7 @@ export async function resendEventLog(logId: string, appId?: string): Promise<any
     method: 'POST',
     headers: {
       'x-api-key': clientToken,
-      'Authorization': userToken ? `Bearer ${userToken}` : '',
+      'Authorization': `Bearer ${userToken}`,
     },
   });
 
@@ -745,7 +741,7 @@ export async function getAvailableEvents(params?: {
   sort?: string;
 }): Promise<{ data: any[]; meta: any }> {
   const clientToken = await ensureClientToken();
-  const userToken = getAccessToken();
+  const userToken = requireAccessToken();
 
   const queryParams = new URLSearchParams();
   if (params) {
@@ -763,7 +759,7 @@ export async function getAvailableEvents(params?: {
   const response = await fetch(`${EVENT_API_BASE}/subscriptions/available-events?${queryParams.toString()}`, {
     headers: {
       'x-api-key': clientToken,
-      'Authorization': userToken ? `Bearer ${userToken}` : '',
+      'Authorization': `Bearer ${userToken}`,
     },
   });
 
@@ -776,14 +772,14 @@ export async function getAvailableEvents(params?: {
  */
 export async function subscribeToEvent(contractId: string, webhookUrl?: string, appId?: string, label: string = 'default'): Promise<any> {
   const clientToken = await ensureClientToken();
-  const userToken = getAccessToken();
+  const userToken = requireAccessToken();
   
   const response = await fetch(`${EVENT_API_BASE}/subscriptions/subscribe`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
       'x-api-key': clientToken,
-      'Authorization': userToken ? `Bearer ${userToken}` : '',
+      'Authorization': `Bearer ${userToken}`,
     },
     body: JSON.stringify({ contractId, webhookUrl, appId, label }),
   });
@@ -809,7 +805,7 @@ export async function getSubscriptionRequests(
   }
 ): Promise<{ data: any[]; meta: any }> {
   const clientToken = await ensureClientToken();
-  const userToken = getAccessToken();
+  const userToken = requireAccessToken();
 
   const queryParams = new URLSearchParams();
   if (appId) queryParams.append('appId', appId);
@@ -829,7 +825,7 @@ export async function getSubscriptionRequests(
   const response = await fetch(`${EVENT_API_BASE}/subscriptions/requests?${queryParams.toString()}`, {
     headers: {
       'x-api-key': clientToken,
-      'Authorization': userToken ? `Bearer ${userToken}` : '',
+      'Authorization': `Bearer ${userToken}`,
     },
   });
 
@@ -851,7 +847,7 @@ export async function getMyAppSubscriptions(
   }
 ): Promise<{ data: any[]; meta: any }> {
   const clientToken = await ensureClientToken();
-  const userToken = getAccessToken();
+  const userToken = requireAccessToken();
   
   const queryParams = new URLSearchParams();
   if (appId) queryParams.append('appId', appId);
@@ -871,7 +867,7 @@ export async function getMyAppSubscriptions(
   const response = await fetch(`${EVENT_API_BASE}/subscriptions/my-subscriptions?${queryParams.toString()}`, {
     headers: {
       'x-api-key': clientToken,
-      'Authorization': userToken ? `Bearer ${userToken}` : '',
+      'Authorization': `Bearer ${userToken}`,
     },
   });
   
@@ -889,7 +885,7 @@ export async function updateMySubscription(
   label?: string,
 ): Promise<any> {
   const clientToken = await ensureClientToken();
-  const userToken = getAccessToken();
+  const userToken = requireAccessToken();
 
   const query = appId ? `?appId=${encodeURIComponent(appId)}` : '';
   const response = await fetch(
@@ -899,7 +895,7 @@ export async function updateMySubscription(
     headers: {
       'Content-Type': 'application/json',
       'x-api-key': clientToken,
-      'Authorization': userToken ? `Bearer ${userToken}` : '',
+      'Authorization': `Bearer ${userToken}`,
     },
     body: JSON.stringify({ webhookUrl, label, ...(appId ? { appId } : {}) }),
     },
@@ -917,7 +913,7 @@ export async function deleteMySubscription(
   appId?: string,
 ): Promise<any> {
   const clientToken = await ensureClientToken();
-  const userToken = getAccessToken();
+  const userToken = requireAccessToken();
 
   const query = appId ? `?appId=${encodeURIComponent(appId)}` : '';
   const response = await fetch(
@@ -926,7 +922,7 @@ export async function deleteMySubscription(
     method: 'DELETE',
     headers: {
       'x-api-key': clientToken,
-      'Authorization': userToken ? `Bearer ${userToken}` : '',
+      'Authorization': `Bearer ${userToken}`,
     },
     },
   );
@@ -940,7 +936,7 @@ export async function deleteMySubscription(
  */
 export async function updateSubscriptionStatus(subscriptionId: string, status: string, appId?: string): Promise<any> {
   const clientToken = await ensureClientToken();
-  const userToken = getAccessToken();
+  const userToken = requireAccessToken();
   
   const query = appId ? `?appId=${encodeURIComponent(appId)}` : '';
   const response = await fetch(`${EVENT_API_BASE}/subscriptions/${subscriptionId}/status${query}`, {
@@ -948,7 +944,7 @@ export async function updateSubscriptionStatus(subscriptionId: string, status: s
     headers: {
       'Content-Type': 'application/json',
       'x-api-key': clientToken,
-      'Authorization': userToken ? `Bearer ${userToken}` : '',
+      'Authorization': `Bearer ${userToken}`,
     },
     body: JSON.stringify({ status }),
   });

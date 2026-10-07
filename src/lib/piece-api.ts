@@ -3,7 +3,7 @@
  * Handles all API calls to the Piece Service
  */
 
-import { getAccessToken, getClientToken } from './auth';
+import { requireAccessToken, getClientToken } from './auth';
 import type { ApiError } from '@/types';
 
 const PIECE_API_BASE = process.env.NEXT_PUBLIC_PIECE_API || process.env.NEXT_PUBLIC_AUTH_API || 'http://localhost:3003';
@@ -85,10 +85,7 @@ async function pieceApiRequest<T>(
     }
 
     // Get user token (for user authentication)
-    const userToken = getAccessToken();
-    if (!userToken) {
-      throw new Error('No access token found');
-    }
+    const userToken = requireAccessToken();
 
     const response = await fetch(`${PIECE_API_BASE}${endpoint}`, {
       ...options,

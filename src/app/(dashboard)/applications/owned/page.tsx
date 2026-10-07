@@ -3,14 +3,15 @@
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { getClientApps, regenerateAppSecret } from '@/lib/api';
-import type { ClientApp, ApiError } from '@/types';
+import { getClientApps, getOrganizations, regenerateAppSecret } from '@/lib/api';
+import type { ClientApp, ApiError, Organization } from '@/types';
 import { Plus, Package, Mail, Calendar, RefreshCw, Copy, Check, X, Key } from 'lucide-react';
 import { Button } from '@/ui/button';
 
 export default function OwnedAppsPage() {
   const router = useRouter();
   const [apps, setApps] = useState<ClientApp[]>([]);
+  const [activeOrganization, setActiveOrganization] = useState<Organization | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showSecretModal, setShowSecretModal] = useState(false);
@@ -30,8 +31,9 @@ export default function OwnedAppsPage() {
         setLoading(false);
         return;
       }
-      const data = await getClientApps();
+      const [data, organizations] = await Promise.all([getClientApps(), getOrganizations()]);
       setApps(data);
+      setActiveOrganization(organizations.find((organization) => organization.orgId === activeOrgId) ?? null);
     } catch (err) {
       const apiError = err as ApiError;
       setError(apiError.message || 'Failed to fetch apps');
@@ -40,6 +42,10 @@ export default function OwnedAppsPage() {
       setLoading(false);
     }
   }, []);
+
+  const canCreateApp = activeOrganization?.role?.slug === 'owner'
+    || activeOrganization?.role?.name === 'Owner'
+    || activeOrganization?.permissions?.includes('auth.*.client-apps.create') === true;
 
   useEffect(() => {
     fetchApps();
@@ -174,13 +180,15 @@ export default function OwnedAppsPage() {
             Manage your client applications
           </p>
         </div>
-        <Link
-          href="/applications/owned/create"
-          className="flex items-center gap-2 rounded-md bg-[var(--action-primary)] px-4 py-2 text-sm font-medium text-white hover:bg-[var(--action-primary-hover)] focus:outline-none focus:ring-2 focus:ring-[var(--action-primary)] focus:ring-offset-2"
-        >
-          <Plus className="h-4 w-4" />
-          Create App
-        </Link>
+        {canCreateApp && (
+          <Link
+            href="/applications/owned/create"
+            className="flex items-center gap-2 rounded-md bg-[var(--action-primary)] px-4 py-2 text-sm font-medium text-white hover:bg-[var(--action-primary-hover)] focus:outline-none focus:ring-2 focus:ring-[var(--action-primary)] focus:ring-offset-2"
+          >
+            <Plus className="h-4 w-4" />
+            Create App
+          </Link>
+        )}
       </div>
 
       {apps.length === 0 ? (
@@ -192,15 +200,21 @@ export default function OwnedAppsPage() {
           <p className="mt-2 text-sm text-[var(--text-secondary)]">
             Get started by creating your first client app.
           </p>
-          <div className="mt-6">
-            <Link
-              href="/applications/owned/create"
-              className="inline-flex items-center gap-2 rounded-md bg-[var(--action-primary)] px-4 py-2 text-sm font-medium text-white hover:bg-[var(--action-primary-hover)] focus:outline-none focus:ring-2 focus:ring-[var(--action-primary)] focus:ring-offset-2"
-            >
-              <Plus className="h-4 w-4" />
-              Create App
-            </Link>
-          </div>
+          {canCreateApp ? (
+            <div className="mt-6">
+              <Link
+                href="/applications/owned/create"
+                className="inline-flex items-center gap-2 rounded-md bg-[var(--action-primary)] px-4 py-2 text-sm font-medium text-white hover:bg-[var(--action-primary-hover)] focus:outline-none focus:ring-2 focus:ring-[var(--action-primary)] focus:ring-offset-2"
+              >
+                <Plus className="h-4 w-4" />
+                Create App
+              </Link>
+            </div>
+          ) : (
+            <p className="mt-4 text-sm text-[var(--text-secondary)]">
+              You need the client-app creation permission in {activeOrganization?.name ?? 'the active organization'}.
+            </p>
+          )}
         </div>
       ) : (
         <div className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-surface)] overflow-hidden">

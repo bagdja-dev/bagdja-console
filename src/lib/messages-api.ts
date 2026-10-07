@@ -2,7 +2,7 @@
  * Message Service API Client
  */
 
-import { getClientToken, isClientTokenExpired } from './auth';
+import { getClientToken, isClientTokenExpired, requireAccessToken } from './auth';
 import { ChannelType, ProviderType } from '@/types';
 import type { 
   ChannelSetting, 
@@ -28,10 +28,12 @@ async function request<T>(
   options: RequestInit = {}
 ): Promise<T> {
   const token = await ensureClientToken();
+  const userToken = requireAccessToken();
   
   const headers = {
     'Content-Type': 'application/json',
     'x-api-key': token,
+    Authorization: `Bearer ${userToken}`,
     ...options.headers,
   };
 

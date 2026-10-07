@@ -2,17 +2,19 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { createClientApp } from '@/lib/api';
+import { createClientApp, getOrganizations } from '@/lib/api';
 import { AssetSelector } from '@/components/AssetSelector';
 import { Button } from '@/ui/button';
 import { Input } from '@/ui/input';
-import type { ApiError } from '@/types';
+import type { ApiError, Organization } from '@/types';
 import { ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
 
 export default function CreateAppPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
+  const [checkingAccess, setCheckingAccess] = useState(true);
+  const [activeOrganization, setActiveOrganization] = useState<Organization | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     app_id: '',
@@ -22,17 +24,43 @@ export default function CreateAppPage() {
     logo: '',
   });
 
-  // Check if active organization exists
+  // Check active organization and its app-creation role.
   useEffect(() => {
-    const activeOrgId = typeof window !== 'undefined' ? sessionStorage.getItem('activeOrganizationId') : null;
-    if (!activeOrgId) {
-      router.push('/applications/owned');
-    }
+    let cancelled = false;
+    const loadAccess = async () => {
+      const activeOrgId = sessionStorage.getItem('activeOrganizationId');
+      if (!activeOrgId) {
+        router.push('/applications/owned');
+        return;
+      }
+      try {
+        const organizations = await getOrganizations();
+        if (cancelled) return;
+        setActiveOrganization(organizations.find((organization) => organization.orgId === activeOrgId) ?? null);
+      } catch (err) {
+        if (!cancelled) {
+          const apiError = err as ApiError;
+          setError(apiError.message || 'Could not verify organization access.');
+        }
+      } finally {
+        if (!cancelled) setCheckingAccess(false);
+      }
+    };
+    void loadAccess();
+    return () => { cancelled = true; };
   }, [router]);
+
+  const canCreateApp = activeOrganization?.role?.slug === 'owner'
+    || activeOrganization?.role?.name === 'Owner'
+    || activeOrganization?.permissions?.includes('auth.*.client-apps.create') === true;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+    if (!canCreateApp) {
+      setError(`Only an Owner of ${activeOrganization?.name ?? 'the active organization'} can create client apps.`);
+      return;
+    }
     setLoading(true);
 
     try {
@@ -98,7 +126,14 @@ export default function CreateAppPage() {
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-6">
+          {checkingAccess ? (
+            <p className="text-sm text-[var(--text-secondary)]">Checking organization access…</p>
+          ) : !canCreateApp ? (
+            <div className="rounded-md border border-[var(--border-default)] bg-[var(--bg-main)] p-4 text-sm text-[var(--text-secondary)]" role="status">
+              Your role in {activeOrganization?.name ?? 'the active organization'} is {activeOrganization?.role?.name ?? 'not available'} and it does not include `auth.*.client-apps.create`. Ask an organization administrator to grant this permission.
+            </div>
+          ) : (
+          <form onSubmit={handleSubmit} className="space-y-6">
           <div>
             <label
               htmlFor="app_id"
@@ -200,6 +235,7 @@ export default function CreateAppPage() {
             </Button>
           </div>
         </form>
+        )}
       </div>
 
     </>

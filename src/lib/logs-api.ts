@@ -1,4 +1,4 @@
-import { getAccessToken, getClientToken, isClientTokenExpired } from './auth';
+import { requireAccessToken, getClientToken, isClientTokenExpired } from './auth';
 import { refreshClientToken } from './api';
 
 const LOG_API_BASE = process.env.NEXT_PUBLIC_LOG_API || 'http://localhost:3002';
@@ -22,7 +22,7 @@ export async function getLogs(query: {
   offset?: number;
 }) {
   const clientToken = await ensureClientToken();
-  const userToken = getAccessToken();
+  const userToken = requireAccessToken();
 
   const params = new URLSearchParams();
   if (query.orgId) params.append('orgId', query.orgId);

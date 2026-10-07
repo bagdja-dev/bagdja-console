@@ -4,7 +4,7 @@
  */
 
 import {
-  getAccessToken,
+  requireAccessToken,
   getActiveOrganizationId,
   getActiveOrganizationSlug,
   getClientToken,
@@ -65,7 +65,7 @@ async function paymentApiRequest<T>(
   organizationId?: string,
 ): Promise<T> {
   const clientToken = await ensureClientToken();
-  const userToken = getAccessToken();
+  const userToken = requireAccessToken();
 
   if (!userToken) {
     throw new Error('User not authenticated');
@@ -125,7 +125,7 @@ async function paymentApiRequestPersonal<T>(
   options: RequestInit = {},
 ): Promise<T> {
   const clientToken = await ensureClientToken();
-  const userToken = getAccessToken();
+  const userToken = requireAccessToken();
 
   if (!userToken) {
     throw new Error('User not authenticated');
@@ -259,7 +259,7 @@ export type TopUpResponse = {
 };
 
 export async function createOrgTopup(amount: number, currencyCode: string = 'IDR', organizationId?: string): Promise<TopUpResponse> {
-  const token = getAccessToken();
+  const token = requireAccessToken();
   let userId = '';
   if (token) {
     try {
@@ -294,7 +294,7 @@ export async function createOrgTopup(amount: number, currencyCode: string = 'IDR
 }
 
 export async function createPersonalTopup(amount: number, currencyCode: string = 'IDR'): Promise<TopUpResponse> {
-  const token = getAccessToken();
+  const token = requireAccessToken();
   let userId = '';
   if (token) {
     try {

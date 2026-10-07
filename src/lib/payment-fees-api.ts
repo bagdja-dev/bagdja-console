@@ -3,7 +3,7 @@
  */
 
 import {
-  getAccessToken,
+  requireAccessToken,
   getActiveOrganizationId,
   getActiveOrganizationSlug,
   getClientToken,
@@ -64,7 +64,7 @@ async function paymentFeesApiRequest<T>(
   organizationId?: string,
 ): Promise<T> {
   const clientToken = await ensureClientToken();
-  const userToken = getAccessToken();
+  const userToken = requireAccessToken();
 
   if (!userToken) {
     throw new Error('User not authenticated');

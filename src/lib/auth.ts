@@ -43,6 +43,12 @@ export function getAccessToken(): string | null {
   return null;
 }
 
+export function requireAccessToken(): string {
+  const token = getAccessToken();
+  if (!token) throw new Error('User not authenticated');
+  return token;
+}
+
 /**
  * Remove access token from storage and cookie
  */

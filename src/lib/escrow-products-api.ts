@@ -6,7 +6,7 @@
  */
 
 import {
-  getAccessToken,
+  requireAccessToken,
   removeAccessToken,
   getClientToken,
   setClientToken,
@@ -81,7 +81,7 @@ async function apiRequest<T>(
   options: RequestInit = {}
 ): Promise<T> {
   const clientToken = await ensureClientToken();
-  const userToken = getAccessToken();
+  const userToken = requireAccessToken();
 
   const url = `${getPaymentApiBase()}${endpoint}`;
 
@@ -91,9 +91,7 @@ async function apiRequest<T>(
     ...(options.headers as Record<string, string>),
   };
 
-  if (userToken) {
-    headers['Authorization'] = `Bearer ${userToken}`;
-  }
+  headers['Authorization'] = `Bearer ${userToken}`;
 
   const response = await fetch(url, {
     ...options,

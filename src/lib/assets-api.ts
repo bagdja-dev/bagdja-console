@@ -4,7 +4,7 @@
  */
 
 import { 
-  getAccessToken, 
+  requireAccessToken,
   removeAccessToken,
   getClientToken,
   setClientToken,
@@ -94,11 +94,7 @@ export async function createAsset(data: CreateAssetRequest, organizationId: stri
   const clientToken = await ensureClientToken();
   
   // Get user access token
-  const userToken = getAccessToken();
-  
-  if (!userToken) {
-    throw new Error('User not authenticated');
-  }
+  const userToken = requireAccessToken();
 
   if (!organizationId) {
     throw new Error('Organization ID is required');
@@ -165,11 +161,7 @@ async function assetsApiRequest<T>(
   const clientToken = await ensureClientToken();
   
   // Get user access token
-  const userToken = getAccessToken();
-  
-  if (!userToken) {
-    throw new Error('User not authenticated');
-  }
+  const userToken = requireAccessToken();
 
   // Get organization slug from sessionStorage if not provided
   const orgId = organizationId || getActiveOrganizationSlug();
