@@ -510,7 +510,7 @@ export default function PaymentConfigPage() {
             </div>
             <div className="text-sm text-[var(--text-secondary)] space-y-1">
               <p>
-                Fee di sini dipotong dari dana milestone escrow saat <span className="font-medium text-[var(--text-primary)]">release</span> ke seller — beda dari Billing Settings di atas (fee payment gateway saat checkout).
+                Fee di sini dipotong dari dana escrow saat <span className="font-medium text-[var(--text-primary)]">release</span> ke seller — beda dari Billing Settings di atas (fee payment gateway saat checkout).
               </p>
               <p>
                 Resolusi (spesifik menang): <span className="font-mono text-xs">(org, app, product) → (org, app, default) → (org, default, default) → (default, default, default)</span>.

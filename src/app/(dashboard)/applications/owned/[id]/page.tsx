@@ -1237,7 +1237,7 @@ export default function AppDetailPage() {
     } else if (action === 'release') {
       await forceReleaseDispute(escrow, note);
     } else {
-      await refundEscrow(escrow.id, note);
+      await refundEscrow(escrow.id, `console-refund-${escrow.id}`, note);
     }
 
     setDisputedEscrows((prev) => prev.filter((e) => e.id !== escrow.id));
@@ -1908,7 +1908,7 @@ export default function AppDetailPage() {
               <div>
                 <h2 className="text-lg font-semibold text-[var(--text-primary)]">Escrow Products</h2>
                 <p className="text-sm text-[var(--text-secondary)] mt-1">
-                  Katalog/policy escrow milik app ini — biasanya 1 per website tenant, dipakai saat checkout via escrow milestone.
+                  Katalog dan pengaturan escrow milik app ini — biasanya 1 per website tenant, dipakai saat checkout.
                 </p>
               </div>
               <button
@@ -1989,8 +1989,6 @@ export default function AppDetailPage() {
                         </td>
                         <td className="py-3 px-4 text-xs text-[var(--text-secondary)]">
                           <div className="flex flex-wrap gap-1">
-                            <span className="px-1.5 py-0.5 bg-[var(--bg-sidebar)] rounded">{ep.releaseMode}</span>
-                            {ep.milestoneRequired && <span className="px-1.5 py-0.5 bg-[var(--bg-sidebar)] rounded">milestone</span>}
                             {ep.disputeEnabled && <span className="px-1.5 py-0.5 bg-[var(--bg-sidebar)] rounded">dispute</span>}
                           </div>
                         </td>

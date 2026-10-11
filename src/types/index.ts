@@ -330,9 +330,9 @@ export interface UpdateProductRequest {
 }
 
 // Escrow Product Types — katalog/policy untuk item yang dijual via escrow
-// milestone (`bagdja-payment-service` `escrow_products`, tabel dedicated
+// escrow (`bagdja-payment-service` `escrow_products`, tabel dedicated
 // sejak 2026-08-19, lihat
-// plan/payment-service/escrow-milestone-decision.md §3.0 supersede #12).
+// Escrow product configuration from the dedicated payment-service table.
 // Terpisah dari `Product` di atas — beda tabel, beda tujuan (policy escrow,
 // bukan katalog jualan generik).
 export interface EscrowProduct {
@@ -345,11 +345,7 @@ export interface EscrowProduct {
   isDynamic: boolean;
   isActive: boolean;
   status: ProductStatus;
-  releaseMode: string;
-  milestoneRequired: boolean;
-  allowPartialMilestoneRelease: boolean;
   disputeEnabled: boolean;
-  releaseWindowEnforced: boolean;
   fullPaymentRequired: boolean;
   allowedPaymentMethods: string[] | null;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -366,11 +362,7 @@ export interface CreateEscrowProductRequest {
   isDynamic?: boolean;
   isActive?: boolean;
   status?: ProductStatus;
-  releaseMode?: string;
-  milestoneRequired?: boolean;
-  allowPartialMilestoneRelease?: boolean;
   disputeEnabled?: boolean;
-  releaseWindowEnforced?: boolean;
   fullPaymentRequired?: boolean;
   allowedPaymentMethods?: string[];
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

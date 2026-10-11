@@ -2,8 +2,7 @@
  * Escrow Fee Config API Client
  * Handles all API calls related to escrow fee configs
  * (`bagdja-payment-service` `/escrow/fee-configs`) — "billing config" yang
- * menentukan potongan platform_fee/app_fee saat release milestone escrow.
- * Lihat plan/payment-service/escrow-milestone-decision.md §3.5/§9 Fase D.
+ * menentukan potongan platform_fee/app_fee saat release escrow.
  *
  * Catatan kontrak API (asimetris, ikuti apa adanya):
  * - Request body (upsert) pakai snake_case: org_id, app_id, product_id,

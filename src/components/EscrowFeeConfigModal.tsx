@@ -274,7 +274,7 @@ export default function EscrowFeeConfigModal({
               {isEdit ? 'Edit escrow fee config' : 'Create escrow fee config'}
             </h2>
             <p className="mt-0.5 text-xs text-[var(--text-secondary)]">
-              Dipotong dari dana milestone saat <span className="font-medium">release</span> — bukan saat checkout. Resolusi: produk spesifik → app → org → default global.
+              Dipotong dari dana escrow saat <span className="font-medium">release</span> — bukan saat checkout. Resolusi: produk spesifik → app → org → default global.
             </p>
           </div>
           <button

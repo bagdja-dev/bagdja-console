@@ -2,7 +2,7 @@
  * Escrow Products API Client
  * Handles all API calls related to Escrow Products (`bagdja-payment-service`
  * `/escrow-products`) — katalog/policy per app untuk item yang dijual via
- * escrow milestone. Terpisah dari `products-api.ts` (katalog jualan generik).
+ * escrow. Terpisah dari `products-api.ts` (katalog jualan generik).
  */
 
 import {

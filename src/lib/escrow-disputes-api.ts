@@ -109,18 +109,6 @@ async function apiRequest<T>(endpoint: string, options: RequestInit = {}): Promi
   return response.json();
 }
 
-export interface EscrowMilestoneDetail {
-  id: string;
-  sequence: number;
-  label: string;
-  description: string | null;
-  amount: number;
-  status: string;
-  release_window_at: string | null;
-  released_at: string | null;
-  refunded_at: string | null;
-}
-
 export interface EscrowDetail {
   id: string;
   app_id: string;
@@ -142,7 +130,6 @@ export interface EscrowDetail {
   idempotency_key: string;
   created_at: string;
   updated_at: string;
-  milestones: EscrowMilestoneDetail[];
 }
 
 /**
@@ -190,49 +177,35 @@ export async function unfreezeEscrow(escrowId: string, note?: string): Promise<E
 }
 
 /**
- * Force release 1 milestone ke seller — dipakai app owner saat komplain
- * buyer terbukti tidak valid (mis. ada bukti pengiriman) tapi buyer menolak
- * konfirmasi terima barang sendiri. Payment-service mensyaratkan escrow
- * `HELD` untuk release (bukan `DISPUTED`), jadi kalau escrow masih
- * disengketakan, unfreeze DULU baru release — lihat `forceReleaseDispute()`
- * di bawah yang menggabungkan kedua langkah itu jadi satu aksi.
- */
-export async function releaseMilestone(
-  escrowId: string,
-  milestoneId: string,
-  note?: string,
-): Promise<EscrowDetail> {
-  return apiRequest<EscrowDetail>(
-    `/escrow/${encodeURIComponent(escrowId)}/release-milestone/${encodeURIComponent(milestoneId)}`,
-    { method: 'POST', body: JSON.stringify(note ? { note } : {}) },
-  );
-}
-
-/**
  * Force refund pembeli — dipakai app owner saat komplain buyer terbukti
  * valid (mis. barang tidak sampai) tapi seller tidak/menolak me-refund
  * lewat aksi mereka sendiri (bagdja-website-admin). Refund penuh sisa hold
- * (tanpa `milestone_id`) — cocok untuk escrow 1-milestone. Payment-service
+ * (tanpa `amount`). Payment-service
  * TIDAK mensyaratkan HELD untuk ini — bisa langsung dari status DISPUTED.
  */
-export async function refundEscrow(escrowId: string, note?: string): Promise<EscrowDetail> {
+export async function refundEscrow(
+  escrowId: string,
+  clientRefNumber: string,
+  note?: string,
+): Promise<EscrowDetail> {
   return apiRequest<EscrowDetail>(`/escrow/${encodeURIComponent(escrowId)}/refund`, {
     method: 'POST',
-    body: JSON.stringify(note ? { note } : {}),
+    body: JSON.stringify({ clientRefNumber, ...(note ? { note } : {}) }),
   });
 }
 
 /**
- * Force release "compound" — unfreeze (DISPUTED -> HELD) lalu release
- * milestone PENDING pertama. Escrow builder Website selalu 1 milestone jadi
- * tidak perlu buyer pilih; kalau nanti ada app lain multi-milestone, ini
- * cuma ambil yang paling awal.
+ * Force release remaining held funds after resolving a dispute.
  */
-export async function forceReleaseDispute(escrow: EscrowDetail, note: string): Promise<EscrowDetail> {
+export async function forceReleaseDispute(escrow: EscrowDetail, note: string): Promise<unknown> {
   await unfreezeEscrow(escrow.id, note);
-  const milestone = escrow.milestones.find((m) => m.status === 'PENDING' || m.status === 'FROZEN');
-  if (!milestone) {
-    throw new Error('No releasable milestone found on this escrow');
+  const amount = Number(escrow.amount_held);
+  if (amount <= 0) {
+    throw new Error('No held amount remains to release');
   }
-  return releaseMilestone(escrow.id, milestone.id, note);
+  const clientRefNumber = `console-dispute-release:${escrow.id}:${escrow.amount_released}:${amount}`;
+  return apiRequest(`/escrow/${encodeURIComponent(escrow.id)}/release`, {
+    method: 'POST',
+    body: JSON.stringify({ amount, clientRefNumber, reference: clientRefNumber, note }),
+  });
 }

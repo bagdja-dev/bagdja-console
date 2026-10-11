@@ -20,7 +20,7 @@ export type DisputeAction = 'unfreeze' | 'release' | 'refund';
  *   VALID tapi seller tidak/menolak refund lewat aksi mereka sendiri.
  *
  * Ketiganya butuh `note` WAJIB — jejak audit kenapa app owner turun tangan
- * memutuskan sepihak (lihat `UnfreezeEscrowDto`/`ReleaseMilestoneDto`/
+ * memutuskan sepihak (lihat `UnfreezeEscrowDto`/release amount API/
  * `RefundEscrowDto` di bagdja-payment-service).
  */
 const ACTION_CONFIG: Record<
