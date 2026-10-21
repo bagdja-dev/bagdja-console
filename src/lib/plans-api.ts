@@ -18,27 +18,32 @@ import {
   getClientToken,
   setClientToken,
   isClientTokenExpired,
-} from './auth';
+} from "./auth";
 import type {
   Plan,
   CreatePlanRequest,
   UpdatePlanRequest,
   ApiError,
-} from '@/types';
+} from "@/types";
 
 function getPaymentApiBase(): string {
   const apiBase = process.env.NEXT_PUBLIC_PAYMENT_API;
   if (!apiBase) {
-    throw new Error('NEXT_PUBLIC_PAYMENT_API environment variable is required. Please set it in your .env file.');
+    throw new Error(
+      "NEXT_PUBLIC_PAYMENT_API environment variable is required. Please set it in your .env file.",
+    );
   }
   return apiBase;
 }
 
-const AUTH_API_BASE = process.env.NEXT_PUBLIC_AUTH_API || 'https://auth.bagdja.com';
+const AUTH_API_BASE =
+  process.env.NEXT_PUBLIC_AUTH_API || "https://auth.bagdja.com";
 
 // Client app credentials from environment variables
-const CLIENT_APP_ID = process.env.NEXT_PUBLIC_CLIENT_APP_ID || 'user-console';
-const CLIENT_APP_SECRET = process.env.NEXT_PUBLIC_CLIENT_APP_SECRET || 'a9F3kL2P8QwZx7C0M5eB1R4H6TnUJDYVSm';
+const CLIENT_APP_ID = process.env.NEXT_PUBLIC_CLIENT_APP_ID || "user-console";
+const CLIENT_APP_SECRET =
+  process.env.NEXT_PUBLIC_CLIENT_APP_SECRET ||
+  "a9F3kL2P8QwZx7C0M5eB1R4H6TnUJDYVSm";
 
 async function ensureClientToken(): Promise<string> {
   const clientToken = getClientToken();
@@ -52,16 +57,16 @@ async function ensureClientToken(): Promise<string> {
     };
 
     const response = await fetch(url, {
-      method: 'POST',
+      method: "POST",
       headers: {
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
       },
       body: JSON.stringify(requestBody),
     });
 
     if (!response.ok) {
       const error: ApiError = {
-        message: 'Failed to obtain client app token',
+        message: "Failed to obtain client app token",
         statusCode: response.status,
       };
 
@@ -76,9 +81,9 @@ async function ensureClientToken(): Promise<string> {
     }
 
     const data = await response.json();
-    setClientToken(data['x-api-token'], data.expires_in);
+    setClientToken(data["x-api-token"], data.expires_in);
 
-    return data['x-api-token'];
+    return data["x-api-token"];
   }
 
   return clientToken;
@@ -86,7 +91,7 @@ async function ensureClientToken(): Promise<string> {
 
 async function apiRequest<T>(
   endpoint: string,
-  options: RequestInit = {}
+  options: RequestInit = {},
 ): Promise<T> {
   const clientToken = await ensureClientToken();
   const userToken = requireAccessToken();
@@ -94,22 +99,22 @@ async function apiRequest<T>(
   const url = `${getPaymentApiBase()}${endpoint}`;
 
   const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-    'x-api-token': clientToken,
+    "Content-Type": "application/json",
+    "x-api-token": clientToken,
     ...(options.headers as Record<string, string>),
   };
 
-  headers['Authorization'] = `Bearer ${userToken}`;
+  headers["Authorization"] = `Bearer ${userToken}`;
 
   const response = await fetch(url, {
     ...options,
     headers,
-    cache: options.cache || 'no-store',
+    cache: options.cache || "no-store",
   });
 
   if (!response.ok) {
     const error: ApiError = {
-      message: 'An error occurred',
+      message: "An error occurred",
       statusCode: response.status,
     };
 
@@ -122,8 +127,9 @@ async function apiRequest<T>(
 
     if (response.status === 401) {
       removeAccessToken();
-      if (typeof window !== 'undefined') {
-        document.cookie = 'bagdja_access_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+      if (typeof window !== "undefined") {
+        document.cookie =
+          "bagdja_access_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
       }
     }
 
@@ -148,6 +154,7 @@ type RawSubscriptionPlan = {
   currency: string;
   billingInterval: string;
   intervalCount: number;
+  renewalDay?: number | null;
   trialPeriodDays: number | null;
   maxRedemptionsPerOwner: number | null;
   features: { list?: string[] } | Record<string, unknown> | null;
@@ -172,8 +179,9 @@ function mapFromApi(raw: RawSubscriptionPlan): Plan {
     description: raw.description,
     price: Number(raw.price),
     currency: raw.currency,
-    duration: raw.billingInterval as Plan['duration'],
+    duration: raw.billingInterval as Plan["duration"],
     durationValue: raw.intervalCount,
+    renewalDay: raw.renewalDay ?? null,
     features: featuresList,
     trialPeriodDays: raw.trialPeriodDays,
     maxRedemptionsPerOwner: raw.maxRedemptionsPerOwner,
@@ -184,7 +192,9 @@ function mapFromApi(raw: RawSubscriptionPlan): Plan {
   };
 }
 
-function mapToApiBody(data: CreatePlanRequest | UpdatePlanRequest): Record<string, unknown> {
+function mapToApiBody(
+  data: CreatePlanRequest | UpdatePlanRequest,
+): Record<string, unknown> {
   const body: Record<string, unknown> = {
     name: data.name,
     description: data.description,
@@ -192,11 +202,12 @@ function mapToApiBody(data: CreatePlanRequest | UpdatePlanRequest): Record<strin
     currency: data.currency,
     billingInterval: data.duration,
     intervalCount: data.durationValue,
+    renewalDay: data.renewalDay,
     maxRedemptionsPerOwner: data.maxRedemptionsPerOwner,
     metadata: data.metadata,
     isActive: data.isActive,
   };
-  if ('code' in data && data.code) {
+  if ("code" in data && data.code) {
     body.code = data.code;
   }
   if (data.features && data.features.length > 0) {
@@ -219,7 +230,9 @@ export async function getPlans(appId: string): Promise<Plan[]> {
  * Get a plan by ID
  */
 export async function getPlan(id: string): Promise<Plan> {
-  const raw = await apiRequest<RawSubscriptionPlan>(`/subscription-plans/${id}`);
+  const raw = await apiRequest<RawSubscriptionPlan>(
+    `/subscription-plans/${id}`,
+  );
   return mapFromApi(raw);
 }
 
@@ -228,10 +241,10 @@ export async function getPlan(id: string): Promise<Plan> {
  */
 export async function createPlan(
   appId: string,
-  data: CreatePlanRequest
+  data: CreatePlanRequest,
 ): Promise<Plan> {
-  const raw = await apiRequest<RawSubscriptionPlan>('/subscription-plans', {
-    method: 'POST',
+  const raw = await apiRequest<RawSubscriptionPlan>("/subscription-plans", {
+    method: "POST",
     body: JSON.stringify({ ...mapToApiBody(data), appId }),
   });
   return mapFromApi(raw);
@@ -242,12 +255,15 @@ export async function createPlan(
  */
 export async function updatePlan(
   id: string,
-  data: UpdatePlanRequest
+  data: UpdatePlanRequest,
 ): Promise<Plan> {
-  const raw = await apiRequest<RawSubscriptionPlan>(`/subscription-plans/${id}`, {
-    method: 'PATCH',
-    body: JSON.stringify(mapToApiBody(data)),
-  });
+  const raw = await apiRequest<RawSubscriptionPlan>(
+    `/subscription-plans/${id}`,
+    {
+      method: "PATCH",
+      body: JSON.stringify(mapToApiBody(data)),
+    },
+  );
   return mapFromApi(raw);
 }
 
@@ -256,6 +272,6 @@ export async function updatePlan(
  */
 export async function deletePlan(id: string): Promise<void> {
   return apiRequest<void>(`/subscription-plans/${id}`, {
-    method: 'DELETE',
+    method: "DELETE",
   });
 }

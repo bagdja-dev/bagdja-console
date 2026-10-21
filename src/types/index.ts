@@ -38,7 +38,7 @@ export interface ClientTokenRequest {
 }
 
 export interface ClientTokenResponse {
-  'x-api-token': string;
+  "x-api-token": string;
   token_type: string;
   expires_in: number;
 }
@@ -152,14 +152,14 @@ export interface UpdateAssetGroupRequest {
 
 // License Types
 export enum LicenseType {
-  ORG = 'ORG',
-  APP = 'APP',
+  ORG = "ORG",
+  APP = "APP",
 }
 
 export enum LicenseStatus {
-  AVAILABLE = 'AVAILABLE',
-  PURCHASED = 'PURCHASED',
-  REVOKED = 'REVOKED',
+  AVAILABLE = "AVAILABLE",
+  PURCHASED = "PURCHASED",
+  REVOKED = "REVOKED",
 }
 
 // Dipindah dari bagdja-auth ke bagdja-payment-service (lihat
@@ -220,10 +220,10 @@ export interface BuyLicenseResponse {
 // Plan Types — sekarang "Subscription Plan" di bagdja-payment-service
 // (merge dgn Plan lama bagdja-auth, lihat refactoring-payment-service.md §3.2).
 export enum PlanDuration {
-  DAILY = 'DAILY',
-  WEEKLY = 'WEEKLY',
-  MONTHLY = 'MONTHLY',
-  YEARLY = 'YEARLY',
+  DAILY = "DAILY",
+  WEEKLY = "WEEKLY",
+  MONTHLY = "MONTHLY",
+  YEARLY = "YEARLY",
 }
 
 export interface Plan {
@@ -238,6 +238,7 @@ export interface Plan {
   currency: string;
   duration: PlanDuration;
   durationValue: number | null;
+  renewalDay?: number | null;
   /** UI tetap menampilkan sbg list string; disimpan sbg `{ list: string[] }` di `features` */
   features: string[] | null;
   trialPeriodDays: number | null;
@@ -258,6 +259,7 @@ export interface CreatePlanRequest {
   currency?: string;
   duration: PlanDuration;
   durationValue?: number;
+  renewalDay?: number | null;
   features?: string[];
   maxRedemptionsPerOwner?: number;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -273,6 +275,7 @@ export interface UpdatePlanRequest {
   currency?: string;
   duration?: PlanDuration;
   durationValue?: number;
+  renewalDay?: number | null;
   features?: string[];
   maxRedemptionsPerOwner?: number;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -282,8 +285,8 @@ export interface UpdatePlanRequest {
 
 // Product Types
 export enum ProductStatus {
-  ACTIVE = 'ACTIVE',
-  INACTIVE = 'INACTIVE',
+  ACTIVE = "ACTIVE",
+  INACTIVE = "INACTIVE",
 }
 
 export interface Product {
@@ -376,12 +379,12 @@ export type UpdateEscrowProductRequest = Partial<CreateEscrowProductRequest>;
 // Fase 1.G). BUKAN pengganti 1:1 model lama `bagdja-auth` yang dihapus di
 // Fase 1.D — beda skema total (billing period, proration, wallet-based).
 export enum SubscriptionStatus {
-  TRIALING = 'TRIALING',
-  ACTIVE = 'ACTIVE',
-  PAST_DUE = 'PAST_DUE',
-  SUSPENDED = 'SUSPENDED',
-  CANCELLED = 'CANCELLED',
-  EXPIRED = 'EXPIRED',
+  TRIALING = "TRIALING",
+  ACTIVE = "ACTIVE",
+  PAST_DUE = "PAST_DUE",
+  SUSPENDED = "SUSPENDED",
+  CANCELLED = "CANCELLED",
+  EXPIRED = "EXPIRED",
 }
 
 export interface Subscription {
@@ -417,7 +420,7 @@ export interface AppUser {
   name?: string;
   joinedDate: Date;
   lastActivity: Date;
-  status: 'Active' | 'Inactive';
+  status: "Active" | "Inactive";
   transactionCount: number;
 }
 
@@ -435,16 +438,16 @@ export interface Notification {
 
 // Message Service Types
 export enum ChannelType {
-  EMAIL = 'email',
-  WHATSAPP = 'whatsapp',
-  SMS = 'sms',
+  EMAIL = "email",
+  WHATSAPP = "whatsapp",
+  SMS = "sms",
 }
 
 export enum ProviderType {
-  SYSTEM = 'system',
-  SMTP = 'smtp',
-  SENDGRID = 'sendgrid',
-  MAILGUN = 'mailgun',
+  SYSTEM = "system",
+  SMTP = "smtp",
+  SENDGRID = "sendgrid",
+  MAILGUN = "mailgun",
 }
 
 export interface ChannelSetting {

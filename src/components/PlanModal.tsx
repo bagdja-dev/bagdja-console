@@ -1,12 +1,17 @@
-'use client';
+"use client";
 
-import { useState, useEffect } from 'react';
-import type { Plan, CreatePlanRequest, UpdatePlanRequest, ApiError } from '@/types';
-import { PlanDuration } from '@/types';
-import { Input } from '@/ui/input';
-import { Select } from '@/ui/select';
-import { X, Plus, Trash2, Code2, AlertCircle, Sparkles } from 'lucide-react';
-import { parseMetadataJson } from '@/lib/json-metadata';
+import { useState, useEffect } from "react";
+import type {
+  Plan,
+  CreatePlanRequest,
+  UpdatePlanRequest,
+  ApiError,
+} from "@/types";
+import { PlanDuration } from "@/types";
+import { Input } from "@/ui/input";
+import { Select } from "@/ui/select";
+import { X, Plus, Trash2, Code2, AlertCircle } from "lucide-react";
+import { parseMetadataJson } from "@/lib/json-metadata";
 
 interface PlanModalProps {
   isOpen: boolean;
@@ -16,23 +21,30 @@ interface PlanModalProps {
   appId: string;
 }
 
-export default function PlanModal({ isOpen, onClose, onSubmit, plan, appId: _appId }: PlanModalProps) {
+export default function PlanModal({
+  isOpen,
+  onClose,
+  onSubmit,
+  plan,
+  appId: _appId,
+}: PlanModalProps) {
   const [formData, setFormData] = useState<CreatePlanRequest>({
-    code: '',
-    name: '',
-    description: '',
+    code: "",
+    name: "",
+    description: "",
     price: 0,
-    currency: 'IDR',
+    currency: "IDR",
     duration: PlanDuration.MONTHLY,
     durationValue: 1,
+    renewalDay: null,
     features: [],
     maxRedemptionsPerOwner: undefined,
     isActive: true,
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [featureInput, setFeatureInput] = useState<string>('');
-  const [metadataJson, setMetadataJson] = useState<string>('{}');
+  const [featureInput, setFeatureInput] = useState<string>("");
+  const [metadataJson, setMetadataJson] = useState<string>("{}");
   const [jsonError, setJsonError] = useState<string | null>(null);
   const [jsonFixNotice, setJsonFixNotice] = useState<string | null>(null);
 
@@ -41,11 +53,12 @@ export default function PlanModal({ isOpen, onClose, onSubmit, plan, appId: _app
       setFormData({
         code: plan.code,
         name: plan.name,
-        description: plan.description || '',
+        description: plan.description || "",
         price: Number(plan.price),
-        currency: plan.currency || 'IDR',
+        currency: plan.currency || "IDR",
         duration: plan.duration,
         durationValue: plan.durationValue || undefined,
+        renewalDay: plan.renewalDay ?? null,
         features: plan.features || [],
         maxRedemptionsPerOwner: plan.maxRedemptionsPerOwner || undefined,
         metadata: plan.metadata || {},
@@ -56,21 +69,22 @@ export default function PlanModal({ isOpen, onClose, onSubmit, plan, appId: _app
       setMetadataJson(JSON.stringify(metadata, null, 2));
     } else {
       setFormData({
-        code: '',
-        name: '',
-        description: '',
+        code: "",
+        name: "",
+        description: "",
         price: 0,
-        currency: 'IDR',
+        currency: "IDR",
         duration: PlanDuration.MONTHLY,
         durationValue: 1,
+        renewalDay: null,
         features: [],
         maxRedemptionsPerOwner: undefined,
         metadata: {},
         isActive: true,
       });
-      setMetadataJson('{}');
+      setMetadataJson("{}");
     }
-    setFeatureInput('');
+    setFeatureInput("");
     setError(null);
     setJsonError(null);
     setJsonFixNotice(null);
@@ -89,7 +103,9 @@ export default function PlanModal({ isOpen, onClose, onSubmit, plan, appId: _app
     if (result.fixedText) {
       // Input had minor mistakes (e.g. `=` instead of `:`, unquoted keys) that were auto-repaired.
       setMetadataJson(result.fixedText);
-      setJsonFixNotice('Beberapa kesalahan sintaks kecil otomatis diperbaiki — cek lagi sebelum menyimpan.');
+      setJsonFixNotice(
+        "Beberapa kesalahan sintaks kecil otomatis diperbaiki — cek lagi sebelum menyimpan.",
+      );
     } else {
       setJsonFixNotice(null);
       if (result.value !== null) {
@@ -108,7 +124,7 @@ export default function PlanModal({ isOpen, onClose, onSubmit, plan, appId: _app
       const metadataResult = parseMetadataJson(metadataJson);
       setJsonError(metadataResult.error);
       if (metadataResult.value === null) {
-        setError('Please fix JSON errors in metadata');
+        setError("Please fix JSON errors in metadata");
         setLoading(false);
         return;
       }
@@ -119,8 +135,16 @@ export default function PlanModal({ isOpen, onClose, onSubmit, plan, appId: _app
 
       const submitData = {
         ...formData,
-        features: formData.features && formData.features.length > 0 ? formData.features : undefined,
+        features:
+          formData.features && formData.features.length > 0
+            ? formData.features
+            : undefined,
         durationValue: formData.durationValue || undefined,
+        renewalDay:
+          formData.duration === PlanDuration.MONTHLY ||
+          formData.duration === PlanDuration.YEARLY
+            ? (formData.renewalDay ?? null)
+            : null,
         // Kosong = tidak dibatasi (undefined, bukan 0 — 0 berarti "langsung
         // limit habis" di backend, lihat freemium-and-trial-subscription-decision.md §7).
         maxRedemptionsPerOwner: formData.maxRedemptionsPerOwner || undefined,
@@ -131,7 +155,7 @@ export default function PlanModal({ isOpen, onClose, onSubmit, plan, appId: _app
       onClose();
     } catch (err) {
       const apiError = err as ApiError;
-      setError(apiError.message || 'Failed to save plan');
+      setError(apiError.message || "Failed to save plan");
     } finally {
       setLoading(false);
     }
@@ -143,7 +167,7 @@ export default function PlanModal({ isOpen, onClose, onSubmit, plan, appId: _app
         ...formData,
         features: [...(formData.features || []), featureInput.trim()],
       });
-      setFeatureInput('');
+      setFeatureInput("");
     }
   };
 
@@ -163,7 +187,7 @@ export default function PlanModal({ isOpen, onClose, onSubmit, plan, appId: _app
       <div className="bg-[var(--bg-surface)] rounded-lg border border-[var(--border-default)] w-full max-w-2xl max-h-[90vh] overflow-y-auto m-4">
         <div className="sticky top-0 bg-[var(--bg-surface)] border-b border-[var(--border-default)] px-6 py-4 flex items-center justify-between">
           <h2 className="text-xl font-semibold text-[var(--text-primary)]">
-            {plan ? 'Edit Plan' : 'Create Plan'}
+            {plan ? "Edit Plan" : "Create Plan"}
           </h2>
           <button
             onClick={onClose}
@@ -192,7 +216,7 @@ export default function PlanModal({ isOpen, onClose, onSubmit, plan, appId: _app
 
           <Input
             label="Code"
-            value={formData.code || ''}
+            value={formData.code || ""}
             onChange={(e) => setFormData({ ...formData, code: e.target.value })}
             disabled={loading}
             placeholder="Leave empty to auto-generate from name"
@@ -205,7 +229,9 @@ export default function PlanModal({ isOpen, onClose, onSubmit, plan, appId: _app
             </label>
             <textarea
               value={formData.description}
-              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+              onChange={(e) =>
+                setFormData({ ...formData, description: e.target.value })
+              }
               disabled={loading}
               rows={3}
               className="w-full px-4 py-2 border rounded-lg bg-[var(--bg-surface)] text-[var(--text-primary)] border-[var(--border-default)] focus:outline-none focus:ring-2 focus:ring-[var(--action-primary)] focus:border-transparent placeholder:text-[var(--text-muted)]"
@@ -220,15 +246,25 @@ export default function PlanModal({ isOpen, onClose, onSubmit, plan, appId: _app
               min="0"
               step="0.01"
               value={formData.price}
-              onChange={(e) => setFormData({ ...formData, price: parseFloat(e.target.value) || 0 })}
+              onChange={(e) =>
+                setFormData({
+                  ...formData,
+                  price: parseFloat(e.target.value) || 0,
+                })
+              }
               required
               disabled={loading}
             />
 
             <Input
               label="Currency"
-              value={formData.currency || 'IDR'}
-              onChange={(e) => setFormData({ ...formData, currency: e.target.value.toUpperCase() })}
+              value={formData.currency || "IDR"}
+              onChange={(e) =>
+                setFormData({
+                  ...formData,
+                  currency: e.target.value.toUpperCase(),
+                })
+              }
               disabled={loading}
               placeholder="IDR"
               maxLength={3}
@@ -239,7 +275,18 @@ export default function PlanModal({ isOpen, onClose, onSubmit, plan, appId: _app
             <Select
               label="Billing Interval"
               value={formData.duration}
-              onChange={(e) => setFormData({ ...formData, duration: e.target.value as PlanDuration })}
+              onChange={(e) => {
+                const duration = e.target.value as PlanDuration;
+                setFormData({
+                  ...formData,
+                  duration,
+                  renewalDay:
+                    duration === PlanDuration.MONTHLY ||
+                    duration === PlanDuration.YEARLY
+                      ? (formData.renewalDay ?? null)
+                      : null,
+                });
+              }}
               required
               disabled={loading}
             >
@@ -253,19 +300,81 @@ export default function PlanModal({ isOpen, onClose, onSubmit, plan, appId: _app
               label="Interval Count"
               type="number"
               min="1"
-              value={formData.durationValue || ''}
-              onChange={(e) => setFormData({ ...formData, durationValue: parseInt(e.target.value) || undefined })}
+              value={formData.durationValue || ""}
+              onChange={(e) =>
+                setFormData({
+                  ...formData,
+                  durationValue: parseInt(e.target.value) || undefined,
+                })
+              }
               disabled={loading}
               placeholder="e.g., 3 for quarterly"
               helpText="Mis. 3 utk quarterly (interval=Monthly, count=3)"
             />
           </div>
 
+          {(formData.duration === PlanDuration.MONTHLY ||
+            formData.duration === PlanDuration.YEARLY) && (
+            <div className="grid grid-cols-2 gap-4">
+              <Select
+                label="Renewal Date"
+                value={formData.renewalDay == null ? "registration" : "fixed"}
+                onChange={(e) =>
+                  setFormData({
+                    ...formData,
+                    renewalDay:
+                      e.target.value === "fixed"
+                        ? (formData.renewalDay ?? 1)
+                        : null,
+                  })
+                }
+                disabled={loading}
+                helpText="Tanggal registrasi di atas 28 menggunakan tanggal 28."
+              >
+                <option value="registration">Ikuti tanggal registrasi</option>
+                <option value="fixed">Tanggal tetap</option>
+              </Select>
+              {formData.renewalDay != null && (
+                <Select
+                  label="Fixed Renewal Day"
+                  value={String(formData.renewalDay)}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      renewalDay: Number(e.target.value),
+                    })
+                  }
+                  disabled={loading}
+                  helpText={
+                    formData.duration === PlanDuration.YEARLY
+                      ? "Bulan renewal mengikuti bulan registrasi subscription."
+                      : "Berlaku untuk setiap periode bulanan."
+                  }
+                >
+                  {Array.from({ length: 28 }, (_, index) => index + 1).map(
+                    (day) => (
+                      <option key={day} value={day}>
+                        {day}
+                      </option>
+                    ),
+                  )}
+                </Select>
+              )}
+            </div>
+          )}
+          {(formData.duration === PlanDuration.MONTHLY ||
+            formData.duration === PlanDuration.YEARLY) && (
+            <p className="text-xs text-[var(--text-muted)]">
+              Tanggal ini tersimpan pada plan; penerapannya pada kalkulasi
+              renewal akan aktif setelah fase implementasi berikutnya.
+            </p>
+          )}
+
           <Input
             label="Batas Klaim per Pengguna"
             type="number"
             min="1"
-            value={formData.maxRedemptionsPerOwner || ''}
+            value={formData.maxRedemptionsPerOwner || ""}
             onChange={(e) =>
               setFormData({
                 ...formData,
@@ -279,7 +388,9 @@ export default function PlanModal({ isOpen, onClose, onSubmit, plan, appId: _app
 
           <div className="border-t border-[var(--border-default)] pt-4">
             <div className="flex items-center justify-between mb-3">
-              <h3 className="text-sm font-medium text-[var(--text-primary)]">Metadata (Optional)</h3>
+              <h3 className="text-sm font-medium text-[var(--text-primary)]">
+                Metadata (Optional)
+              </h3>
               <button
                 type="button"
                 onClick={formatJson}
@@ -313,7 +424,7 @@ export default function PlanModal({ isOpen, onClose, onSubmit, plan, appId: _app
                   placeholder:text-[var(--text-muted)]
                   font-mono text-sm
                   disabled:bg-[var(--bg-sidebar)] disabled:cursor-not-allowed disabled:opacity-50
-                  ${jsonError ? 'border-[var(--brand-error)]' : ''}
+                  ${jsonError ? "border-[var(--brand-error)]" : ""}
                 `}
                 placeholder='{\n  "maxExams": 100,\n  "storageGB": 50\n}'
                 spellCheck={false}
@@ -324,9 +435,18 @@ export default function PlanModal({ isOpen, onClose, onSubmit, plan, appId: _app
                   <p className="text-red-600 text-xs">{jsonError}</p>
                 </div>
               )}
+              {jsonFixNotice && (
+                <p className="mt-2 text-xs text-[var(--text-secondary)]">
+                  {jsonFixNotice}
+                </p>
+              )}
               {!jsonError && (
                 <p className="mt-2 text-xs text-[var(--text-secondary)]">
-                  Enter valid JSON object. Example: <code className="px-1 py-0.5 bg-[var(--bg-sidebar)] rounded">&#123;&quot;maxExams&quot;: 100, &quot;storageGB&quot;: 50&#125;</code>
+                  Enter valid JSON object. Example:{" "}
+                  <code className="px-1 py-0.5 bg-[var(--bg-sidebar)] rounded">
+                    &#123;&quot;maxExams&quot;: 100, &quot;storageGB&quot;:
+                    50&#125;
+                  </code>
                 </p>
               )}
             </div>
@@ -342,7 +462,7 @@ export default function PlanModal({ isOpen, onClose, onSubmit, plan, appId: _app
                   value={featureInput}
                   onChange={(e) => setFeatureInput(e.target.value)}
                   onKeyPress={(e) => {
-                    if (e.key === 'Enter') {
+                    if (e.key === "Enter") {
                       e.preventDefault();
                       addFeature();
                     }
@@ -368,7 +488,9 @@ export default function PlanModal({ isOpen, onClose, onSubmit, plan, appId: _app
                       key={index}
                       className="flex items-center justify-between p-2 bg-[var(--bg-sidebar)] rounded-lg"
                     >
-                      <span className="text-sm text-[var(--text-primary)]">{feature}</span>
+                      <span className="text-sm text-[var(--text-primary)]">
+                        {feature}
+                      </span>
                       <button
                         type="button"
                         onClick={() => removeFeature(index)}
@@ -389,11 +511,15 @@ export default function PlanModal({ isOpen, onClose, onSubmit, plan, appId: _app
               <input
                 type="checkbox"
                 checked={formData.isActive}
-                onChange={(e) => setFormData({ ...formData, isActive: e.target.checked })}
+                onChange={(e) =>
+                  setFormData({ ...formData, isActive: e.target.checked })
+                }
                 disabled={loading}
                 className="w-4 h-4 rounded border-[var(--border-default)] text-[var(--action-primary)] focus:ring-[var(--action-primary)]"
               />
-              <span className="text-sm text-[var(--text-primary)]">Is Active</span>
+              <span className="text-sm text-[var(--text-primary)]">
+                Is Active
+              </span>
             </label>
           </div>
 
@@ -411,7 +537,7 @@ export default function PlanModal({ isOpen, onClose, onSubmit, plan, appId: _app
               disabled={loading}
               className="px-4 py-2 bg-[var(--action-primary)] text-white rounded-lg hover:opacity-90 transition-opacity text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {loading ? 'Saving...' : plan ? 'Update Plan' : 'Create Plan'}
+              {loading ? "Saving..." : plan ? "Update Plan" : "Create Plan"}
             </button>
           </div>
         </form>
@@ -419,4 +545,3 @@ export default function PlanModal({ isOpen, onClose, onSubmit, plan, appId: _app
     </div>
   );
 }
-
