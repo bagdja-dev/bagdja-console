@@ -10,6 +10,7 @@ import type {
 import { PlanDuration } from "@/types";
 import { Input } from "@/ui/input";
 import { Select } from "@/ui/select";
+import { CustomSelect } from "@/ui/custom-select";
 import { X, Plus, Trash2, Code2, AlertCircle } from "lucide-react";
 import { parseMetadataJson } from "@/lib/json-metadata";
 
@@ -335,13 +336,13 @@ export default function PlanModal({
                 <option value="fixed">Tanggal tetap</option>
               </Select>
               {formData.renewalDay != null && (
-                <Select
+                <CustomSelect
                   label="Fixed Renewal Day"
                   value={String(formData.renewalDay)}
-                  onChange={(e) =>
+                  onChange={(value) =>
                     setFormData({
                       ...formData,
-                      renewalDay: Number(e.target.value),
+                      renewalDay: Number(value),
                     })
                   }
                   disabled={loading}
@@ -350,15 +351,11 @@ export default function PlanModal({
                       ? "Bulan renewal mengikuti bulan registrasi subscription."
                       : "Berlaku untuk setiap periode bulanan."
                   }
-                >
-                  {Array.from({ length: 28 }, (_, index) => index + 1).map(
-                    (day) => (
-                      <option key={day} value={day}>
-                        {day}
-                      </option>
-                    ),
-                  )}
-                </Select>
+                  options={Array.from({ length: 28 }, (_, index) => {
+                    const day = index + 1;
+                    return { value: String(day), label: String(day) };
+                  })}
+                />
               )}
             </div>
           )}
