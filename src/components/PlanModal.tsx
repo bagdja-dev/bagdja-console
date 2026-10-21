@@ -362,14 +362,6 @@ export default function PlanModal({
               )}
             </div>
           )}
-          {(formData.duration === PlanDuration.MONTHLY ||
-            formData.duration === PlanDuration.YEARLY) && (
-            <p className="text-xs text-[var(--text-muted)]">
-              Tanggal ini tersimpan pada plan; penerapannya pada kalkulasi
-              renewal akan aktif setelah fase implementasi berikutnya.
-            </p>
-          )}
-
           <Input
             label="Batas Klaim per Pengguna"
             type="number"
