@@ -532,11 +532,28 @@ export async function updatePayoutAccount(
 export type WithdrawalRequest = {
   id: string;
   wallet_id: string;
+  org_id?: string;
+  app_id?: string;
+  provider?: string;
+  provider_reference_id?: string;
   amount: number;
-  status: 'PENDING' | 'APPROVED' | 'COMPLETED' | 'REJECTED';
+  status:
+    | 'PENDING'
+    | 'PROCESSING'
+    | 'PAID'
+    | 'COMPLETED'
+    | 'FAILED'
+    | 'REJECTED'
+    | 'CANCELLED'
+    | 'APPROVED';
+  rejection_reason?: string;
+  proof_url?: string;
   bank_info: any;
   payout_details_snapshot: any;
+  status_history?: any[];
+  admin_notes?: string;
   created_at: string;
+  processed_at?: string;
   wallet?: {
     currency_code: string;
   };
@@ -552,6 +569,111 @@ export type WithdrawalListResponse = {
     currentPage: number;
   };
 };
+
+export interface CreateWithdrawalPayload {
+  ownerType?: 'organization' | 'personal';
+  ownerId?: string;
+  appId?: string;
+  provider?: string;
+  amount: number;
+  currency?: string;
+  payoutAccountId: string;
+  description?: string;
+}
+
+export async function createWithdrawalRequest(
+  payload: CreateWithdrawalPayload,
+  organizationId?: string,
+): Promise<WithdrawalRequest> {
+  return paymentApiRequest<WithdrawalRequest>(
+    '/wallets/withdrawals',
+    {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    },
+    organizationId,
+  );
+}
+
+export async function approveWithdrawalRequest(
+  id: string,
+  payload: {
+    adminNotes?: string;
+    proofUrl?: string;
+    providerReferenceId?: string;
+  },
+  organizationId?: string,
+): Promise<WithdrawalRequest> {
+  return paymentApiRequest<WithdrawalRequest>(
+    `/wallets/withdrawals/${id}/approve`,
+    {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    },
+    organizationId,
+  );
+}
+
+export async function rejectWithdrawalRequest(
+  id: string,
+  payload: { reason: string },
+  organizationId?: string,
+): Promise<WithdrawalRequest> {
+  return paymentApiRequest<WithdrawalRequest>(
+    `/wallets/withdrawals/${id}/reject`,
+    {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    },
+    organizationId,
+  );
+}
+
+export interface PayoutSettingResponse {
+  activeProvider: string;
+  availableProviders: string[];
+  appSetting?: {
+    id: string;
+    orgId: string;
+    appId: string;
+    provider: string;
+    isActive: boolean;
+  } | null;
+  orgDefaultSetting?: {
+    id: string;
+    orgId: string;
+    appId: string;
+    provider: string;
+    isActive: boolean;
+  } | null;
+}
+
+export async function getPayoutSettings(
+  appId?: string,
+  organizationId?: string,
+): Promise<PayoutSettingResponse> {
+  const qs = new URLSearchParams();
+  if (appId) qs.append('appId', appId);
+  return paymentApiRequest<PayoutSettingResponse>(
+    `/wallets/payout-settings?${qs.toString()}`,
+    { method: 'GET' },
+    organizationId,
+  );
+}
+
+export async function setPayoutSettings(
+  payload: { appId?: string; provider: string; isActive?: boolean },
+  organizationId?: string,
+): Promise<any> {
+  return paymentApiRequest<any>(
+    '/wallets/payout-settings',
+    {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    },
+    organizationId,
+  );
+}
 
 export async function listWithdrawalRequests(params?: {
   page?: number;

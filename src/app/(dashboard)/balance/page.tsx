@@ -9,6 +9,7 @@ import { useLayout } from '@/context/LayoutContext';
 import WalletLedgerGrid from './WalletLedgerGrid';
 import WithdrawalRequestsGrid from './WithdrawalRequestsGrid';
 import TopUpModal from '@/components/TopUpModal';
+import WithdrawModal from '@/components/WithdrawModal';
 
 type Currency = string;
 type TabKey = 'transactions' | 'withdraw_requests';
@@ -35,6 +36,7 @@ function WalletCard({
   onActivate,
   onSelect,
   onTopUp,
+  onWithdraw,
   isActivating,
 }: {
   wallet: WalletSummary;
@@ -42,6 +44,7 @@ function WalletCard({
   onActivate: () => void;
   onSelect: () => void;
   onTopUp: () => void;
+  onWithdraw: () => void;
   isActivating: boolean;
 }) {
   return (
@@ -100,17 +103,30 @@ function WalletCard({
 
       <div className="mt-4 flex justify-end gap-2">
         {wallet.isActive && (
-          <button
-            type="button"
-            onClick={(e) => {
-              e.preventDefault();
-              e.stopPropagation();
-              onTopUp();
-            }}
-            className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-main)] px-4 py-2 text-sm font-medium text-[var(--text-primary)] hover:border-[var(--action-primary)] hover:bg-[var(--bg-hover)] hover:text-[var(--action-primary)] flex items-center gap-2 transition-colors"
-          >
-            Top Up
-          </button>
+          <>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onWithdraw();
+              }}
+              className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-main)] px-4 py-2 text-sm font-medium text-[var(--text-primary)] hover:border-amber-500 hover:bg-[var(--bg-hover)] hover:text-amber-500 flex items-center gap-2 transition-colors"
+            >
+              Withdraw
+            </button>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onTopUp();
+              }}
+              className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-main)] px-4 py-2 text-sm font-medium text-[var(--text-primary)] hover:border-[var(--action-primary)] hover:bg-[var(--bg-hover)] hover:text-[var(--action-primary)] flex items-center gap-2 transition-colors"
+            >
+              Top Up
+            </button>
+          </>
         )}
         <button
           type="button"
@@ -137,6 +153,7 @@ export default function WalletPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [activatingCurrency, setActivatingCurrency] = useState<Currency | null>(null);
   const [topUpCurrency, setTopUpCurrency] = useState<Currency | null>(null);
+  const [withdrawWallet, setWithdrawWallet] = useState<WalletSummary | null>(null);
   const [selectedCurrency, setSelectedCurrency] = useState<Currency>('IDR');
   const [activeTab, setActiveTab] = useState<TabKey>('transactions');
   const { setTopbarContent } = useLayout();
@@ -334,6 +351,7 @@ export default function WalletPage() {
             onActivate={() => handleActivate(wallet.currency)}
             onSelect={() => setSelectedCurrency(wallet.currency)}
             onTopUp={() => setTopUpCurrency(wallet.currency)}
+            onWithdraw={() => setWithdrawWallet(wallet)}
             isActivating={activatingCurrency === wallet.currency}
           />
         ))}
@@ -395,6 +413,17 @@ export default function WalletPage() {
         onClose={() => setTopUpCurrency(null)}
         onSuccess={() => fetchWallets()}
         currency={topUpCurrency || 'IDR'}
+        isPersonal={false}
+      />
+
+      <WithdrawModal
+        isOpen={withdrawWallet !== null}
+        onClose={() => setWithdrawWallet(null)}
+        onSuccess={() => {
+          fetchWallets();
+        }}
+        currency={withdrawWallet?.currency || 'IDR'}
+        availableBalance={withdrawWallet?.availableBalance || 0}
         isPersonal={false}
       />
     </div>
