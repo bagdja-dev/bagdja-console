@@ -629,9 +629,19 @@ export async function rejectWithdrawalRequest(
   );
 }
 
+export interface AvailableEngineInfo {
+  provider: string;
+  name: string;
+  description: string;
+  isActiveInPlatform: boolean;
+  scopeTier: 'app' | 'org' | 'global';
+}
+
 export interface PayoutSettingResponse {
   activeProvider: string;
+  isPayoutEnabledForApp?: boolean;
   availableProviders: string[];
+  engines?: AvailableEngineInfo[];
   appSetting?: {
     id: string;
     orgId: string;
@@ -646,6 +656,81 @@ export interface PayoutSettingResponse {
     provider: string;
     isActive: boolean;
   } | null;
+}
+
+export interface PayoutEngineConfig {
+  id: string;
+  provider: string;
+  name: string;
+  orgId: string;
+  appId: string;
+  isActive: boolean;
+  description?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export async function listPayoutEngineConfigs(
+  params?: { orgId?: string; appId?: string; provider?: string },
+  organizationId?: string,
+): Promise<PayoutEngineConfig[]> {
+  const qs = new URLSearchParams();
+  if (params?.orgId) qs.append('orgId', params.orgId);
+  if (params?.appId) qs.append('appId', params.appId);
+  if (params?.provider) qs.append('provider', params.provider);
+  const qStr = qs.toString();
+  return paymentApiRequest<PayoutEngineConfig[]>(
+    `/payout-engine-configs${qStr ? `?${qStr}` : ''}`,
+    { method: 'GET' },
+    organizationId,
+  );
+}
+
+export async function upsertPayoutEngineConfig(
+  payload: {
+    provider: string;
+    orgId?: string;
+    appId?: string;
+    name?: string;
+    description?: string;
+    isActive?: boolean;
+  },
+  organizationId?: string,
+): Promise<PayoutEngineConfig> {
+  return paymentApiRequest<PayoutEngineConfig>(
+    '/payout-engine-configs',
+    {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    },
+    organizationId,
+  );
+}
+
+export async function togglePayoutEngineConfig(
+  id: string,
+  isActive: boolean,
+  organizationId?: string,
+): Promise<PayoutEngineConfig> {
+  return paymentApiRequest<PayoutEngineConfig>(
+    `/payout-engine-configs/${encodeURIComponent(id)}/toggle`,
+    {
+      method: 'PATCH',
+      body: JSON.stringify({ isActive }),
+    },
+    organizationId,
+  );
+}
+
+export async function deletePayoutEngineConfig(
+  id: string,
+  organizationId?: string,
+): Promise<{ success: boolean }> {
+  return paymentApiRequest<{ success: boolean }>(
+    `/payout-engine-configs/${encodeURIComponent(id)}`,
+    { method: 'DELETE' },
+    organizationId,
+  );
 }
 
 export async function getPayoutSettings(

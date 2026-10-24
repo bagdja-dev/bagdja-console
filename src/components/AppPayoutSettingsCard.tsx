@@ -14,6 +14,7 @@ import {
   ShieldCheck,
   RotateCcw,
   Sliders,
+  ShieldAlert,
 } from 'lucide-react';
 import {
   getPayoutSettings,
@@ -50,6 +51,7 @@ export default function AppPayoutSettingsCard({
   const [saving, setSaving] = useState(false);
   const [setting, setSetting] = useState<PayoutSettingResponse | null>(null);
   const [selectedProvider, setSelectedProvider] = useState<string>('manual');
+  const [isPayoutEnabled, setIsPayoutEnabled] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
@@ -107,6 +109,7 @@ export default function AppPayoutSettingsCard({
       const res = await getPayoutSettings(appId, orgId);
       setSetting(res);
       setSelectedProvider(res.activeProvider || 'manual');
+      setIsPayoutEnabled(res.isPayoutEnabledForApp !== false && res.appSetting?.isActive !== false);
     } catch (err: any) {
       setError(err?.message || 'Gagal memuat konfigurasi payout.');
     } finally {
@@ -120,17 +123,30 @@ export default function AppPayoutSettingsCard({
     }
   }, [appId, orgId]);
 
+  const isEngineActiveInPlatform = (provId: string) => {
+    if (!setting?.engines) return true;
+    const match = setting.engines.find((e) => e.provider.toLowerCase() === provId.toLowerCase());
+    return match ? match.isActiveInPlatform : true;
+  };
+
   const handleSave = async () => {
     try {
       setSaving(true);
       setError(null);
       setSuccessMessage(null);
 
+      // Validate selected provider is active in platform if payout is enabled
+      if (isPayoutEnabled && !isEngineActiveInPlatform(selectedProvider)) {
+        throw new Error(
+          `Engine payout "${selectedProvider}" dinonaktifkan di level platform infrastruktur. Silakan pilih engine lain.`,
+        );
+      }
+
       await setPayoutSettings(
         {
           appId,
           provider: selectedProvider,
-          isActive: true,
+          isActive: isPayoutEnabled,
         },
         orgId,
       );
@@ -138,8 +154,11 @@ export default function AppPayoutSettingsCard({
       const updated = await getPayoutSettings(appId, orgId);
       setSetting(updated);
       setSelectedProvider(updated.activeProvider || selectedProvider);
+      setIsPayoutEnabled(updated.isPayoutEnabledForApp !== false && updated.appSetting?.isActive !== false);
 
-      const successText = `Pengaturan payout berhasil disimpan. Provider aktif: ${selectedProvider.toUpperCase()}`;
+      const successText = `Pengaturan payout berhasil disimpan. Status: ${
+        isPayoutEnabled ? `Aktif (${selectedProvider.toUpperCase()})` : 'Dinonaktifkan'
+      }`;
       setSuccessMessage(successText);
       if (onShowAlert) {
         onShowAlert(successText, 'success', 'Pengaturan Tersimpan');
@@ -181,7 +200,10 @@ export default function AppPayoutSettingsCard({
     );
   };
 
-  const hasChanges = setting ? selectedProvider !== setting.activeProvider : false;
+  const currentAppEnabled = setting ? setting.isPayoutEnabledForApp !== false && setting.appSetting?.isActive !== false : true;
+  const hasChanges = setting
+    ? selectedProvider !== setting.activeProvider || isPayoutEnabled !== currentAppEnabled
+    : false;
 
   return (
     <div className="rounded-xl border border-[var(--border-default)] bg-[var(--bg-surface)] p-6 max-w-4xl shadow-sm">
@@ -233,100 +255,182 @@ export default function AppPayoutSettingsCard({
           <span>Memuat konfigurasi payout...</span>
         </div>
       ) : (
-        <div className="mt-6 space-y-4">
-          {/* Provider Selection Cards */}
-          <div className="grid grid-cols-1 gap-4">
-            {providerOptions.map((opt) => {
-              const isSelected = selectedProvider === opt.id;
-              const isCurrentlyActive = setting?.activeProvider === opt.id;
-
-              return (
-                <div
-                  key={opt.id}
-                  onClick={() => setSelectedProvider(opt.id)}
-                  className={`relative cursor-pointer rounded-xl border p-5 transition-all ${
-                    isSelected
-                      ? 'border-[var(--action-primary)] bg-[var(--action-primary)]/5 shadow-md ring-1 ring-[var(--action-primary)]'
-                      : 'border-[var(--border-default)] bg-white/5 hover:border-[var(--border-hover)] hover:bg-white/[0.07]'
+        <div className="mt-6 space-y-6">
+          {/* Master Payout Switch for this App */}
+          <div className="flex items-center justify-between p-4 rounded-xl border border-[var(--border-default)] bg-white/5">
+            <div>
+              <div className="flex items-center gap-2">
+                <h4 className="text-sm font-semibold text-[var(--text-primary)]">
+                  Layanan Penarikan Dana Aplikasi
+                </h4>
+                <span
+                  className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium border ${
+                    isPayoutEnabled
+                      ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-400'
+                      : 'border-red-500/20 bg-red-500/10 text-red-400'
                   }`}
                 >
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="flex items-start gap-3.5">
-                      {/* Radio Indicator */}
-                      <div className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border transition-all">
-                        <div
-                          className={`h-2.5 w-2.5 rounded-full transition-all ${
-                            isSelected ? 'bg-[var(--action-primary)] scale-100' : 'bg-transparent scale-0'
-                          }`}
-                        />
-                      </div>
+                  {isPayoutEnabled ? 'Aktif' : 'Dinonaktifkan'}
+                </span>
+              </div>
+              <p className="text-xs text-[var(--text-secondary)] mt-1">
+                Izinkan atau larang pengguna dan developer untuk mengajukan penarikan saldo (withdrawal) dari aplikasi ini.
+              </p>
+            </div>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={isPayoutEnabled}
+              onClick={() => setIsPayoutEnabled(!isPayoutEnabled)}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                isPayoutEnabled ? 'bg-[var(--action-primary)]' : 'bg-white/10'
+              }`}
+            >
+              <span
+                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                  isPayoutEnabled ? 'translate-x-6' : 'translate-x-1'
+                }`}
+              />
+            </button>
+          </div>
 
-                      {/* Provider Info */}
-                      <div>
-                        <div className="flex flex-wrap items-center gap-2">
-                          <span className="p-1 rounded-md bg-white/5">{opt.icon}</span>
-                          <h4 className="text-sm font-semibold text-[var(--text-primary)]">
-                            {opt.name}
-                          </h4>
-                          <span
-                            className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium border ${opt.badgeColor}`}
-                          >
-                            {opt.badge}
-                          </span>
-                          {isCurrentlyActive && (
-                            <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                              <Check className="h-3 w-3" />
-                              Sedang Digunakan
-                            </span>
-                          )}
+          {!isPayoutEnabled && (
+            <div className="p-3.5 rounded-lg border border-amber-500/20 bg-amber-500/10 text-xs text-amber-400 flex items-start gap-2.5">
+              <ShieldAlert className="h-4 w-4 shrink-0 mt-0.5" />
+              <span>
+                Layanan penarikan dana untuk aplikasi ini dinonaktifkan. Pengguna tidak akan dapat mengajukan penarikan saldo baru.
+              </span>
+            </div>
+          )}
+
+          {/* Provider Selection Cards */}
+          <div>
+            <div className="mb-3">
+              <h4 className="text-sm font-semibold text-[var(--text-primary)]">
+                Pilih Engine Payout Aktif
+              </h4>
+              <p className="text-xs text-[var(--text-secondary)] mt-0.5">
+                Hanya engine yang diizinkan dan aktif di level infrastruktur platform yang dapat dipilih.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 gap-4">
+              {providerOptions.map((opt) => {
+                const activeInPlatform = isEngineActiveInPlatform(opt.id);
+                const isSelected = selectedProvider === opt.id;
+                const isCurrentlyActive = setting?.activeProvider === opt.id;
+                const isDisabled = !isPayoutEnabled || !activeInPlatform;
+
+                return (
+                  <div
+                    key={opt.id}
+                    onClick={() => {
+                      if (!isDisabled) {
+                        setSelectedProvider(opt.id);
+                      }
+                    }}
+                    className={`relative rounded-xl border p-5 transition-all ${
+                      isDisabled
+                        ? 'opacity-50 cursor-not-allowed bg-black/10 border-[var(--border-default)]'
+                        : isSelected
+                        ? 'cursor-pointer border-[var(--action-primary)] bg-[var(--action-primary)]/5 shadow-md ring-1 ring-[var(--action-primary)]'
+                        : 'cursor-pointer border-[var(--border-default)] bg-white/5 hover:border-[var(--border-hover)] hover:bg-white/[0.07]'
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex items-start gap-3.5">
+                        {/* Radio Indicator */}
+                        <div className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border transition-all">
+                          <div
+                            className={`h-2.5 w-2.5 rounded-full transition-all ${
+                              isSelected && !isDisabled
+                                ? 'bg-[var(--action-primary)] scale-100'
+                                : 'bg-transparent scale-0'
+                            }`}
+                          />
                         </div>
 
-                        <p className="text-xs text-[var(--text-secondary)] mt-2 leading-relaxed">
-                          {opt.summary}
-                        </p>
-
-                        {/* Feature bullets */}
-                        <ul className="mt-3 space-y-1">
-                          {opt.details.map((detail, idx) => (
-                            <li
-                              key={idx}
-                              className="text-xs text-[var(--text-secondary)] flex items-center gap-2"
+                        {/* Provider Info */}
+                        <div>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="p-1 rounded-md bg-white/5">{opt.icon}</span>
+                            <h4 className="text-sm font-semibold text-[var(--text-primary)]">
+                              {opt.name}
+                            </h4>
+                            <span
+                              className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium border ${opt.badgeColor}`}
                             >
-                              <span className="h-1 w-1 rounded-full bg-[var(--text-secondary)] shrink-0" />
-                              <span>{detail}</span>
-                            </li>
-                          ))}
-                        </ul>
-
-                        {/* Credential Note & Link */}
-                        {opt.credentialNote && (
-                          <div className="mt-3 pt-3 border-t border-[var(--border-default)]/50 flex flex-wrap items-center justify-between gap-2">
-                            <span className="text-[11px] text-[var(--text-secondary)]">
-                              {opt.credentialNote}
+                              {opt.badge}
                             </span>
-                            {opt.credentialUrl && (
-                              <Link
-                                href={opt.credentialUrl}
-                                onClick={(e) => e.stopPropagation()}
-                                className="inline-flex items-center gap-1 text-[11px] font-medium text-[var(--action-primary)] hover:underline"
-                              >
-                                <span>Konfigurasi Kredensial</span>
-                                <ExternalLink className="h-3 w-3" />
-                              </Link>
+                            {!activeInPlatform && (
+                              <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium bg-red-500/10 text-red-400 border border-red-500/20">
+                                <AlertCircle className="h-3 w-3" />
+                                Dinonaktifkan oleh Admin Platform
+                              </span>
+                            )}
+                            {isCurrentlyActive && activeInPlatform && (
+                              <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                                <Check className="h-3 w-3" />
+                                Sedang Digunakan
+                              </span>
                             )}
                           </div>
-                        )}
+
+                          <p className="text-xs text-[var(--text-secondary)] mt-2 leading-relaxed">
+                            {opt.summary}
+                          </p>
+
+                          {/* Feature bullets */}
+                          <ul className="mt-3 space-y-1">
+                            {opt.details.map((detail, idx) => (
+                              <li
+                                key={idx}
+                                className="text-xs text-[var(--text-secondary)] flex items-center gap-2"
+                              >
+                                <span className="h-1 w-1 rounded-full bg-[var(--text-secondary)] shrink-0" />
+                                <span>{detail}</span>
+                              </li>
+                            ))}
+                          </ul>
+
+                          {/* Credential Note & Link */}
+                          {opt.credentialNote && (
+                            <div className="mt-3 pt-3 border-t border-[var(--border-default)]/50 flex flex-wrap items-center justify-between gap-2">
+                              <span className="text-[11px] text-[var(--text-secondary)]">
+                                {opt.credentialNote}
+                              </span>
+                              {opt.credentialUrl && (
+                                <Link
+                                  href={opt.credentialUrl}
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="inline-flex items-center gap-1 text-[11px] font-medium text-[var(--action-primary)] hover:underline"
+                                >
+                                  <span>Konfigurasi Kredensial</span>
+                                  <ExternalLink className="h-3 w-3" />
+                                </Link>
+                              )}
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
-              );
-            })}
+                );
+              })}
+            </div>
           </div>
 
           {/* Action Footer */}
           <div className="mt-8 pt-5 border-t border-[var(--border-default)] flex flex-col sm:flex-row items-center justify-between gap-4">
             <div className="flex items-center gap-4 text-xs text-[var(--text-secondary)]">
+              <Link
+                href="/infrastructure/payment-config"
+                className="inline-flex items-center gap-1.5 hover:text-[var(--text-primary)] transition-colors"
+              >
+                <Sliders className="h-3.5 w-3.5" />
+                <span>Infra Payout Engines</span>
+              </Link>
+              <span>•</span>
               <Link
                 href="/infrastructure/payment-gateway-credentials"
                 className="inline-flex items-center gap-1.5 hover:text-[var(--text-primary)] transition-colors"
@@ -340,7 +444,7 @@ export default function AppPayoutSettingsCard({
                 className="inline-flex items-center gap-1.5 hover:text-[var(--text-primary)] transition-colors"
               >
                 <Banknote className="h-3.5 w-3.5" />
-                <span>Withdrawal Requests Ledger</span>
+                <span>Withdrawal Ledger</span>
               </Link>
             </div>
 
