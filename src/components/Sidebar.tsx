@@ -34,6 +34,8 @@ interface MenuItem {
   href?: string;
   children?: MenuItem[];
   isSystemOnly?: boolean;
+  /** Permissions required to view this menu item. If empty/undefined, visible to all. */
+  requiredPermissions?: string[];
   /** When true, `href` is an absolute URL opened in a new tab instead of client-side routing. */
   external?: boolean;
 }
@@ -135,49 +137,55 @@ const menuItems: MenuItem[] = [
     id: 'infrastructure',
     label: 'Infrastructure',
     icon: ShieldCheck,
-    isSystemOnly: true,
     children: [
       {
         id: 'infra-settings',
         label: 'Infra Settings',
         icon: Settings,
         href: '/infrastructure/settings',
+        requiredPermissions: ['console.infra.settings.view'],
       },
       {
         id: 'infra-payment-config',
         label: 'Payment Config',
         icon: CreditCard,
         href: '/infrastructure/payment-config',
+        requiredPermissions: ['console.infra.payment-config.view'],
       },
       {
         id: 'infra-payment-fees',
         label: 'PG Fees',
         icon: CreditCard,
         href: '/infrastructure/payment-fees',
+        requiredPermissions: ['console.infra.payment-fees.view'],
       },
       {
         id: 'infra-payment-gateway-credentials',
         label: 'PG Credentials',
         icon: CreditCard,
         href: '/infrastructure/payment-gateway-credentials',
+        requiredPermissions: ['console.infra.payment-gateway-credentials.view'],
       },
       {
         id: 'infra-shipping-gateway-credentials',
         label: 'Shipping Credentials',
         icon: Truck,
         href: '/infrastructure/shipping-gateway-credentials',
+        requiredPermissions: ['console.infra.shipping-credentials.view'],
       },
       {
         id: 'infra-storage-credentials',
         label: 'Storage Credentials',
         icon: Server,
         href: '/infrastructure/storage-credentials',
+        requiredPermissions: ['console.infra.storage-credentials.view'],
       },
       {
         id: 'infra-logs',
         label: 'Platform Logs',
         icon: List,
         href: '/infrastructure/logs',
+        requiredPermissions: ['console.infra.logs.view'],
       },
       {
         id: 'infra-billing-queues',
@@ -185,6 +193,7 @@ const menuItems: MenuItem[] = [
         icon: Activity,
         href: `${PAYMENT_API_BASE}/admin/queues`,
         external: true,
+        requiredPermissions: ['console.infra.billing-queues.view'],
       },
     ],
   },
@@ -198,30 +207,52 @@ interface SidebarProps {
 export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
-  const [isSystemAdmin, setIsSystemAdmin] = useState(false);
+  const [userPermissions, setUserPermissions] = useState<string[]>([]);
+  const [isSystemOwner, setIsSystemOwner] = useState(false);
   // Track manually collapsed items (user has explicitly collapsed these)
   const manuallyCollapsedRef = useRef<Set<string>>(new Set());
   const previousPathnameRef = useRef<string>(pathname);
 
-  // Check if user is system admin
+  // Load user permissions from organizations
   useEffect(() => {
-    async function checkSystemAdmin() {
+    async function loadPermissions() {
       try {
         const orgs = await getOrganizations();
-        // User is system admin if they are an "Owner" in a System Organization
-        const hasSystemOwnerRole = orgs.some(org => 
-          org.isSystemOrg && (org.role?.slug === 'owner' || org.role?.name === 'Owner')
+        const perms = orgs.flatMap(org => org.permissions || []);
+        setUserPermissions(Array.from(new Set(perms)));
+
+        const systemOwner = orgs.some(
+          org => org.isSystemOrg && (org.role?.slug === 'owner' || org.role?.name === 'Owner')
         );
-        setIsSystemAdmin(hasSystemOwnerRole);
+        setIsSystemOwner(systemOwner);
       } catch (error) {
-        console.error('Failed to check system admin status:', error);
+        console.error('Failed to load user permissions:', error);
       }
     }
-    checkSystemAdmin();
+    loadPermissions();
   }, []);
 
-  // Filter menu items based on system admin status
-  const visibleMenuItems = menuItems.filter(item => !item.isSystemOnly || isSystemAdmin);
+  const hasPermission = (perms?: string[]) => {
+    if (!perms || perms.length === 0) return true;
+    if (isSystemOwner) return true;
+    return perms.some(p => userPermissions.includes(p));
+  };
+
+  // Filter menu items based on permissions
+  const visibleMenuItems = menuItems
+    .map(item => {
+      if (!item.children) {
+        if (item.isSystemOnly) return null;
+        return hasPermission(item.requiredPermissions) ? item : null;
+      }
+      const visibleChildren = item.children.filter(child => {
+        if (child.isSystemOnly) return false;
+        return hasPermission(child.requiredPermissions);
+      });
+      if (visibleChildren.length === 0) return null;
+      return { ...item, children: visibleChildren };
+    })
+    .filter(Boolean) as MenuItem[];
 
   // Initialize expanded items based on active pathname (only once on mount)
   const getInitialExpanded = () => {
@@ -382,8 +413,9 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
   };
 
   const renderMenuItem = (item: MenuItem, level = 0) => {
-    // Only render if user is system admin or item is not system-only
-    if (item.isSystemOnly && !isSystemAdmin) return null;
+    // Only render if user has permission
+    if (item.isSystemOnly && !hasPermission(item.requiredPermissions)) return null;
+    if (!item.children && item.requiredPermissions && !hasPermission(item.requiredPermissions)) return null;
 
     const Icon = item.icon;
     const hasChildren = item.children && item.children.length > 0;
@@ -635,7 +667,7 @@ export function Sidebar({ isCollapsed, onToggle }: SidebarProps) {
 
       {/* Menu Items */}
       <nav className="flex-1 overflow-y-auto overflow-x-visible p-3 space-y-1" style={{ position: 'relative', isolation: 'isolate' }}>
-        {menuItems.map((item) => renderMenuItem(item))}
+        {visibleMenuItems.map((item) => renderMenuItem(item))}
       </nav>
     </div>
   );
