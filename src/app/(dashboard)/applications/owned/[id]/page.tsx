@@ -116,6 +116,7 @@ import MessageTemplateModal from "@/components/MessageTemplateModal";
 import ChannelSetupModal from "@/components/ChannelSetupModal";
 import MessageLogDetailModal from "@/components/MessageLogDetailModal";
 import AlertModal, { AlertType } from "@/components/AlertModal";
+import AppPayoutSettingsCard from "@/components/AppPayoutSettingsCard";
 import { useLayout } from "@/context/LayoutContext";
 import { generateCurl } from "@/lib/utils";
 import {
@@ -164,6 +165,7 @@ type TabType =
   | "settings";
 type EventSubTab = "broadcast" | "subscribe" | "requests" | "log";
 type MessagingSubTab = "setup" | "templates" | "logs";
+type PaymentSubTab = "methods" | "payout";
 
 // Duitku's `method` values are their own short channel codes (BC, SP, etc.) —
 // map them to a friendly label for display. Keep in sync with
@@ -383,6 +385,7 @@ export default function AppDetailPage() {
   const [togglingPaymentMethodId, setTogglingPaymentMethodId] = useState<
     string | null
   >(null);
+  const [paymentSubTab, setPaymentSubTab] = useState<PaymentSubTab>("methods");
 
   // Platform Logs state
   const [selectedPlatformLog, setSelectedPlatformLog] = useState<any>(null);
@@ -4218,68 +4221,109 @@ export default function AppDetailPage() {
         {/* Payment Tab */}
         {activeTab === "payment" && (
           <div className="p-6 h-full flex flex-col overflow-hidden">
-            <div className="flex-shrink-0 mb-6">
-              <h2 className="text-lg font-semibold text-[var(--text-primary)]">
-                Payment Methods
-              </h2>
-              <p className="text-sm text-[var(--text-secondary)] mt-1">
-                Enable or disable the payment methods your buyers can use at
-                checkout. Methods here are configured by Bagdja for your app —
-                you can only turn them off, not add new ones.
-              </p>
+            {/* Sub-tab Navigation */}
+            <div className="flex-shrink-0 flex items-center gap-1 p-1 bg-white/5 rounded-lg w-fit mb-6">
+              <button
+                onClick={() => setPaymentSubTab("methods")}
+                className={`px-5 py-2 text-xs font-bold uppercase tracking-wider rounded-md transition-all ${
+                  paymentSubTab === "methods"
+                    ? "bg-[var(--action-primary)] text-white shadow-lg"
+                    : "text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-white/5"
+                }`}
+              >
+                Payment Methods (Checkout)
+              </button>
+              <button
+                onClick={() => setPaymentSubTab("payout")}
+                className={`px-5 py-2 text-xs font-bold uppercase tracking-wider rounded-md transition-all ${
+                  paymentSubTab === "payout"
+                    ? "bg-[var(--action-primary)] text-white shadow-lg"
+                    : "text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-white/5"
+                }`}
+              >
+                Payout & Withdrawal Settings
+              </button>
             </div>
 
-            <div className="flex-1 overflow-y-auto">
-              {paymentMethodSettingsLoading ? (
-                <div className="flex items-center justify-center py-16 text-[var(--text-secondary)] text-sm">
-                  Loading payment methods...
-                </div>
-              ) : paymentMethodSettings.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-16 text-center">
-                  <CreditCard className="h-8 w-8 text-[var(--text-secondary)] opacity-50 mb-3" />
-                  <p className="text-sm text-[var(--text-secondary)]">
-                    No payment methods have been configured for your app yet.
+            {paymentSubTab === "methods" && (
+              <>
+                <div className="flex-shrink-0 mb-6">
+                  <h2 className="text-lg font-semibold text-[var(--text-primary)]">
+                    Payment Methods
+                  </h2>
+                  <p className="text-sm text-[var(--text-secondary)] mt-1">
+                    Enable or disable the payment methods your buyers can use at
+                    checkout. Methods here are configured by Bagdja for your app —
+                    you can only turn them off, not add new ones.
                   </p>
                 </div>
-              ) : (
-                <div className="space-y-3 max-w-2xl">
-                  {paymentMethodSettings.map((method) => (
-                    <div
-                      key={method.id}
-                      className="flex items-center justify-between p-4 rounded-lg border border-[var(--border-default)] bg-white/5"
-                    >
-                      <div>
-                        <p className="text-sm font-bold text-[var(--text-primary)] uppercase tracking-wide">
-                          {getPaymentProviderLabel(method.provider)}
-                        </p>
-                        <p className="text-xs text-[var(--text-secondary)] mt-0.5">
-                          {getPaymentMethodLabel(method)}
-                        </p>
-                      </div>
-                      <button
-                        role="switch"
-                        aria-checked={method.isEnabledForApp}
-                        disabled={togglingPaymentMethodId === method.id}
-                        onClick={() => handleTogglePaymentMethod(method)}
-                        className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors disabled:opacity-50 ${
-                          method.isEnabledForApp
-                            ? "bg-[var(--action-primary)]"
-                            : "bg-white/10"
-                        }`}
-                      >
-                        <span
-                          className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                            method.isEnabledForApp
-                              ? "translate-x-6"
-                              : "translate-x-1"
-                          }`}
-                        />
-                      </button>
+
+                <div className="flex-1 overflow-y-auto">
+                  {paymentMethodSettingsLoading ? (
+                    <div className="flex items-center justify-center py-16 text-[var(--text-secondary)] text-sm">
+                      Loading payment methods...
                     </div>
-                  ))}
+                  ) : paymentMethodSettings.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center py-16 text-center">
+                      <CreditCard className="h-8 w-8 text-[var(--text-secondary)] opacity-50 mb-3" />
+                      <p className="text-sm text-[var(--text-secondary)]">
+                        No payment methods have been configured for your app yet.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3 max-w-2xl">
+                      {paymentMethodSettings.map((method) => (
+                        <div
+                          key={method.id}
+                          className="flex items-center justify-between p-4 rounded-lg border border-[var(--border-default)] bg-white/5"
+                        >
+                          <div>
+                            <p className="text-sm font-bold text-[var(--text-primary)] uppercase tracking-wide">
+                              {getPaymentProviderLabel(method.provider)}
+                            </p>
+                            <p className="text-xs text-[var(--text-secondary)] mt-0.5">
+                              {getPaymentMethodLabel(method)}
+                            </p>
+                          </div>
+                          <button
+                            role="switch"
+                            aria-checked={method.isEnabledForApp}
+                            disabled={togglingPaymentMethodId === method.id}
+                            onClick={() => handleTogglePaymentMethod(method)}
+                            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors disabled:opacity-50 ${
+                              method.isEnabledForApp
+                                ? "bg-[var(--action-primary)]"
+                                : "bg-white/10"
+                            }`}
+                          >
+                            <span
+                              className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                                method.isEnabledForApp
+                                  ? "translate-x-6"
+                                  : "translate-x-1"
+                              }`}
+                            />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
+              </>
+            )}
+
+            {paymentSubTab === "payout" && (
+              <div className="flex-1 overflow-y-auto">
+                <AppPayoutSettingsCard
+                  appId={app?.appId || ""}
+                  orgId={app?.orgId}
+                  appName={app?.appName}
+                  onShowAlert={(msg, type, title) =>
+                    showAlert(msg, (type as AlertType) || "info", title)
+                  }
+                />
+              </div>
+            )}
           </div>
         )}
 
