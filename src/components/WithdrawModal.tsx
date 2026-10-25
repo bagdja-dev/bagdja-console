@@ -136,7 +136,6 @@ export default function WithdrawModal({
 
       await createWithdrawalRequest({
         ownerType: isPersonal ? 'personal' : 'organization',
-        ownerId: isPersonal ? selectedAccount?.user_id || undefined : undefined,
         amount: numAmount,
         currency,
         payoutAccountId: selectedAccountId,
