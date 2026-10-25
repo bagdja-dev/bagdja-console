@@ -101,9 +101,10 @@ const withdrawalFilters: FilterField[] = [
 
 type WithdrawalRequestsGridProps = {
   currency: Currency;
+  isPersonal?: boolean;
 };
 
-export default function WithdrawalRequestsGrid({ currency }: WithdrawalRequestsGridProps) {
+export default function WithdrawalRequestsGrid({ currency, isPersonal }: WithdrawalRequestsGridProps) {
   const [refreshKey, setRefreshKey] = useState(0);
 
   // Modal states for Approval & Rejection
@@ -322,6 +323,7 @@ export default function WithdrawalRequestsGrid({ currency }: WithdrawalRequestsG
             size: params.size,
             currency,
             status: params.filter?.status,
+            ownerType: isPersonal ? 'personal' : 'organization',
           })
         }
         filterFields={withdrawalFilters}

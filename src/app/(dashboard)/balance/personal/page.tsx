@@ -388,7 +388,7 @@ export default function PersonalWalletPage() {
           {activeTab === 'transactions' ? (
             <WalletLedgerGrid key={`ledger-${selectedCurrency}`} currency={selectedCurrency} isPersonal />
           ) : (
-            <WithdrawalRequestsGrid key={`withdraw-${selectedCurrency}`} currency={selectedCurrency} />
+            <WithdrawalRequestsGrid key={`withdraw-${selectedCurrency}`} currency={selectedCurrency} isPersonal />
           )}
         </div>
       </div>

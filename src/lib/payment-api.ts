@@ -174,7 +174,8 @@ async function paymentApiRequestPersonal<T>(
 
 export type PayoutAccount = {
   id: string;
-  org_id: string;
+  org_id?: string | null;
+  user_id?: string | null;
   currency_code: string;
   payout_method: string;
   account_holder_name: string;
@@ -498,11 +499,15 @@ export async function deleteBillingSetting(
 export async function listPayoutAccounts(params?: {
   page?: number;
   size?: number;
+  ownerType?: 'organization' | 'personal';
+  ownerId?: string;
   organizationId?: string;
 }): Promise<PayoutAccountListResponse> {
   const page = params?.page ?? 1;
   const size = params?.size ?? 20;
   const qs = new URLSearchParams({ page: String(page), size: String(size) });
+  if (params?.ownerType) qs.set('ownerType', params.ownerType);
+  if (params?.ownerId) qs.set('ownerId', params.ownerId);
   return paymentApiRequest<PayoutAccountListResponse>(`/payout-accounts/get?${qs.toString()}`, { method: 'GET' }, params?.organizationId);
 }
 
@@ -765,6 +770,7 @@ export async function listWithdrawalRequests(params?: {
   size?: number;
   currency?: string;
   status?: string;
+  ownerType?: string;
   organizationId?: string;
 }): Promise<WithdrawalListResponse> {
   const qs = new URLSearchParams();
@@ -772,6 +778,7 @@ export async function listWithdrawalRequests(params?: {
   if (params?.size) qs.append('size', String(params.size));
   if (params?.currency) qs.append('currency', params.currency);
   if (params?.status) qs.append('status', params.status);
+  if (params?.ownerType) qs.append('ownerType', params.ownerType);
 
   return paymentApiRequest<WithdrawalListResponse>(
     `/wallets/withdrawals?${qs.toString()}`,

@@ -62,7 +62,11 @@ export default function WithdrawModal({
         setLoadingAccounts(true);
         setError(null);
         setIsSuccess(false);
-        const res = await listPayoutAccounts({ page: 1, size: 50 });
+        const res = await listPayoutAccounts({
+          page: 1,
+          size: 50,
+          ownerType: isPersonal ? 'personal' : 'organization',
+        });
         if (mounted) {
           const list = res.data || [];
           setAccounts(list);
@@ -89,7 +93,7 @@ export default function WithdrawModal({
     return () => {
       mounted = false;
     };
-  }, [isOpen]);
+  }, [isOpen, isPersonal]);
 
   const selectedAccount = useMemo(() => {
     return accounts.find((a) => a.id === selectedAccountId);
@@ -132,6 +136,7 @@ export default function WithdrawModal({
 
       await createWithdrawalRequest({
         ownerType: isPersonal ? 'personal' : 'organization',
+        ownerId: isPersonal ? selectedAccount?.user_id || undefined : undefined,
         amount: numAmount,
         currency,
         payoutAccountId: selectedAccountId,
