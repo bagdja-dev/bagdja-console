@@ -537,7 +537,8 @@ export async function updatePayoutAccount(
 export type WithdrawalRequest = {
   id: string;
   wallet_id: string;
-  org_id?: string;
+  org_id?: string | null;
+  user_id?: string | null;
   app_id?: string;
   provider?: string;
   provider_reference_id?: string;
@@ -561,6 +562,8 @@ export type WithdrawalRequest = {
   processed_at?: string;
   wallet?: {
     currency_code: string;
+    org_id?: string | null;
+    user_id?: string | null;
   };
 };
 

@@ -100,11 +100,16 @@ const withdrawalFilters: FilterField[] = [
 ];
 
 type WithdrawalRequestsGridProps = {
-  currency: Currency;
+  currency?: Currency;
   isPersonal?: boolean;
+  isAdminView?: boolean;
 };
 
-export default function WithdrawalRequestsGrid({ currency, isPersonal }: WithdrawalRequestsGridProps) {
+export default function WithdrawalRequestsGrid({
+  currency,
+  isPersonal,
+  isAdminView,
+}: WithdrawalRequestsGridProps) {
   const [refreshKey, setRefreshKey] = useState(0);
 
   // Modal states for Approval & Rejection
@@ -184,7 +189,7 @@ export default function WithdrawalRequestsGrid({ currency, isPersonal }: Withdra
       label: 'Requested',
       sortable: true,
       render: (val) => (
-        <span className="text-xs text-[var(--text-secondary)]">
+        <span className="text-xs text-[var(--text-secondary)] whitespace-nowrap">
           {new Date(val).toLocaleString(undefined, {
             dateStyle: 'medium',
             timeStyle: 'short',
@@ -192,6 +197,62 @@ export default function WithdrawalRequestsGrid({ currency, isPersonal }: Withdra
         </span>
       ),
     },
+    ...(isAdminView
+      ? [
+          {
+            key: 'owner',
+            label: 'Wallet / Owner',
+            render: (_: any, row: WithdrawalRequest) => {
+              const isPersonalOwner =
+                !!row.user_id || (!row.org_id && !!row.wallet?.user_id);
+              const identifier =
+                row.org_id ||
+                row.user_id ||
+                row.wallet?.org_id ||
+                row.wallet?.user_id ||
+                '-';
+              return (
+                <div className="flex flex-col gap-1 items-start">
+                  <span
+                    className={[
+                      'inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-semibold tracking-wide uppercase',
+                      isPersonalOwner
+                        ? 'bg-purple-500/10 text-purple-400 border border-purple-500/20'
+                        : 'bg-blue-500/10 text-blue-400 border border-blue-500/20',
+                    ].join(' ')}
+                  >
+                    {isPersonalOwner ? '👤 Personal' : '🏢 Organization'}
+                  </span>
+                  <span
+                    className="text-xs text-[var(--text-secondary)] font-mono truncate max-w-[150px]"
+                    title={identifier}
+                  >
+                    {identifier}
+                  </span>
+                </div>
+              );
+            },
+          },
+          {
+            key: 'app_id',
+            label: 'Application',
+            render: (val: string) => {
+              if (!val || val === 'default') {
+                return (
+                  <span className="text-xs text-[var(--text-muted)] italic">
+                    Direct / Console
+                  </span>
+                );
+              }
+              return (
+                <span className="inline-flex items-center rounded bg-[var(--bg-card)] border border-[var(--border-default)] px-1.5 py-0.5 text-xs font-mono text-[var(--text-primary)]">
+                  {val}
+                </span>
+              );
+            },
+          },
+        ]
+      : []),
     {
       key: 'account',
       label: 'Payout Account',
@@ -267,7 +328,7 @@ export default function WithdrawalRequestsGrid({ currency, isPersonal }: Withdra
       sortable: true,
       render: (val, row: WithdrawalRequest) => (
         <div className="text-right font-semibold tabular-nums text-orange-500">
-          -{formatMoney(Number(val), (row.wallet?.currency_code as Currency) || currency)}
+          -{formatMoney(Number(val), (row.wallet?.currency_code as Currency) || currency || 'IDR')}
         </div>
       ),
     },
@@ -314,23 +375,33 @@ export default function WithdrawalRequestsGrid({ currency, isPersonal }: Withdra
   return (
     <>
       <DataGrid
-        title="Withdrawal requests"
-        description="Payout requests submitted for this wallet"
+        title={isAdminView ? 'Platform Withdrawal Requests' : 'Withdrawal requests'}
+        description={
+          isAdminView
+            ? 'Review, approve, or reject payout requests across all organizations, users, and applications'
+            : 'Payout requests submitted for this wallet'
+        }
         columns={columns}
         fetchData={(params) =>
           listWithdrawalRequests({
             page: params.page,
             size: params.size,
-            currency,
+            currency: currency || undefined,
             status: params.filter?.status,
-            ownerType: isPersonal ? 'personal' : 'organization',
+            ownerType: isAdminView
+              ? 'all'
+              : isPersonal
+                ? 'personal'
+                : 'organization',
           })
         }
         filterFields={withdrawalFilters}
-        refreshTrigger={`${currency}-${refreshKey}`}
+        refreshTrigger={`${currency || 'all'}-${refreshKey}`}
         emptyState={{
           title: 'No withdrawal requests',
-          description: `No payout requests for ${currency} wallet yet.`,
+          description: isAdminView
+            ? 'No payout requests found across the platform.'
+            : `No payout requests for ${currency || 'this'} wallet yet.`,
           icon: <ArrowUpRight className="h-12 w-12 text-[var(--text-muted)]" />,
         }}
         fullHeight
@@ -373,7 +444,7 @@ export default function WithdrawalRequestsGrid({ currency, isPersonal }: Withdra
                 <div className="flex justify-between">
                   <span className="text-[var(--text-secondary)]">Amount:</span>
                   <span className="font-semibold text-emerald-500">
-                    {formatMoney(approvingRow.amount, (approvingRow.wallet?.currency_code as Currency) || currency)}
+                    {formatMoney(approvingRow.amount, (approvingRow.wallet?.currency_code as Currency) || currency || 'IDR')}
                   </span>
                 </div>
                 <div className="flex justify-between">
@@ -498,7 +569,7 @@ export default function WithdrawalRequestsGrid({ currency, isPersonal }: Withdra
               <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-500">
                 <strong>Attention:</strong> Rejecting this request will immediately refund{' '}
                 <strong className="underline">
-                  {formatMoney(rejectingRow.amount, (rejectingRow.wallet?.currency_code as Currency) || currency)}
+                  {formatMoney(rejectingRow.amount, (rejectingRow.wallet?.currency_code as Currency) || currency || 'IDR')}
                 </strong>{' '}
                 back to the owner&apos;s available wallet balance.
               </div>

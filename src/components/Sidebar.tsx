@@ -20,7 +20,8 @@ import {
   ShieldCheck,
   Server,
   Activity,
-  Truck
+  Truck,
+  ArrowDownLeft,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Tooltip } from './Tooltip';
@@ -130,6 +131,12 @@ const menuItems: MenuItem[] = [
         label: 'Payout Setup',
         icon: Settings,
         href: '/payment/payout-setup',
+      },
+      {
+        id: 'payment-withdrawals',
+        label: 'Withdrawal Approvals',
+        icon: ArrowDownLeft,
+        href: '/payment/withdrawals',
       },
     ],
   },
