@@ -336,7 +336,7 @@ export default function WithdrawalRequestsGrid({
       key: 'actions',
       label: 'Actions',
       render: (_, row: WithdrawalRequest) => {
-        if (row.status?.toUpperCase() === 'PENDING') {
+        if (row.status?.toUpperCase() === 'PENDING' && isAdminView && (row.provider === 'manual' || !row.provider)) {
           return (
             <div className="flex items-center gap-2">
               <button

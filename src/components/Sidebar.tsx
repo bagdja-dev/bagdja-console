@@ -137,6 +137,7 @@ const menuItems: MenuItem[] = [
         label: 'Withdrawal Approvals',
         icon: ArrowDownLeft,
         href: '/payment/withdrawals',
+        requiredPermissions: ['payment.withdrawals.view-all'],
       },
     ],
   },
