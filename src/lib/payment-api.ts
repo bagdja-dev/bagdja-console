@@ -77,9 +77,11 @@ async function paymentApiRequest<T>(
 
   const orgUuid = getActiveOrganizationId();
   const url = `${getPaymentApiBase()}${endpoint}`;
+  // Multipart (FormData): biarkan browser mengisi Content-Type + boundary.
+  const isFormData = typeof FormData !== 'undefined' && options.body instanceof FormData;
 
   const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
+    ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
     'x-api-key': clientToken,
     Authorization: `Bearer ${userToken}`,
     'x-organization-id': orgSlug,
@@ -584,7 +586,10 @@ export type WithdrawalRequest = {
     | 'CANCELLED'
     | 'APPROVED';
   rejection_reason?: string;
+  /** Bukti lama berupa URL publik; bukti baru privat (lihat has_proof). */
   proof_url?: string;
+  /** Ada bukti transfer — ambil link lewat getWithdrawalProofUrl(). */
+  has_proof?: boolean;
   bank_info: any;
   /** Hanya pada respons admin (ownerType=all, approve, reject). */
   payout_details_snapshot?: any;
@@ -631,6 +636,40 @@ export async function createWithdrawalRequest(
       method: 'POST',
       body: JSON.stringify(payload),
     },
+    organizationId,
+  );
+}
+
+/**
+ * Upload bukti transfer (admin finance org sistem). payment-service menyimpan
+ * file PRIVAT di storage-service dan menautkannya ke withdrawal (29 Okt 2026).
+ */
+export async function uploadWithdrawalProof(
+  id: string,
+  file: File,
+  organizationId?: string,
+): Promise<WithdrawalRequest> {
+  const formData = new FormData();
+  formData.append('file', file);
+  return paymentApiRequest<WithdrawalRequest>(
+    `/wallets/withdrawals/${encodeURIComponent(id)}/proof`,
+    { method: 'POST', body: formData },
+    organizationId,
+  );
+}
+
+/**
+ * Link bukti transfer berumur pendek (presigned, 10 menit). Ambil saat akan
+ * dibuka, jangan disimpan. `all` = admin org sistem (view-all).
+ */
+export async function getWithdrawalProofUrl(
+  id: string,
+  ownerType: WithdrawalOwnerType | 'all',
+  organizationId?: string,
+): Promise<{ url: string; expires_at: string | null }> {
+  return paymentApiRequest<{ url: string; expires_at: string | null }>(
+    `/wallets/withdrawals/${encodeURIComponent(id)}/proof-url?ownerType=${ownerType}`,
+    { method: 'GET' },
     organizationId,
   );
 }

@@ -197,7 +197,7 @@ export default function WithdrawalRequestsGrid({
         fullHeight
       />
 
-      <WithdrawalDetailModal row={detailRow} currency={currency} onClose={() => setDetailRow(null)} />
+      <WithdrawalDetailModal row={detailRow} ownerType={ownerType} currency={currency} onClose={() => setDetailRow(null)} />
 
       <ConfirmModal
         isOpen={Boolean(cancelRow)}

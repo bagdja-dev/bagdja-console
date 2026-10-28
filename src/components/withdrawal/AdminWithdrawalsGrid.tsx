@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useState } from 'react';
-import { ArrowUpRight, Check, X, Loader2, AlertCircle, ShieldAlert, Eye } from 'lucide-react';
+import { ArrowUpRight, Check, X, Loader2, AlertCircle, ShieldAlert, Eye, Paperclip, ExternalLink } from 'lucide-react';
 import DataGrid, { type FilterField, type GridColumn } from '@/components/DataGrid';
 import { formatMoney } from '@/lib/money';
 import { PAYOUT_PERMISSIONS } from '@/lib/payout-permissions';
@@ -10,6 +10,8 @@ import {
   listWithdrawalRequests,
   approveWithdrawalRequest,
   rejectWithdrawalRequest,
+  uploadWithdrawalProof,
+  getWithdrawalProofUrl,
   type WithdrawalRequest,
 } from '@/lib/payment-api';
 import {
@@ -21,6 +23,9 @@ import {
   isManualWithdrawal,
   withdrawalCurrency,
 } from './withdrawal-ui';
+
+const PROOF_ACCEPTED_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf'];
+const PROOF_MAX_BYTES = 5 * 1024 * 1024;
 
 const adminFilters: FilterField[] = [
   {
@@ -76,7 +81,8 @@ export default function AdminWithdrawalsGrid({ currency }: AdminWithdrawalsGridP
 
   const [approvingRow, setApprovingRow] = useState<WithdrawalRequest | null>(null);
   const [adminNotes, setAdminNotes] = useState('');
-  const [proofUrl, setProofUrl] = useState('');
+  const [proofFileName, setProofFileName] = useState('');
+  const [isUploadingProof, setIsUploadingProof] = useState(false);
   const [providerReferenceId, setProviderReferenceId] = useState('');
   const [isApproving, setIsApproving] = useState(false);
   const [approveError, setApproveError] = useState<string | null>(null);
@@ -89,7 +95,7 @@ export default function AdminWithdrawalsGrid({ currency }: AdminWithdrawalsGridP
   const handleOpenApprove = (row: WithdrawalRequest) => {
     setApprovingRow(row);
     setAdminNotes('');
-    setProofUrl('');
+    setProofFileName('');
     setProviderReferenceId('');
     setApproveError(null);
   };
@@ -103,6 +109,46 @@ export default function AdminWithdrawalsGrid({ currency }: AdminWithdrawalsGridP
   const errorMessage = (err: unknown, fallback: string) =>
     (err as { message?: string })?.message || fallback;
 
+  // Bukti transfer (29 Okt 2026): di-upload lewat payment-service yang
+  // menyimpannya PRIVAT di storage-service dan langsung menautkannya ke
+  // withdrawal ini. Link dibuka lewat presigned URL berumur pendek.
+  const handleProofFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file || !approvingRow) return;
+
+    if (!PROOF_ACCEPTED_TYPES.includes(file.type)) {
+      setApproveError('Proof must be an image (JPG, PNG, WEBP) or PDF.');
+      return;
+    }
+    if (file.size > PROOF_MAX_BYTES) {
+      setApproveError('Proof file must be 5 MB or smaller.');
+      return;
+    }
+
+    try {
+      setIsUploadingProof(true);
+      setApproveError(null);
+      await uploadWithdrawalProof(approvingRow.id, file);
+      setProofFileName(file.name);
+    } catch (err) {
+      setApproveError(errorMessage(err, 'Failed to upload proof attachment'));
+    } finally {
+      setIsUploadingProof(false);
+    }
+  };
+
+  const handleViewProof = async () => {
+    if (!approvingRow) return;
+    try {
+      setApproveError(null);
+      const { url } = await getWithdrawalProofUrl(approvingRow.id, 'all');
+      window.open(url, '_blank', 'noopener,noreferrer');
+    } catch (err) {
+      setApproveError(errorMessage(err, 'Failed to open proof attachment'));
+    }
+  };
+
   const handleConfirmApprove = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!approvingRow) return;
@@ -111,7 +157,6 @@ export default function AdminWithdrawalsGrid({ currency }: AdminWithdrawalsGridP
       setApproveError(null);
       await approveWithdrawalRequest(approvingRow.id, {
         adminNotes: adminNotes.trim() || undefined,
-        proofUrl: proofUrl.trim() || undefined,
         providerReferenceId: providerReferenceId.trim() || undefined,
       });
       setApprovingRow(null);
@@ -361,16 +406,59 @@ export default function AdminWithdrawalsGrid({ currency }: AdminWithdrawalsGridP
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-[var(--text-secondary)] mb-1">
-                  Proof Attachment URL (Optional)
+                <label
+                  htmlFor="withdrawal-proof-file"
+                  className="block text-xs font-medium text-[var(--text-secondary)] mb-1"
+                >
+                  Proof Attachment (Optional)
                 </label>
+                {proofFileName ? (
+                  <div className="flex items-center gap-2 rounded-lg border border-[var(--border-default)] bg-[var(--bg-main)] p-2 text-xs">
+                    <Paperclip className="h-3.5 w-3.5 flex-shrink-0 text-[var(--text-secondary)]" />
+                    <button
+                      type="button"
+                      onClick={handleViewProof}
+                      className="flex min-w-0 flex-1 items-center gap-1 text-left text-[var(--action-primary)] hover:underline"
+                    >
+                      <span className="truncate">{proofFileName}</span>
+                      <ExternalLink className="h-3 w-3 flex-shrink-0" />
+                    </button>
+                    <label
+                      htmlFor="withdrawal-proof-file"
+                      className={`flex-shrink-0 cursor-pointer rounded px-1.5 py-0.5 text-[var(--text-secondary)] hover:text-[var(--text-primary)] ${
+                        isUploadingProof || isApproving ? 'pointer-events-none opacity-60' : ''
+                      }`}
+                    >
+                      {isUploadingProof ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Replace'}
+                    </label>
+                  </div>
+                ) : (
+                  <label
+                    htmlFor="withdrawal-proof-file"
+                    className={`flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed border-[var(--border-default)] bg-[var(--bg-main)] p-3 text-xs text-[var(--text-secondary)] hover:border-[var(--action-primary)] hover:text-[var(--text-primary)] ${
+                      isUploadingProof || isApproving ? 'pointer-events-none opacity-60' : ''
+                    }`}
+                  >
+                    {isUploadingProof ? (
+                      <>
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        Uploading…
+                      </>
+                    ) : (
+                      <>
+                        <Paperclip className="h-3.5 w-3.5" />
+                        Upload transfer receipt (JPG, PNG, WEBP, PDF · max 5 MB)
+                      </>
+                    )}
+                  </label>
+                )}
                 <input
-                  type="url"
-                  value={proofUrl}
-                  onChange={(e) => setProofUrl(e.target.value)}
-                  placeholder="https://storage.../receipt.jpg"
-                  className="w-full rounded-lg border border-[var(--border-default)] bg-[var(--bg-main)] p-2 text-xs text-[var(--text-primary)] focus:outline-none focus:border-[var(--action-primary)]"
-                  disabled={isApproving}
+                  id="withdrawal-proof-file"
+                  type="file"
+                  accept={PROOF_ACCEPTED_TYPES.join(',')}
+                  onChange={handleProofFileChange}
+                  disabled={isUploadingProof || isApproving}
+                  className="sr-only"
                 />
               </div>
 
@@ -399,7 +487,7 @@ export default function AdminWithdrawalsGrid({ currency }: AdminWithdrawalsGridP
                 </button>
                 <button
                   type="submit"
-                  disabled={isApproving}
+                  disabled={isApproving || isUploadingProof}
                   className="flex items-center gap-1.5 rounded-lg bg-emerald-600 px-4 py-1.5 text-xs font-medium text-white hover:bg-emerald-700 disabled:opacity-50 transition-colors"
                 >
                   {isApproving && <Loader2 className="h-3.5 w-3.5 animate-spin" />}

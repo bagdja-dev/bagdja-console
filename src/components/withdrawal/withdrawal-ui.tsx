@@ -1,8 +1,13 @@
 'use client';
 
-import { Banknote, FileText, X } from 'lucide-react';
+import { useState } from 'react';
+import { Banknote, FileText, Loader2, X } from 'lucide-react';
 import { formatMoney } from '@/lib/money';
-import type { WithdrawalRequest } from '@/lib/payment-api';
+import {
+  getWithdrawalProofUrl,
+  type WithdrawalOwnerType,
+  type WithdrawalRequest,
+} from '@/lib/payment-api';
 
 /** Status final tidak bisa berubah lagi (plan §4.3). */
 export const FINAL_WITHDRAWAL_STATUSES = ['PAID', 'FAILED', 'REJECTED', 'CANCELLED'];
@@ -143,18 +148,65 @@ type HistoryEntry = {
  * Detail withdrawal + timeline `status_history`. `isAdmin` menampilkan actor
  * dan respons mentah provider (hanya ada di respons admin).
  */
+/**
+ * Link bukti transfer (29 Okt 2026): bukti privat dibuka lewat presigned URL
+ * yang diminta saat diklik (berlaku 10 menit), bukan URL tersimpan.
+ */
+function WithdrawalProofLink({
+  withdrawalId,
+  ownerType,
+}: {
+  withdrawalId: string;
+  ownerType: WithdrawalOwnerType | 'all';
+}) {
+  const [opening, setOpening] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const openProof = async () => {
+    try {
+      setOpening(true);
+      setError(null);
+      const { url } = await getWithdrawalProofUrl(withdrawalId, ownerType);
+      window.open(url, '_blank', 'noopener,noreferrer');
+    } catch (err) {
+      setError((err as { message?: string })?.message || 'Gagal membuka bukti transfer');
+    } finally {
+      setOpening(false);
+    }
+  };
+
+  return (
+    <div>
+      <button
+        type="button"
+        onClick={openProof}
+        disabled={opening}
+        className="inline-flex items-center gap-1 text-[var(--action-primary)] hover:underline disabled:opacity-60"
+      >
+        {opening ? <Loader2 className="h-3 w-3 animate-spin" /> : <FileText className="h-3 w-3" />}
+        Bukti transfer
+      </button>
+      {error && <p className="mt-1 text-[11px] text-red-500">{error}</p>}
+    </div>
+  );
+}
+
 export function WithdrawalDetailModal({
   row,
   isAdmin,
+  ownerType = 'organization',
   currency,
   onClose,
 }: {
   row: WithdrawalRequest | null;
   isAdmin?: boolean;
+  /** Konteks pemohon untuk akses bukti; admin selalu memakai `all`. */
+  ownerType?: WithdrawalOwnerType;
   currency?: string;
   onClose: () => void;
 }) {
   if (!row) return null;
+  const hasProof = Boolean(row.has_proof || row.proof_url);
   const cur = withdrawalCurrency(row, currency);
   const history = (Array.isArray(row.status_history) ? row.status_history : []) as HistoryEntry[];
 
@@ -208,17 +260,15 @@ export function WithdrawalDetailModal({
             </div>
           )}
 
-          {(row.provider_reference_id || row.proof_url) && (
+          {(row.provider_reference_id || hasProof) && (
             <div className="space-y-1 text-xs">
               {row.provider_reference_id && (
                 <p className="text-[var(--text-secondary)]">
                   Referensi: <span className="font-mono text-[var(--text-primary)]">{row.provider_reference_id}</span>
                 </p>
               )}
-              {row.proof_url && (
-                <a href={row.proof_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-[var(--action-primary)] hover:underline">
-                  <FileText className="h-3 w-3" /> Bukti transfer
-                </a>
+              {hasProof && (
+                <WithdrawalProofLink withdrawalId={row.id} ownerType={isAdmin ? 'all' : ownerType} />
               )}
             </div>
           )}
