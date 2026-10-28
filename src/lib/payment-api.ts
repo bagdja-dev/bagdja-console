@@ -9,7 +9,6 @@ import {
   getActiveOrganizationSlug,
   getClientToken,
   isClientTokenExpired,
-  removeAccessToken,
   setClientToken,
 } from './auth';
 import type { ApiError } from '@/types';
@@ -103,12 +102,9 @@ async function paymentApiRequest<T>(
       error.message = response.statusText || error.message;
     }
 
-    if (response.status === 401) {
-      removeAccessToken();
-      if (typeof window !== 'undefined') {
-        document.cookie = 'bagdja_access_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
-      }
-    }
+    // 401 dari service non-auth TIDAK menghapus token login (29 Okt 2026):
+    // bisa berarti guard/izin di service itu, bukan sesi berakhir. Sesi
+    // hanya diakhiri oleh 401 dari bagdja-auth (lib/api.ts).
 
     throw error;
   }
@@ -155,12 +151,9 @@ async function paymentApiRequestPersonal<T>(
       error.message = response.statusText || error.message;
     }
 
-    if (response.status === 401) {
-      removeAccessToken();
-      if (typeof window !== 'undefined') {
-        document.cookie = 'bagdja_access_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
-      }
-    }
+    // 401 dari service non-auth TIDAK menghapus token login (29 Okt 2026):
+    // bisa berarti guard/izin di service itu, bukan sesi berakhir. Sesi
+    // hanya diakhiri oleh 401 dari bagdja-auth (lib/api.ts).
 
     throw error;
   }

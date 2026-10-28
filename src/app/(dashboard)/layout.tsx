@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { getProfile, getOrganizations } from '@/lib/api';
-import { setActiveOrganization as persistActiveOrganization } from '@/lib/auth';
+import { isAuthenticated, setActiveOrganization as persistActiveOrganization } from '@/lib/auth';
 import { MainLayout } from '@/components/MainLayout';
 import { LayoutProvider } from '@/context/LayoutContext';
 import type { User, ApiError } from '@/types';
@@ -18,6 +18,19 @@ export default function DashboardLayout({
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // Token login (sessionStorage) kosong → arahkan ke login, jangan render
+    // dashboard kosong (29 Okt 2026). Tanpa ini `getProfile()` gagal dengan
+    // Error biasa tanpa statusCode, jadi cek 401 di bawah tidak pernah jalan.
+    const redirectToLogin = () => {
+      const current = `${window.location.pathname}${window.location.search}`;
+      router.replace(`/login?redirect=${encodeURIComponent(current)}`);
+    };
+
+    if (!isAuthenticated()) {
+      redirectToLogin();
+      return;
+    }
+
     const fetchData = async () => {
       try {
         // Fetch user profile first
@@ -61,8 +74,9 @@ export default function DashboardLayout({
         }
       } catch (err) {
         const apiError = err as ApiError;
-        if (apiError.statusCode === 401) {
-          router.push('/login');
+        if (apiError.statusCode === 401 || !isAuthenticated()) {
+          redirectToLogin();
+          return;
         }
       } finally {
         setLoading(false);
