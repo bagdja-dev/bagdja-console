@@ -23,7 +23,7 @@ export interface GridColumn {
 export interface FilterField {
   key: string;
   label: string;
-  type: 'text' | 'select';
+  type: 'text' | 'select' | 'date';
   options?: { label: string; value: string }[];
   placeholder?: string;
 }
@@ -192,9 +192,9 @@ const DataGrid: React.FC<DataGridProps> = ({
                     {filterFields.map((field) => (
                       <div key={field.key} className="space-y-2">
                         <label className="text-[10px] font-bold text-[var(--text-secondary)] uppercase px-1">{field.label}</label>
-                        {field.type === 'text' ? (
+                        {field.type === 'text' || field.type === 'date' ? (
                           <input
-                            type="text"
+                            type={field.type}
                             placeholder={field.placeholder}
                             value={tempFilter[field.key] || ''}
                             onChange={(e) => setTempFilter({ ...tempFilter, [field.key]: e.target.value })}

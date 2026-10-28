@@ -96,6 +96,15 @@ export interface ClientApp {
   isCoreService?: boolean;
   app_secret?: string; // Only returned once during creation/regeneration
   oauthRedirectUris?: string[];
+  loginBackgroundUrl?: string | null;
+  brandingUrl?: string | null;
+}
+
+/** Body PATCH /auth/client-apps/:id/login-branding — null/"" = reset ke default Bagdja. */
+export interface UpdateLoginBrandingRequest {
+  logo?: string | null;
+  loginBackgroundUrl?: string | null;
+  brandingUrl?: string | null;
 }
 
 export interface CreateClientAppRequest {

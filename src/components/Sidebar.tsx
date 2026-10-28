@@ -168,6 +168,13 @@ const menuItems: MenuItem[] = [
         requiredPermissions: ['console.infra.payment-fees.view'],
       },
       {
+        id: 'infra-payout-channels',
+        label: 'Payout Channels',
+        icon: ArrowDownLeft,
+        href: '/infrastructure/payout-channels',
+        requiredPermissions: ['payment.payout-channels.manage'],
+      },
+      {
         id: 'infra-payment-gateway-credentials',
         label: 'PG Credentials',
         icon: CreditCard,
