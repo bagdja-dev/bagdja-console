@@ -9,6 +9,7 @@ import { useLayout } from '@/context/LayoutContext';
 import WalletLedgerGrid from './WalletLedgerGrid';
 import WithdrawalRequestsGrid from './WithdrawalRequestsGrid';
 import WithdrawalSummaryCards from '@/components/withdrawal/WithdrawalSummaryCards';
+import WalletBalanceTiles, { useWithdrawnTotals } from '@/components/withdrawal/WalletBalanceTiles';
 import TopUpModal from '@/components/TopUpModal';
 import WithdrawModal from '@/components/WithdrawModal';
 
@@ -19,6 +20,8 @@ type WalletSummary = {
   currency: Currency;
   availableBalance: number;
   heldBalance: number;
+  withdrawalProcessing: number;
+  withdrawnTotal?: number;
   isActive: boolean;
 };
 
@@ -87,20 +90,13 @@ function WalletCard({
         </div>
       </div>
 
-      <div className="mt-5 grid grid-cols-2 gap-3">
-        <div className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-main)] p-3">
-          <div className="text-xs text-[var(--text-secondary)]">Available balance</div>
-          <div className="mt-1 text-sm font-semibold text-[var(--text-primary)]">
-            {formatMoney(wallet.availableBalance, wallet.currency)}
-          </div>
-        </div>
-        <div className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-main)] p-3">
-          <div className="text-xs text-[var(--text-secondary)]">Held balance</div>
-          <div className="mt-1 text-sm font-semibold text-[var(--text-primary)]">
-            {formatMoney(wallet.heldBalance, wallet.currency)}
-          </div>
-        </div>
-      </div>
+      <WalletBalanceTiles
+        currency={wallet.currency}
+        availableBalance={wallet.availableBalance}
+        heldBalance={wallet.heldBalance}
+        withdrawalProcessing={wallet.withdrawalProcessing}
+        withdrawnTotal={wallet.withdrawnTotal}
+      />
 
       <div className="mt-4 flex justify-end gap-2">
         {wallet.isActive && (
@@ -211,6 +207,8 @@ export default function WalletPage() {
       .catch((err) => console.error('Failed to fetch supported currencies:', err));
   }, []);
 
+  const withdrawnTotals = useWithdrawnTotals(walletsData, 'organization', getActiveOrganizationSlug() ?? undefined);
+
   const walletsSummary = useMemo<WalletSummary[]>(() => {
     return supportedCurrencies.map((curr) => {
       const found = walletsData.find((w) => w.currency_code === curr);
@@ -218,10 +216,12 @@ export default function WalletPage() {
         currency: curr,
         availableBalance: found != null ? Number(found.balance) || 0 : 0,
         heldBalance: found != null ? Number(found.held_balance) || 0 : 0,
+        withdrawalProcessing: found != null ? Number(found.withdrawal_held_balance) || 0 : 0,
+        withdrawnTotal: found?.is_active ? withdrawnTotals[curr] : undefined,
         isActive: Boolean(found?.is_active),
       };
     });
-  }, [walletsData, supportedCurrencies]);
+  }, [walletsData, supportedCurrencies, withdrawnTotals]);
 
   // Contextual Topbar Logic based on owned applications detail
   const isHeaderVisibleRef = useRef(true);

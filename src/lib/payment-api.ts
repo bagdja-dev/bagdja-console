@@ -219,6 +219,8 @@ export type Wallet = {
   provider: string;
   balance: number;
   held_balance: number;
+  /** Dana withdrawal PENDING/PROCESSING (sudah dipotong dari `balance`). */
+  withdrawal_held_balance?: number;
   is_active: boolean;
   activated_at: string | null;
   updated_at: string;
@@ -827,6 +829,8 @@ export type WithdrawalSummary = {
   processingCount: number;
   processingAmount: number;
   paidThisMonth: number;
+  /** Total PAID sepanjang waktu. */
+  paidTotal: number;
 };
 
 export async function getWithdrawalSummary(
