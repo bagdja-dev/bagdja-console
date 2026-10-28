@@ -116,7 +116,8 @@ import MessageTemplateModal from "@/components/MessageTemplateModal";
 import ChannelSetupModal from "@/components/ChannelSetupModal";
 import MessageLogDetailModal from "@/components/MessageLogDetailModal";
 import AlertModal, { AlertType } from "@/components/AlertModal";
-import AppPayoutSettingsCard from "@/components/AppPayoutSettingsCard";
+import { LoginBrandingSettings } from "@/components/LoginBrandingSettings";
+import AppPayoutChannelsCard from "@/components/AppPayoutChannelsCard";
 import { useLayout } from "@/context/LayoutContext";
 import { generateCurl } from "@/lib/utils";
 import {
@@ -165,7 +166,7 @@ type TabType =
   | "settings";
 type EventSubTab = "broadcast" | "subscribe" | "requests" | "log";
 type MessagingSubTab = "setup" | "templates" | "logs";
-type PaymentSubTab = "methods" | "payout";
+type PaymentSubTab = "methods" | "payout-channels";
 
 // Duitku's `method` values are their own short channel codes (BC, SP, etc.) —
 // map them to a friendly label for display. Keep in sync with
@@ -4234,14 +4235,14 @@ export default function AppDetailPage() {
                 Payment Methods (Checkout)
               </button>
               <button
-                onClick={() => setPaymentSubTab("payout")}
+                onClick={() => setPaymentSubTab("payout-channels")}
                 className={`px-5 py-2 text-xs font-bold uppercase tracking-wider rounded-md transition-all ${
-                  paymentSubTab === "payout"
+                  paymentSubTab === "payout-channels"
                     ? "bg-[var(--action-primary)] text-white shadow-lg"
                     : "text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-white/5"
                 }`}
               >
-                Payout & Withdrawal Settings
+                Payout Channels
               </button>
             </div>
 
@@ -4312,12 +4313,11 @@ export default function AppDetailPage() {
               </>
             )}
 
-            {paymentSubTab === "payout" && (
-              <div className="flex-1 overflow-y-auto">
-                <AppPayoutSettingsCard
+            {paymentSubTab === "payout-channels" && (
+              <div className="flex-1 overflow-hidden">
+                <AppPayoutChannelsCard
                   appId={app?.appId || ""}
                   orgId={app?.orgId}
-                  appName={app?.appName}
                   onShowAlert={(msg, type, title) =>
                     showAlert(msg, (type as AlertType) || "info", title)
                   }
@@ -4435,6 +4435,16 @@ export default function AppDetailPage() {
                 )}
               </button>
             </div>
+
+            {app && (
+              <div className="pt-8 border-t border-[var(--border-default)]">
+                <LoginBrandingSettings
+                  app={app}
+                  onSaved={setApp}
+                  showAlert={(message, type) => showAlert(message, type)}
+                />
+              </div>
+            )}
           </div>
         )}
       </div>
