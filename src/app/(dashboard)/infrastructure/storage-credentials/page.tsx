@@ -204,8 +204,16 @@ export default function StorageAccountCredentialsPage() {
       key: 'credentials',
       label: 'Bucket / Fields Configured',
       render: (val) => {
-        const creds = (val as Record<string, string>) || {};
-        const keys = Object.keys(creds).filter((k) => creds[k]?.trim());
+        // Sejak credential dienkripsi, API hanya mengirim penanda boolean
+        // (`access_key_configured`, `secret_access_key_configured`) plus field
+        // non-rahasia berupa string — jangan asumsikan semua nilai string.
+        const creds = (val as Record<string, string | boolean | null | undefined>) || {};
+        const keys = Object.keys(creds)
+          .filter((k) => {
+            const value = creds[k];
+            return typeof value === 'string' ? value.trim() !== '' : value === true;
+          })
+          .map((k) => k.replace(/_configured$/, ''));
         return (
           <span className="text-xs text-[var(--text-secondary)]">
             {creds.bucketName ? `${creds.bucketName} · ` : ''}
