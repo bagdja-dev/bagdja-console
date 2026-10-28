@@ -26,6 +26,7 @@ import type {
   CreateOrganizationRequest,
   UpdateOrganizationRequest,
   ClientApp,
+  UpdateLoginBrandingRequest,
   CreateClientAppRequest,
   AppUser,
   Notification,
@@ -989,6 +990,16 @@ export async function updateOAuthRedirectUris(clientAppId: string, oauthRedirect
   return apiRequest<ClientApp>(`/auth/client-apps/${clientAppId}/oauth-redirect-uris`, {
     method: 'PATCH',
     body: JSON.stringify({ oauthRedirectUris }),
+  });
+}
+
+export async function updateLoginBranding(
+  clientAppId: string,
+  payload: UpdateLoginBrandingRequest,
+): Promise<ClientApp> {
+  return apiRequest<ClientApp>(`/auth/client-apps/${clientAppId}/login-branding`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
   });
 }
 
