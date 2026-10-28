@@ -6,7 +6,15 @@ import { Button } from '@/ui/button';
 import { Input } from '@/ui/input';
 import { Select } from '@/ui/select';
 import type { ApiError } from '@/types';
-import type { CreatePayoutAccountRequest, PayoutAccount } from '@/lib/payment-api';
+import {
+  listPayoutMethods,
+  type CreatePayoutAccountRequest,
+  type PayoutAccount,
+  type PayoutMethod,
+} from '@/lib/payment-api';
+
+/** Pilihan "Lainnya": bank di luar katalog, diproses manual tanpa channel. */
+const OTHER_METHOD = '__other__';
 
 type Mode = 'create' | 'edit';
 
@@ -16,6 +24,7 @@ type FormState = {
   account_holder_name: string;
   account_identifier: string;
   bank_name: string;
+  method_code: string;
   swift_code: string;
   iban: string;
   bank_address: string;
@@ -55,6 +64,7 @@ export default function PayoutAccountModal({
       account_holder_name: '',
       account_identifier: '',
       bank_name: '',
+      method_code: '',
       swift_code: '',
       iban: '',
       bank_address: '',
@@ -63,6 +73,7 @@ export default function PayoutAccountModal({
     }),
     [],
   );
+  const [methods, setMethods] = useState<PayoutMethod[]>([]);
 
   const [form, setForm] = useState<FormState>(emptyForm);
   const [submitting, setSubmitting] = useState(false);
@@ -79,6 +90,7 @@ export default function PayoutAccountModal({
         account_holder_name: account.account_holder_name || '',
         account_identifier: account.account_identifier || '',
         bank_name: account.bank_name || '',
+        method_code: account.method_code || (account.bank_name ? OTHER_METHOD : ''),
         swift_code: account.swift_code || '',
         iban: account.iban || '',
         bank_address: account.bank_address || '',
@@ -92,6 +104,31 @@ export default function PayoutAccountModal({
       setForm(emptyForm);
     }
   }, [account, emptyForm, isOpen, mode]);
+
+  // Katalog metode tujuan menentukan channel payout yang tersedia (plan §4.6a).
+  useEffect(() => {
+    if (!isOpen) return;
+    let cancelled = false;
+    listPayoutMethods(form.currency_code)
+      .then((list) => {
+        if (!cancelled) setMethods(list);
+      })
+      .catch(() => {
+        if (!cancelled) setMethods([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen, form.currency_code]);
+
+  const handleMethodChange = (value: string) => {
+    if (value === OTHER_METHOD || value === '') {
+      setForm((prev) => ({ ...prev, method_code: value, bank_name: value === '' ? '' : prev.bank_name }));
+      return;
+    }
+    const method = methods.find((m) => m.code === value);
+    setForm((prev) => ({ ...prev, method_code: value, bank_name: method?.name || value }));
+  };
 
   const disabled = Boolean(isLoadingInitial) || submitting;
 
@@ -109,6 +146,8 @@ export default function PayoutAccountModal({
         account_holder_name: form.account_holder_name,
         account_identifier: form.account_identifier,
         bank_name: form.bank_name || undefined,
+        method_code:
+          form.method_code && form.method_code !== OTHER_METHOD ? form.method_code : undefined,
         swift_code: form.swift_code || undefined,
         iban: form.iban || undefined,
         bank_address: form.bank_address || undefined,
@@ -211,13 +250,30 @@ export default function PayoutAccountModal({
           </div>
 
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            <Input
-              label="Bank name (optional)"
-              value={form.bank_name}
-              onChange={(e) => setForm((prev) => ({ ...prev, bank_name: e.target.value }))}
+            <Select
+              label="Bank / e-wallet"
+              value={form.method_code}
+              onChange={(e) => handleMethodChange(e.target.value)}
               disabled={disabled}
-              placeholder="e.g. BCA"
-            />
+            >
+              <option value="">Pilih bank / e-wallet</option>
+              {methods.map((method) => (
+                <option key={method.code} value={method.code}>
+                  {method.name} ({method.code})
+                </option>
+              ))}
+              <option value={OTHER_METHOD}>Lainnya (diproses manual)</option>
+            </Select>
+
+            {form.method_code === OTHER_METHOD && (
+              <Input
+                label="Bank name"
+                value={form.bank_name}
+                onChange={(e) => setForm((prev) => ({ ...prev, bank_name: e.target.value }))}
+                disabled={disabled}
+                placeholder="Nama bank di luar daftar"
+              />
+            )}
 
             <Input
               label="Provider name (optional)"
