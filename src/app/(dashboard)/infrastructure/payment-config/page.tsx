@@ -7,11 +7,7 @@ import {
   updateGlobalDefaultBillingSetting,
   upsertBillingSetting,
   deleteBillingSetting,
-  listPayoutEngineConfigs,
-  togglePayoutEngineConfig,
-  deletePayoutEngineConfig,
   type BillingSetting,
-  type PayoutEngineConfig,
 } from '@/lib/payment-api';
 import {
   listEscrowFeeConfigs,
@@ -32,22 +28,18 @@ import {
   Edit2,
   Trash2,
   ShieldCheck,
-  Building2,
   Zap,
   Banknote,
-  RotateCcw,
-  Loader2,
 } from 'lucide-react';
 import DataGrid, { GridColumn, GridAction, FilterField } from '@/components/DataGrid';
 import BillingSettingModal from '@/components/BillingSettingModal';
 import EscrowFeeConfigModal from '@/components/EscrowFeeConfigModal';
 import GlobalBillingModal from '@/components/GlobalBillingModal';
-import PayoutEngineConfigModal from '@/components/PayoutEngineConfigModal';
 import ConfirmModal from '@/components/ConfirmModal';
 import AlertModal, { type AlertType } from '@/components/AlertModal';
 import { useLayout } from '@/context/LayoutContext';
 
-type ConfigTab = 'billing' | 'escrow-fee' | 'payout-engine';
+type ConfigTab = 'billing' | 'escrow-fee';
 
 const billingFilters: FilterField[] = [
   {
@@ -119,16 +111,6 @@ export default function PaymentConfigPage() {
   const [escrowProductNameById, setEscrowProductNameById] = useState<Record<string, string>>({});
   const [escrowFeeModalOpen, setEscrowFeeModalOpen] = useState(false);
   const [selectedEscrowFeeConfig, setSelectedEscrowFeeConfig] = useState<EscrowFeeConfig | null>(null);
-
-  // Payout Engine Config state
-  const [payoutEngines, setPayoutEngines] = useState<PayoutEngineConfig[]>([]);
-  const [payoutEnginesLoading, setPayoutEnginesLoading] = useState(false);
-  const [payoutEnginesError, setPayoutEnginesError] = useState<string | null>(null);
-  const [payoutEngineModalOpen, setPayoutEngineModalOpen] = useState(false);
-  const [selectedPayoutEngine, setSelectedPayoutEngine] = useState<PayoutEngineConfig | null>(null);
-  const [togglingEngineId, setTogglingEngineId] = useState<string | null>(null);
-  const [deleteEngineTarget, setDeleteEngineTarget] = useState<PayoutEngineConfig | null>(null);
-  const [isDeletingEngine, setIsDeletingEngine] = useState(false);
 
   const [alertState, setAlertState] = useState<{
     isOpen: boolean;
@@ -262,55 +244,11 @@ export default function PaymentConfigPage() {
     }
   }, []);
 
-  const fetchPayoutEngines = useCallback(async () => {
-    try {
-      setPayoutEnginesLoading(true);
-      setPayoutEnginesError(null);
-      const data = await listPayoutEngineConfigs();
-      setPayoutEngines(data);
-    } catch (err: any) {
-      setPayoutEnginesError(err.message || 'Failed to load payout engine configs');
-    } finally {
-      setPayoutEnginesLoading(false);
-    }
-  }, []);
-
   useEffect(() => {
     if (configTab === 'escrow-fee') {
       fetchEscrowFeeConfigs();
-    } else if (configTab === 'payout-engine') {
-      fetchPayoutEngines();
     }
-  }, [configTab, fetchEscrowFeeConfigs, fetchPayoutEngines, refreshTrigger]);
-
-  const handleToggleEngine = async (item: PayoutEngineConfig) => {
-    try {
-      setTogglingEngineId(item.id);
-      const nextActive = !item.isActive;
-      await togglePayoutEngineConfig(item.id, nextActive);
-      setPayoutEngines((prev) =>
-        prev.map((e) => (e.id === item.id ? { ...e, isActive: nextActive } : e)),
-      );
-    } catch (err: any) {
-      showAlert('error', 'Toggle Failed', err.message || 'Failed to toggle payout engine status');
-    } finally {
-      setTogglingEngineId(null);
-    }
-  };
-
-  const handleConfirmDeleteEngine = async () => {
-    if (!deleteEngineTarget) return;
-    try {
-      setIsDeletingEngine(true);
-      await deletePayoutEngineConfig(deleteEngineTarget.id);
-      setDeleteEngineTarget(null);
-      setRefreshTrigger((prev) => prev + 1);
-    } catch (err: any) {
-      showAlert('error', 'Delete Failed', err.message || 'Failed to delete payout engine config');
-    } finally {
-      setIsDeletingEngine(false);
-    }
-  };
+  }, [configTab, fetchEscrowFeeConfigs, refreshTrigger]);
 
   const handleUpsertEscrowFeeConfig = async (payload: UpsertEscrowFeeConfigRequest) => {
     await upsertEscrowFeeConfig(payload);
@@ -574,18 +512,6 @@ export default function PaymentConfigPage() {
               Escrow Fee Config
             </div>
           </button>
-          <button
-            onClick={() => setConfigTab('payout-engine')}
-            className={`pb-3 px-1 border-b-2 font-medium text-sm transition-colors ${configTab === 'payout-engine'
-              ? 'border-[var(--action-primary)] text-[var(--action-primary)]'
-              : 'border-transparent text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
-              }`}
-          >
-            <div className="flex items-center gap-2">
-              <Building2 className="h-4 w-4" />
-              Payout Engines
-            </div>
-          </button>
         </nav>
       </div>
 
@@ -723,199 +649,6 @@ export default function PaymentConfigPage() {
             config={selectedEscrowFeeConfig}
             onClose={() => setEscrowFeeModalOpen(false)}
             onSubmit={handleUpsertEscrowFeeConfig}
-          />
-        </>
-      ) : configTab === 'payout-engine' ? (
-        <>
-          <div className="mb-8 p-6 bg-[var(--bg-surface)] border border-[var(--border-default)] rounded-xl shadow-sm flex items-start gap-3">
-            <div className="p-2 bg-orange-500/10 rounded-lg shrink-0">
-              <Building2 className="w-5 h-5 text-orange-500" />
-            </div>
-            <div className="text-sm text-[var(--text-secondary)] space-y-1">
-              <p>
-                Kelola ketersediaan layanan engine payout (<span className="font-medium text-[var(--text-primary)]">Manual Transfer, Midtrans Iris, Duitku Disbursement</span>) di level infrastruktur platform.
-              </p>
-              <p>
-                Resolusi (spesifik menang): <span className="font-mono text-xs">(org, app) → (org, default) → (default, default)</span>.
-                Jika suatu engine dinonaktifkan di sini, aplikasi dalam scope tersebut tidak akan dapat memilih atau menggunakan engine tersebut untuk penarikan dana.
-              </p>
-            </div>
-          </div>
-
-          <div className="bg-[var(--bg-surface)] rounded-xl border border-[var(--border-default)] shadow-sm overflow-hidden">
-            <div className="p-5 flex items-center justify-between border-b border-[var(--border-default)]">
-              <div>
-                <h3 className="font-bold text-[var(--text-primary)]">Payout Engine Configurations</h3>
-                <p className="text-sm text-[var(--text-secondary)] mt-0.5">
-                  {payoutEngines.length} engine config{payoutEngines.length === 1 ? '' : 's'} registered
-                </p>
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={fetchPayoutEngines}
-                  disabled={payoutEnginesLoading}
-                  className="p-2 text-[var(--text-secondary)] hover:text-[var(--text-primary)] rounded-lg border border-[var(--border-default)] hover:bg-white/5 transition-colors disabled:opacity-50"
-                  title="Refresh"
-                >
-                  <RotateCcw className={`h-4 w-4 ${payoutEnginesLoading ? 'animate-spin' : ''}`} />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSelectedPayoutEngine(null);
-                    setPayoutEngineModalOpen(true);
-                  }}
-                  className="flex items-center gap-2 bg-[var(--action-primary)] hover:opacity-90 text-white px-4 py-2 rounded-lg text-sm font-medium transition-all shadow-sm"
-                >
-                  <Plus className="h-4 w-4" />
-                  Add Engine Override
-                </button>
-              </div>
-            </div>
-
-            {payoutEnginesLoading ? (
-              <div className="p-12 text-center text-[var(--text-secondary)] flex flex-col items-center justify-center gap-2">
-                <Loader2 className="h-6 w-6 animate-spin text-[var(--action-primary)]" />
-                <span className="text-xs">Loading payout engines...</span>
-              </div>
-            ) : payoutEnginesError ? (
-              <div className="p-8 text-center text-red-500 text-sm">
-                {payoutEnginesError}
-              </div>
-            ) : payoutEngines.length === 0 ? (
-              <div className="p-12 text-center text-[var(--text-secondary)] text-sm">
-                No payout engine configurations found.
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-left text-sm">
-                  <thead className="bg-black/10 text-xs text-[var(--text-secondary)] uppercase tracking-wider border-b border-[var(--border-default)]">
-                    <tr>
-                      <th className="py-3 px-4">Provider</th>
-                      <th className="py-3 px-4">Display Name</th>
-                      <th className="py-3 px-4">Scope Tier</th>
-                      <th className="py-3 px-4">Platform Status</th>
-                      <th className="py-3 px-4">Description</th>
-                      <th className="py-3 px-4 text-right">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-[var(--border-default)] text-[var(--text-primary)]">
-                    {payoutEngines.map((item) => {
-                      const isGlobal = item.orgId === 'default' && item.appId === 'default';
-                      const p = item.provider.toLowerCase();
-                      const badgeClass =
-                        p === 'midtrans'
-                          ? 'border-purple-500/20 bg-purple-500/10 text-purple-400'
-                          : p === 'duitku'
-                          ? 'border-orange-500/20 bg-orange-500/10 text-orange-400'
-                          : 'border-sky-500/20 bg-sky-500/10 text-sky-400';
-
-                      return (
-                        <tr key={item.id} className="hover:bg-white/[0.02] transition-colors">
-                          <td className="py-3.5 px-4 font-medium">
-                            <span
-                              className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold border ${badgeClass}`}
-                            >
-                              {item.provider}
-                            </span>
-                          </td>
-                          <td className="py-3.5 px-4 font-semibold text-xs">
-                            {item.name}
-                          </td>
-                          <td className="py-3.5 px-4 text-xs">
-                            {isGlobal ? (
-                              <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-medium bg-white/5 border border-white/10 text-[var(--text-secondary)]">
-                                Global Platform Default
-                              </span>
-                            ) : (
-                              <span className="inline-flex items-center gap-1 font-mono text-[11px] text-[var(--text-secondary)]">
-                                {item.orgId} / {item.appId}
-                              </span>
-                            )}
-                          </td>
-                          <td className="py-3.5 px-4">
-                            <button
-                              type="button"
-                              role="switch"
-                              aria-checked={item.isActive}
-                              disabled={togglingEngineId === item.id}
-                              onClick={() => handleToggleEngine(item)}
-                              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors disabled:opacity-50 ${
-                                item.isActive ? 'bg-[var(--action-primary)]' : 'bg-white/10'
-                              }`}
-                            >
-                              <span
-                                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                                  item.isActive ? 'translate-x-6' : 'translate-x-1'
-                                }`}
-                              />
-                            </button>
-                          </td>
-                          <td className="py-3.5 px-4 text-xs text-[var(--text-secondary)] max-w-xs truncate">
-                            {item.description || '-'}
-                          </td>
-                          <td className="py-3.5 px-4 text-right">
-                            <div className="flex items-center justify-end gap-1">
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  setSelectedPayoutEngine(item);
-                                  setPayoutEngineModalOpen(true);
-                                }}
-                                className="p-1.5 text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-white/5 rounded-md transition-colors"
-                                title="Edit"
-                              >
-                                <Edit2 className="h-4 w-4" />
-                              </button>
-                              {!isGlobal && (
-                                <button
-                                  type="button"
-                                  onClick={() => setDeleteEngineTarget(item)}
-                                  className="p-1.5 text-[var(--text-secondary)] hover:text-red-400 hover:bg-red-500/10 rounded-md transition-colors"
-                                  title="Delete Override"
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                </button>
-                              )}
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-
-          <PayoutEngineConfigModal
-            isOpen={payoutEngineModalOpen}
-            config={selectedPayoutEngine}
-            onClose={() => setPayoutEngineModalOpen(false)}
-            onSuccess={() => {
-              fetchPayoutEngines();
-              showAlert('success', 'Success', 'Payout engine configuration saved successfully');
-            }}
-          />
-
-          <ConfirmModal
-            isOpen={Boolean(deleteEngineTarget)}
-            onClose={() => {
-              if (!isDeletingEngine) setDeleteEngineTarget(null);
-            }}
-            onConfirm={handleConfirmDeleteEngine}
-            title="Delete Payout Engine Override?"
-            message="This specific scope override will be removed, and applications in this scope will fall back to higher tier configurations."
-            detail={
-              deleteEngineTarget
-                ? `${deleteEngineTarget.provider} · org: ${deleteEngineTarget.orgId} · app: ${deleteEngineTarget.appId}`
-                : undefined
-            }
-            confirmLabel="Delete Override"
-            cancelLabel="Keep Override"
-            variant="danger"
-            loading={isDeletingEngine}
           />
         </>
       ) : (

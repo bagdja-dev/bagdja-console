@@ -7,6 +7,7 @@ import { getSupportedCurrencies } from '@/lib/api';
 import { useLayout } from '@/context/LayoutContext';
 import WalletLedgerGrid from '../WalletLedgerGrid';
 import WithdrawalRequestsGrid from '../WithdrawalRequestsGrid';
+import WithdrawalSummaryCards from '@/components/withdrawal/WithdrawalSummaryCards';
 import TopUpModal from '@/components/TopUpModal';
 import WithdrawModal from '@/components/WithdrawModal';
 
@@ -153,6 +154,7 @@ export default function PersonalWalletPage() {
   const [activatingCurrency, setActivatingCurrency] = useState<Currency | null>(null);
   const [topUpCurrency, setTopUpCurrency] = useState<Currency | null>(null);
   const [withdrawWallet, setWithdrawWallet] = useState<WalletSummary | null>(null);
+  const [withdrawRefreshKey, setWithdrawRefreshKey] = useState(0);
   const [selectedCurrency, setSelectedCurrency] = useState<Currency>('IDR');
   const [activeTab, setActiveTab] = useState<TabKey>('transactions');
   const { setTopbarContent } = useLayout();
@@ -388,7 +390,21 @@ export default function PersonalWalletPage() {
           {activeTab === 'transactions' ? (
             <WalletLedgerGrid key={`ledger-${selectedCurrency}`} currency={selectedCurrency} isPersonal />
           ) : (
-            <WithdrawalRequestsGrid key={`withdraw-${selectedCurrency}`} currency={selectedCurrency} isPersonal />
+            <div className="flex-1 flex flex-col min-h-0 gap-4">
+              <WithdrawalSummaryCards
+                ownerType="personal"
+                currency={selectedCurrency}
+                refreshKey={withdrawRefreshKey}
+              />
+              <WithdrawalRequestsGrid
+                key={`withdraw-${selectedCurrency}-${withdrawRefreshKey}`}
+                currency={selectedCurrency} isPersonal
+                onChanged={() => {
+                  void fetchWallets();
+                  setWithdrawRefreshKey((prev) => prev + 1);
+                }}
+              />
+            </div>
           )}
         </div>
       </div>
@@ -406,6 +422,7 @@ export default function PersonalWalletPage() {
         onClose={() => setWithdrawWallet(null)}
         onSuccess={() => {
           fetchWallets();
+          setWithdrawRefreshKey((prev) => prev + 1);
         }}
         currency={withdrawWallet?.currency || 'IDR'}
         availableBalance={withdrawWallet?.availableBalance || 0}

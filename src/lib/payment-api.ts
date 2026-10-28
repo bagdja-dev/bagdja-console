@@ -181,6 +181,8 @@ export type PayoutAccount = {
   account_holder_name: string;
   account_identifier: string;
   bank_name?: string | null;
+  /** Kode katalog payout_methods (mis. "BCA"); menentukan channel yang tersedia. */
+  method_code?: string | null;
   swift_code?: string | null;
   iban?: string | null;
   bank_address?: string | null;
@@ -204,6 +206,7 @@ export type CreatePayoutAccountRequest = {
   account_holder_name: string;
   account_identifier: string;
   bank_name?: string;
+  method_code?: string;
   swift_code?: string;
   iban?: string;
   bank_address?: string;
@@ -542,7 +545,17 @@ export type WithdrawalRequest = {
   app_id?: string;
   provider?: string;
   provider_reference_id?: string;
+  /** Nominal yang ditarik dari saldo (sebelum biaya). */
   amount: number;
+  /** Biaya channel, dipotong dari `amount`. */
+  fee_amount?: number;
+  /** Nominal yang diterima rekening tujuan: amount - fee_amount. */
+  net_amount?: number;
+  /** Kode metode tujuan (katalog payout_methods), mis. "BCA". */
+  method?: string | null;
+  payout_method_fee_id?: string | null;
+  requested_by?: string | null;
+  cancelled_at?: string | null;
   status:
     | 'PENDING'
     | 'PROCESSING'
@@ -555,7 +568,8 @@ export type WithdrawalRequest = {
   rejection_reason?: string;
   proof_url?: string;
   bank_info: any;
-  payout_details_snapshot: any;
+  /** Hanya pada respons admin (ownerType=all, approve, reject). */
+  payout_details_snapshot?: any;
   status_history?: any[];
   admin_notes?: string;
   created_at: string;
@@ -580,9 +594,9 @@ export type WithdrawalListResponse = {
 
 export interface CreateWithdrawalPayload {
   ownerType?: 'organization' | 'personal';
-  ownerId?: string;
   appId?: string;
-  provider?: string;
+  /** Channel pilihan dari GET /wallets/withdrawals/channels (opsional). */
+  payoutMethodFeeId?: string;
   amount: number;
   currency?: string;
   payoutAccountId: string;
@@ -637,143 +651,17 @@ export async function rejectWithdrawalRequest(
   );
 }
 
-export interface AvailableEngineInfo {
-  provider: string;
-  name: string;
-  description: string;
-  isActiveInPlatform: boolean;
-  scopeTier: 'app' | 'org' | 'global';
-}
-
-export interface PayoutSettingResponse {
-  activeProvider: string;
-  isPayoutEnabledForApp?: boolean;
-  availableProviders: string[];
-  engines?: AvailableEngineInfo[];
-  appSetting?: {
-    id: string;
-    orgId: string;
-    appId: string;
-    provider: string;
-    isActive: boolean;
-  } | null;
-  orgDefaultSetting?: {
-    id: string;
-    orgId: string;
-    appId: string;
-    provider: string;
-    isActive: boolean;
-  } | null;
-}
-
-export interface PayoutEngineConfig {
-  id: string;
-  provider: string;
-  name: string;
-  orgId: string;
-  appId: string;
-  isActive: boolean;
-  description?: string;
-  createdAt: string;
-  updatedAt: string;
-}
-
-export async function listPayoutEngineConfigs(
-  params?: { orgId?: string; appId?: string; provider?: string },
-  organizationId?: string,
-): Promise<PayoutEngineConfig[]> {
-  const qs = new URLSearchParams();
-  if (params?.orgId) qs.append('orgId', params.orgId);
-  if (params?.appId) qs.append('appId', params.appId);
-  if (params?.provider) qs.append('provider', params.provider);
-  const qStr = qs.toString();
-  return paymentApiRequest<PayoutEngineConfig[]>(
-    `/payout-engine-configs${qStr ? `?${qStr}` : ''}`,
-    { method: 'GET' },
-    organizationId,
-  );
-}
-
-export async function upsertPayoutEngineConfig(
-  payload: {
-    provider: string;
-    orgId?: string;
-    appId?: string;
-    name?: string;
-    description?: string;
-    isActive?: boolean;
-  },
-  organizationId?: string,
-): Promise<PayoutEngineConfig> {
-  return paymentApiRequest<PayoutEngineConfig>(
-    '/payout-engine-configs',
-    {
-      method: 'POST',
-      body: JSON.stringify(payload),
-    },
-    organizationId,
-  );
-}
-
-export async function togglePayoutEngineConfig(
-  id: string,
-  isActive: boolean,
-  organizationId?: string,
-): Promise<PayoutEngineConfig> {
-  return paymentApiRequest<PayoutEngineConfig>(
-    `/payout-engine-configs/${encodeURIComponent(id)}/toggle`,
-    {
-      method: 'PATCH',
-      body: JSON.stringify({ isActive }),
-    },
-    organizationId,
-  );
-}
-
-export async function deletePayoutEngineConfig(
-  id: string,
-  organizationId?: string,
-): Promise<{ success: boolean }> {
-  return paymentApiRequest<{ success: boolean }>(
-    `/payout-engine-configs/${encodeURIComponent(id)}`,
-    { method: 'DELETE' },
-    organizationId,
-  );
-}
-
-export async function getPayoutSettings(
-  appId?: string,
-  organizationId?: string,
-): Promise<PayoutSettingResponse> {
-  const qs = new URLSearchParams();
-  if (appId) qs.append('appId', appId);
-  return paymentApiRequest<PayoutSettingResponse>(
-    `/wallets/payout-settings?${qs.toString()}`,
-    { method: 'GET' },
-    organizationId,
-  );
-}
-
-export async function setPayoutSettings(
-  payload: { appId?: string; provider: string; isActive?: boolean },
-  organizationId?: string,
-): Promise<any> {
-  return paymentApiRequest<any>(
-    '/wallets/payout-settings',
-    {
-      method: 'POST',
-      body: JSON.stringify(payload),
-    },
-    organizationId,
-  );
-}
-
 export async function listWithdrawalRequests(params?: {
   page?: number;
   size?: number;
   currency?: string;
   status?: string;
   ownerType?: string;
+  /** Filter tambahan; `filterOrgId` hanya berlaku untuk ownerType=all. */
+  provider?: string;
+  filterOrgId?: string;
+  dateFrom?: string;
+  dateTo?: string;
   organizationId?: string;
 }): Promise<WithdrawalListResponse> {
   const qs = new URLSearchParams();
@@ -782,6 +670,10 @@ export async function listWithdrawalRequests(params?: {
   if (params?.currency) qs.append('currency', params.currency);
   if (params?.status) qs.append('status', params.status);
   if (params?.ownerType) qs.append('ownerType', params.ownerType);
+  if (params?.provider) qs.append('provider', params.provider);
+  if (params?.filterOrgId) qs.append('filterOrgId', params.filterOrgId);
+  if (params?.dateFrom) qs.append('dateFrom', params.dateFrom);
+  if (params?.dateTo) qs.append('dateTo', params.dateTo);
 
   return paymentApiRequest<WithdrawalListResponse>(
     `/wallets/withdrawals?${qs.toString()}`,
@@ -823,6 +715,241 @@ export async function setAppPaymentMethodSetting(
 ): Promise<void> {
   return paymentApiRequest<void>(
     `/app-payment-method-settings/${encodeURIComponent(paymentMethodFeeId)}`,
+    { method: 'PATCH', body: JSON.stringify({ appId, isEnabled }) },
+    organizationId,
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Payout channels & withdrawal (refactor-payout-flow-plan.md §4.6, §5)
+// ---------------------------------------------------------------------------
+
+export type WithdrawalOwnerType = 'organization' | 'personal';
+
+export type WithdrawalChannel = {
+  /** Dikirim sebagai `payoutMethodFeeId` saat membuat withdrawal. */
+  id: string;
+  provider: string;
+  methodCode: string;
+  estimatedTime: string | null;
+  priority: number;
+  minAmount: number | null;
+  maxAmount: number | null;
+  feeAmount: number;
+  /** Nominal yang diterima rekening: amount - feeAmount. */
+  netAmount: number;
+  eligible: boolean;
+  reason: string | null;
+};
+
+export async function getWithdrawalChannels(
+  params: {
+    payoutAccountId: string;
+    amount: number;
+    currency?: string;
+    ownerType: WithdrawalOwnerType;
+    appId?: string;
+  },
+  organizationId?: string,
+): Promise<WithdrawalChannel[]> {
+  const qs = new URLSearchParams({
+    payoutAccountId: params.payoutAccountId,
+    amount: String(params.amount || 0),
+    ownerType: params.ownerType,
+  });
+  if (params.currency) qs.append('currency', params.currency);
+  if (params.appId) qs.append('appId', params.appId);
+  return paymentApiRequest<WithdrawalChannel[]>(
+    `/wallets/withdrawals/channels?${qs.toString()}`,
+    { method: 'GET' },
+    organizationId,
+  );
+}
+
+export type WithdrawalSummary = {
+  processingCount: number;
+  processingAmount: number;
+  paidThisMonth: number;
+};
+
+export async function getWithdrawalSummary(
+  ownerType: WithdrawalOwnerType,
+  currency?: string,
+  organizationId?: string,
+): Promise<WithdrawalSummary> {
+  const qs = new URLSearchParams({ ownerType });
+  if (currency) qs.append('currency', currency);
+  return paymentApiRequest<WithdrawalSummary>(
+    `/wallets/withdrawals/summary?${qs.toString()}`,
+    { method: 'GET' },
+    organizationId,
+  );
+}
+
+export async function cancelWithdrawalRequest(
+  id: string,
+  ownerType: WithdrawalOwnerType,
+  organizationId?: string,
+): Promise<WithdrawalRequest> {
+  const qs = new URLSearchParams({ ownerType });
+  return paymentApiRequest<WithdrawalRequest>(
+    `/wallets/withdrawals/${encodeURIComponent(id)}/cancel?${qs.toString()}`,
+    { method: 'POST' },
+    organizationId,
+  );
+}
+
+export type PayoutMethodType = 'bank' | 'ewallet';
+
+export type PayoutMethod = {
+  code: string;
+  name: string;
+  methodType: PayoutMethodType;
+  currency: string;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type PayoutMethodPayload = {
+  code?: string;
+  name?: string;
+  methodType?: PayoutMethodType;
+  currency?: string;
+  isActive?: boolean;
+};
+
+/** Metode tujuan aktif (untuk form rekening). */
+export async function listPayoutMethods(currency?: string): Promise<PayoutMethod[]> {
+  const qs = currency ? `?${new URLSearchParams({ currency }).toString()}` : '';
+  return paymentApiRequest<PayoutMethod[]>(`/payout-methods${qs}`, { method: 'GET' });
+}
+
+/** Semua metode termasuk nonaktif (admin). */
+export async function listAllPayoutMethods(): Promise<PayoutMethod[]> {
+  return paymentApiRequest<PayoutMethod[]>('/payout-methods/all', { method: 'GET' });
+}
+
+export async function createPayoutMethod(payload: PayoutMethodPayload): Promise<PayoutMethod> {
+  return paymentApiRequest<PayoutMethod>('/payout-methods', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function updatePayoutMethod(
+  code: string,
+  payload: PayoutMethodPayload,
+): Promise<PayoutMethod> {
+  return paymentApiRequest<PayoutMethod>(`/payout-methods/${encodeURIComponent(code)}`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  });
+}
+
+export type PayoutProvider = 'manual' | 'midtrans' | 'duitku';
+
+export type PayoutMethodFee = {
+  id: string;
+  provider: PayoutProvider | string;
+  methodCode: string;
+  providerMethodCode: string | null;
+  fixedFee: number;
+  percentageFee: number;
+  minFee: number | null;
+  maxFee: number | null;
+  minAmount: number | null;
+  maxAmount: number | null;
+  providerCost: number | null;
+  estimatedTime: string | null;
+  priority: number;
+  currency: string;
+  orgId: string;
+  appId: string;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type PayoutMethodFeePayload = Partial<
+  Omit<PayoutMethodFee, 'id' | 'createdAt' | 'updatedAt'>
+>;
+
+export type PayoutMethodFeeListResponse = {
+  data: PayoutMethodFee[];
+  total: number;
+  page: number;
+  limit: number;
+};
+
+export async function listPayoutMethodFees(params?: {
+  page?: number;
+  limit?: number;
+  provider?: string;
+  methodCode?: string;
+  currency?: string;
+  orgId?: string;
+  appId?: string;
+  isActive?: string;
+}): Promise<PayoutMethodFeeListResponse> {
+  const qs = new URLSearchParams();
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined && value !== '') qs.append(key, String(value));
+  });
+  const query = qs.toString();
+  return paymentApiRequest<PayoutMethodFeeListResponse>(
+    `/payout-method-fees${query ? `?${query}` : ''}`,
+    { method: 'GET' },
+  );
+}
+
+export async function createPayoutMethodFee(
+  payload: PayoutMethodFeePayload,
+): Promise<PayoutMethodFee> {
+  return paymentApiRequest<PayoutMethodFee>('/payout-method-fees', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function updatePayoutMethodFee(
+  id: string,
+  payload: PayoutMethodFeePayload,
+): Promise<PayoutMethodFee> {
+  return paymentApiRequest<PayoutMethodFee>(
+    `/payout-method-fees/${encodeURIComponent(id)}`,
+    { method: 'PATCH', body: JSON.stringify(payload) },
+  );
+}
+
+export async function deletePayoutMethodFee(id: string): Promise<void> {
+  return paymentApiRequest<void>(`/payout-method-fees/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+  });
+}
+
+export type AppPayoutChannel = PayoutMethodFee & { isEnabledForApp: boolean };
+
+export async function listAppPayoutChannels(
+  appId: string,
+  organizationId?: string,
+): Promise<AppPayoutChannel[]> {
+  const qs = new URLSearchParams({ appId });
+  return paymentApiRequest<AppPayoutChannel[]>(
+    `/app-payout-method-settings/available?${qs.toString()}`,
+    { method: 'GET' },
+    organizationId,
+  );
+}
+
+export async function setAppPayoutChannel(
+  payoutMethodFeeId: string,
+  appId: string,
+  isEnabled: boolean,
+  organizationId?: string,
+): Promise<void> {
+  return paymentApiRequest<void>(
+    `/app-payout-method-settings/${encodeURIComponent(payoutMethodFeeId)}`,
     { method: 'PATCH', body: JSON.stringify({ appId, isEnabled }) },
     organizationId,
   );

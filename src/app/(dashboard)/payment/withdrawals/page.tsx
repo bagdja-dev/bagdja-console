@@ -1,17 +1,21 @@
 'use client';
 
 import React, { useState } from 'react';
-import { ArrowDownLeft, ShieldCheck, Filter } from 'lucide-react';
-import WithdrawalRequestsGrid from '../../balance/WithdrawalRequestsGrid';
+import { ArrowDownLeft, ShieldCheck, ShieldAlert, Filter } from 'lucide-react';
+import AdminWithdrawalsGrid from '@/components/withdrawal/AdminWithdrawalsGrid';
+import { PAYOUT_PERMISSIONS } from '@/lib/payout-permissions';
+import { useOrganizationPermissions } from '@/lib/use-organization-permissions';
 type Currency = string;
 
 const SUPPORTED_CURRENCIES: (Currency | 'ALL')[] = ['ALL', 'IDR', 'USD', 'SGD'];
 
 export default function WithdrawalApprovalsPage() {
   const [selectedCurrency, setSelectedCurrency] = useState<Currency | 'ALL'>('ALL');
+  const { loading, hasSystemPermission } = useOrganizationPermissions();
+  const canViewAll = hasSystemPermission(PAYOUT_PERMISSIONS.WITHDRAWALS_VIEW_ALL);
 
   return (
-    <div className="flex flex-col h-full space-y-6 p-6">
+    <div className="flex flex-col h-full space-y-6 p-4 md:p-6">
       {/* Page Header */}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
@@ -65,19 +69,28 @@ export default function WithdrawalApprovalsPage() {
             Akses Administrator Platform & Finance
           </p>
           <p className="mt-0.5 text-blue-400/90 leading-relaxed">
-            Halaman ini menampilkan seluruh antrean penarikan dana (manual & otomatis) yang masuk dari dompet organisasi maupun personal di semua aplikasi. Penyetujuan manual akan menandai transaksi sebagai telah ditransfer, sedangkan penolakan secara atomik akan mengembalikan dana ke saldo dompet asal pemohon.
+            Halaman ini menampilkan seluruh antrean penarikan dana (manual & otomatis) dari dompet organisasi maupun personal di semua aplikasi. Approve menandai transfer manual selesai (nominal yang ditransfer = nominal diterima, biaya menjadi pendapatan platform); Reject mengembalikan dana yang ditahan ke saldo pemohon.
           </p>
         </div>
       </div>
 
       {/* Grid Container */}
-      <div className="flex-1 min-h-0 bg-[var(--bg-surface)] rounded-xl border border-[var(--border-default)] p-4 shadow-sm">
-        <WithdrawalRequestsGrid
-          key={`admin-grid-${selectedCurrency}`}
-          currency={selectedCurrency === 'ALL' ? undefined : selectedCurrency}
-          isAdminView={true}
-        />
-      </div>
+      {!loading && !canViewAll ? (
+        <div className="flex items-start gap-3 rounded-xl border border-amber-500/20 bg-amber-500/5 p-4 text-sm text-amber-500">
+          <ShieldAlert className="h-5 w-5 shrink-0" />
+          <p>
+            Halaman ini khusus anggota organisasi sistem dengan permission{' '}
+            <code className="font-mono">{PAYOUT_PERMISSIONS.WITHDRAWALS_VIEW_ALL}</code>.
+          </p>
+        </div>
+      ) : (
+        <div className="flex-1 min-h-0 bg-[var(--bg-surface)] rounded-xl border border-[var(--border-default)] p-4 shadow-sm">
+          <AdminWithdrawalsGrid
+            key={`admin-grid-${selectedCurrency}`}
+            currency={selectedCurrency === 'ALL' ? undefined : selectedCurrency}
+          />
+        </div>
+      )}
     </div>
   );
 }
