@@ -97,6 +97,7 @@ import {
   ShieldOff,
   CheckCircle2,
   RotateCcw,
+  Pencil,
 } from "lucide-react";
 import DataGrid, {
   type GridColumn,
@@ -116,7 +117,6 @@ import MessageTemplateModal from "@/components/MessageTemplateModal";
 import ChannelSetupModal from "@/components/ChannelSetupModal";
 import MessageLogDetailModal from "@/components/MessageLogDetailModal";
 import AlertModal, { AlertType } from "@/components/AlertModal";
-import { LoginBrandingSettings } from "@/components/LoginBrandingSettings";
 import AppPayoutChannelsCard from "@/components/AppPayoutChannelsCard";
 import { useLayout } from "@/context/LayoutContext";
 import { generateCurl } from "@/lib/utils";
@@ -1701,9 +1701,19 @@ export default function AppDetailPage() {
 
           {/* App Info */}
           <div className="flex-1 min-w-0">
-            <h1 className="text-2xl font-bold text-[var(--text-primary)] mb-2">
-              {app.appName}
-            </h1>
+            <div className="flex items-start justify-between gap-3 mb-2">
+              <h1 className="text-2xl font-bold text-[var(--text-primary)] break-words min-w-0">
+                {app.appName}
+              </h1>
+              <Link
+                href={`/applications/owned/${app.id}/edit`}
+                title="Edit app info & login appearance"
+                aria-label="Edit app"
+                className="flex-shrink-0 p-2 rounded-lg text-[var(--text-secondary)] hover:text-[var(--action-primary)] hover:bg-[var(--action-primary)]/10 transition-all"
+              >
+                <Pencil className="h-5 w-5" />
+              </Link>
+            </div>
             {app.description && (
               <p className="text-[var(--text-secondary)] mb-4">
                 {app.description}
@@ -4435,16 +4445,6 @@ export default function AppDetailPage() {
                 )}
               </button>
             </div>
-
-            {app && (
-              <div className="pt-8 border-t border-[var(--border-default)]">
-                <LoginBrandingSettings
-                  app={app}
-                  onSaved={setApp}
-                  showAlert={(message, type) => showAlert(message, type)}
-                />
-              </div>
-            )}
           </div>
         )}
       </div>

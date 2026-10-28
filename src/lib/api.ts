@@ -26,7 +26,7 @@ import type {
   CreateOrganizationRequest,
   UpdateOrganizationRequest,
   ClientApp,
-  UpdateLoginBrandingRequest,
+  UpdateClientAppRequest,
   CreateClientAppRequest,
   AppUser,
   Notification,
@@ -993,11 +993,11 @@ export async function updateOAuthRedirectUris(clientAppId: string, oauthRedirect
   });
 }
 
-export async function updateLoginBranding(
+export async function updateClientApp(
   clientAppId: string,
-  payload: UpdateLoginBrandingRequest,
+  payload: UpdateClientAppRequest,
 ): Promise<ClientApp> {
-  return apiRequest<ClientApp>(`/auth/client-apps/${clientAppId}/login-branding`, {
+  return apiRequest<ClientApp>(`/auth/client-apps/${clientAppId}`, {
     method: 'PATCH',
     body: JSON.stringify(payload),
   });

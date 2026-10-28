@@ -100,8 +100,15 @@ export interface ClientApp {
   brandingUrl?: string | null;
 }
 
-/** Body PATCH /auth/client-apps/:id/login-branding — null/"" = reset ke default Bagdja. */
-export interface UpdateLoginBrandingRequest {
+/**
+ * Body PATCH /auth/client-apps/:id — info umum + branding login.bagdja.com.
+ * Field tidak dikirim = tidak diubah; null/"" = kosongkan (branding kembali
+ * ke default Bagdja). `appName` tidak boleh kosong.
+ */
+export interface UpdateClientAppRequest {
+  appName?: string;
+  description?: string | null;
+  contactEmail?: string | null;
   logo?: string | null;
   loginBackgroundUrl?: string | null;
   brandingUrl?: string | null;
