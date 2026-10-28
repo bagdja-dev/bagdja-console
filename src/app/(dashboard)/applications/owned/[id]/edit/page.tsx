@@ -8,6 +8,7 @@ import { getClientApps, updateClientApp } from '@/lib/api';
 import type { ClientApp, ApiError } from '@/types';
 import AlertModal, { AlertType } from '@/components/AlertModal';
 import { LoginBrandingPreview } from '@/components/LoginBrandingPreview';
+import { AssetSelector } from '@/components/AssetSelector';
 
 const HTTPS_URL = /^https:\/\/\S+$/;
 const BRANDING_URL = /^https:\/\/\S*\{brand\}\S*$/;
@@ -260,46 +261,25 @@ export default function EditClientAppPage() {
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <div className="space-y-5">
-              <div className="space-y-2">
-                <label htmlFor="logo" className="text-sm font-medium text-[var(--text-primary)]">
-                  Logo URL
-                </label>
-                <input
-                  id="logo"
-                  type="url"
-                  value={form.logo}
-                  onChange={(e) => updateField('logo', e.target.value)}
-                  placeholder="https://cdn.example.com/logo.png"
-                  className={inputClassName}
-                />
-                {errors.logo ? (
-                  <p className="text-xs text-[var(--text-danger)]">{errors.logo}</p>
-                ) : (
-                  <p className="text-xs text-[var(--text-secondary)]">Also used as the app logo in this console.</p>
-                )}
-              </div>
+              <AssetSelector
+                label="Logo"
+                value={form.logo}
+                onChange={(url) => updateField('logo', url)}
+                disabled={saving}
+                filterByGroup="logo"
+                error={errors.logo ?? undefined}
+                helpText="Select an image asset. Also used as the app logo in this console."
+              />
 
-              <div className="space-y-2">
-                <label htmlFor="loginBackgroundUrl" className="text-sm font-medium text-[var(--text-primary)]">
-                  Background URL
-                </label>
-                <input
-                  id="loginBackgroundUrl"
-                  type="url"
-                  value={form.loginBackgroundUrl}
-                  onChange={(e) => updateField('loginBackgroundUrl', e.target.value)}
-                  placeholder="https://cdn.example.com/login-bg.jpg"
-                  className={inputClassName}
-                />
-                {errors.loginBackgroundUrl ? (
-                  <p className="text-xs text-[var(--text-danger)]">{errors.loginBackgroundUrl}</p>
-                ) : (
-                  <p className="text-xs text-[var(--text-secondary)]">
-                    Landscape, at least 1920×1080 recommended. A dark overlay is always applied so the login card stays
-                    readable.
-                  </p>
-                )}
-              </div>
+              <AssetSelector
+                label="Login Background"
+                value={form.loginBackgroundUrl}
+                onChange={(url) => updateField('loginBackgroundUrl', url)}
+                disabled={saving}
+                filterByGroup="background"
+                error={errors.loginBackgroundUrl ?? undefined}
+                helpText="Landscape, at least 1920×1080 recommended. A dark overlay is always applied so the login card stays readable."
+              />
 
               <div className="space-y-2">
                 <label htmlFor="brandingUrl" className="text-sm font-medium text-[var(--text-primary)]">
