@@ -495,7 +495,7 @@ export async function deleteBillingSetting(
 export async function listPayoutAccounts(params?: {
   page?: number;
   size?: number;
-  ownerType?: 'organization' | 'personal';
+  ownerType?: PayoutAccountOwnerType;
   ownerId?: string;
   organizationId?: string;
 }): Promise<PayoutAccountListResponse> {
@@ -507,24 +507,49 @@ export async function listPayoutAccounts(params?: {
   return paymentApiRequest<PayoutAccountListResponse>(`/payout-accounts/get?${qs.toString()}`, { method: 'GET' }, params?.organizationId);
 }
 
+export type PayoutAccountOwnerType = 'organization' | 'personal';
+
+/**
+ * Rekening personal vs organisasi (29 Okt 2026) — payment-service memisahkan
+ * keduanya; `ownerType` dikirim lewat query (dibaca sebelum body). Tanpa
+ * ownerType = rekening organisasi aktif.
+ */
+function ownerTypeQuery(ownerType?: PayoutAccountOwnerType): string {
+  return ownerType ? `?ownerType=${ownerType}` : '';
+}
+
 export async function createPayoutAccount(
   data: CreatePayoutAccountRequest,
   organizationId?: string,
+  ownerType?: PayoutAccountOwnerType,
 ): Promise<PayoutAccount> {
-  return paymentApiRequest<PayoutAccount>('/payout-account', { method: 'POST', body: JSON.stringify(data) }, organizationId);
+  return paymentApiRequest<PayoutAccount>(
+    `/payout-account${ownerTypeQuery(ownerType)}`,
+    { method: 'POST', body: JSON.stringify(data) },
+    organizationId,
+  );
 }
 
-export async function getPayoutAccountById(id: string, organizationId?: string): Promise<PayoutAccount> {
-  return paymentApiRequest<PayoutAccount>(`/payout-account/${encodeURIComponent(id)}`, { method: 'GET' }, organizationId);
+export async function getPayoutAccountById(
+  id: string,
+  organizationId?: string,
+  ownerType?: PayoutAccountOwnerType,
+): Promise<PayoutAccount> {
+  return paymentApiRequest<PayoutAccount>(
+    `/payout-account/${encodeURIComponent(id)}${ownerTypeQuery(ownerType)}`,
+    { method: 'GET' },
+    organizationId,
+  );
 }
 
 export async function updatePayoutAccount(
   id: string,
   data: UpdatePayoutAccountRequest,
   organizationId?: string,
+  ownerType?: PayoutAccountOwnerType,
 ): Promise<PayoutAccount> {
   return paymentApiRequest<PayoutAccount>(
-    `/payout-account/${encodeURIComponent(id)}`,
+    `/payout-account/${encodeURIComponent(id)}${ownerTypeQuery(ownerType)}`,
     { method: 'PUT', body: JSON.stringify(data) },
     organizationId,
   );

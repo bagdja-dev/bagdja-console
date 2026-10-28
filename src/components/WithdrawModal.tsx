@@ -305,7 +305,7 @@ export default function WithdrawModal({
                   Destination Payout Account
                 </label>
                 <Link
-                  href="/payment/payout-setup"
+                  href={isPersonal ? '/payment/payout-setup?owner=personal' : '/payment/payout-setup'}
                   className="text-xs text-[var(--action-primary)] hover:underline inline-flex items-center gap-1"
                 >
                   Manage accounts <ExternalLink className="h-3 w-3" />
@@ -327,7 +327,7 @@ export default function WithdrawModal({
                     You need to register a bank account before withdrawing funds.
                   </p>
                   <Link
-                    href="/payment/payout-setup"
+                    href={isPersonal ? '/payment/payout-setup?owner=personal' : '/payment/payout-setup'}
                     className="inline-flex items-center justify-center rounded-lg bg-[var(--action-primary)] px-3 py-1.5 text-xs font-medium text-white hover:bg-[var(--action-primary-hover)] transition-colors"
                   >
                     Set Up Bank Account

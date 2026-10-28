@@ -1,6 +1,7 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { Suspense, useCallback, useEffect, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Pencil, Plus, RefreshCw } from 'lucide-react';
 import { Button } from '@/ui/button';
 import { Select } from '@/ui/select';
@@ -11,6 +12,7 @@ import {
   updatePayoutAccount,
   type PayoutAccount,
   type CreatePayoutAccountRequest,
+  type PayoutAccountOwnerType,
 } from '@/lib/payment-api';
 import type { ApiError } from '@/types';
 import PayoutAccountModal from '@/components/PayoutAccountModal';
@@ -26,7 +28,31 @@ function formatDate(value?: string | null) {
   }).format(date);
 }
 
-export default function PayoutSetupPage() {
+const OWNER_TABS: { value: PayoutAccountOwnerType; label: string; description: string }[] = [
+  {
+    value: 'organization',
+    label: 'Organization',
+    description: 'Payout destinations for the active organization wallet.',
+  },
+  {
+    value: 'personal',
+    label: 'Personal',
+    description: 'Payout destinations for your personal wallet only.',
+  },
+];
+
+/**
+ * Rekening organisasi vs personal dipisah (29 Okt 2026) — payment-service tidak
+ * lagi mencampur keduanya. Tab dipilih lewat `?owner=personal` supaya modal
+ * withdraw personal bisa menautkan langsung ke tab yang benar.
+ */
+function PayoutSetupContent() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const ownerType: PayoutAccountOwnerType =
+    searchParams.get('owner') === 'personal' ? 'personal' : 'organization';
+  const activeTab = OWNER_TABS.find((tab) => tab.value === ownerType) ?? OWNER_TABS[0];
+
   const [page, setPage] = useState(1);
   const [size, setSize] = useState(10);
   const [total, setTotal] = useState(0);
@@ -46,7 +72,7 @@ export default function PayoutSetupPage() {
     try {
       setLoadingList(true);
       setError(null);
-      const result = await listPayoutAccounts({ page, size });
+      const result = await listPayoutAccounts({ page, size, ownerType });
       setItems(result.data || []);
       setTotal(result.total || 0);
       setLimit(result.limit || size);
@@ -56,7 +82,13 @@ export default function PayoutSetupPage() {
     } finally {
       setLoadingList(false);
     }
-  }, [page, size]);
+  }, [page, size, ownerType]);
+
+  const selectOwnerType = (value: PayoutAccountOwnerType) => {
+    if (value === ownerType) return;
+    setPage(1);
+    router.replace(value === 'personal' ? '/payment/payout-setup?owner=personal' : '/payment/payout-setup');
+  };
 
   useEffect(() => {
     load();
@@ -78,7 +110,7 @@ export default function PayoutSetupPage() {
     setModalOpen(true);
 
     try {
-      const detail = await getPayoutAccountById(account.id);
+      const detail = await getPayoutAccountById(account.id, undefined, ownerType);
       setModalAccount(detail);
     } catch (err) {
       const apiError = err as ApiError;
@@ -100,14 +132,14 @@ export default function PayoutSetupPage() {
   const handleModalSubmit = async (payload: CreatePayoutAccountRequest, accountId?: string) => {
     setError(null);
     if (modalMode === 'create') {
-      await createPayoutAccount(payload);
+      await createPayoutAccount(payload, undefined, ownerType);
       setPage(1);
       await load();
       return;
     }
 
     if (modalMode === 'edit' && accountId) {
-      await updatePayoutAccount(accountId, payload);
+      await updatePayoutAccount(accountId, payload, undefined, ownerType);
       await load();
     }
   };
@@ -119,6 +151,31 @@ export default function PayoutSetupPage() {
         <p className="mt-2 text-[var(--text-secondary)]">
           Configure where your earnings will be paid out.
         </p>
+      </div>
+
+      <div
+        role="tablist"
+        aria-label="Payout account owner"
+        className="mb-6 inline-flex w-full sm:w-auto rounded-lg border border-[var(--border-default)] bg-[var(--bg-surface)] p-1"
+      >
+        {OWNER_TABS.map((tab) => (
+          <button
+            key={tab.value}
+            type="button"
+            role="tab"
+            aria-selected={tab.value === ownerType}
+            onClick={() => selectOwnerType(tab.value)}
+            disabled={modalOpen}
+            className={[
+              'flex-1 sm:flex-none rounded-md px-4 py-2 text-sm font-medium transition-colors',
+              tab.value === ownerType
+                ? 'bg-[var(--action-primary)] text-white'
+                : 'text-[var(--text-secondary)] hover:text-[var(--text-primary)]',
+            ].join(' ')}
+          >
+            {tab.label}
+          </button>
+        ))}
       </div>
 
       {error && (
@@ -142,10 +199,10 @@ export default function PayoutSetupPage() {
       <div className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-surface)] overflow-hidden">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--border-default)] px-6 py-4">
           <div>
-            <h2 className="text-lg font-semibold text-[var(--text-primary)]">Payout accounts</h2>
-            <p className="mt-1 text-sm text-[var(--text-secondary)]">
-              Add and manage payout destinations for your organization.
-            </p>
+            <h2 className="text-lg font-semibold text-[var(--text-primary)]">
+              {activeTab.label} payout accounts
+            </h2>
+            <p className="mt-1 text-sm text-[var(--text-secondary)]">{activeTab.description}</p>
           </div>
           <div className="flex items-center gap-2">
             <Button
@@ -280,5 +337,19 @@ export default function PayoutSetupPage() {
         </div>
       </div>
     </>
+  );
+}
+
+export default function PayoutSetupPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex items-center justify-center min-h-[400px]">
+          <div className="text-[var(--text-secondary)]">Loading...</div>
+        </div>
+      }
+    >
+      <PayoutSetupContent />
+    </Suspense>
   );
 }
