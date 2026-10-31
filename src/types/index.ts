@@ -27,6 +27,16 @@ export interface User {
   profilePicture?: string;
 }
 
+/** Anggota aktif organisasi (GET /auth/organizations/:orgKey/members). */
+export interface OrganizationMember {
+  userId: string;
+  username: string | null;
+  email: string;
+  profilePicture: string | null;
+  role: { name: string; slug: string } | null;
+  joinedAt: string;
+}
+
 export interface ApiError {
   message: string;
   statusCode?: number;

@@ -20,6 +20,7 @@ import type {
   RegisterRequest, 
   User, 
   ApiError,
+  OrganizationMember,
   ClientTokenRequest,
   ClientTokenResponse,
   Organization,
@@ -350,6 +351,35 @@ export async function getUserById(userId: string): Promise<User> {
     const error = await response.json().catch(() => ({ message: 'Failed to fetch user' }));
     throw {
       message: error.message || 'Failed to fetch user',
+      statusCode: response.status,
+    } as ApiError;
+  }
+
+  return response.json();
+}
+
+/**
+ * Anggota aktif organisasi (slug atau UUID). Hanya anggota organisasi itu
+ * yang boleh memanggil; owner di urutan pertama.
+ */
+export async function getOrganizationMembers(orgKey: string): Promise<OrganizationMember[]> {
+  const token = requireAccessToken();
+
+  const response = await fetch(
+    `${AUTH_API_BASE}/auth/organizations/${encodeURIComponent(orgKey)}/members`,
+    {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+    },
+  );
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ message: 'Failed to load organization members' }));
+    throw {
+      message: error.message || 'Failed to load organization members',
       statusCode: response.status,
     } as ApiError;
   }
