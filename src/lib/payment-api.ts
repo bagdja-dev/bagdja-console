@@ -100,6 +100,10 @@ async function paymentApiRequest<T>(
     try {
       const errorData = await response.json();
       error.message = errorData.message || errorData.error || error.message;
+      if (typeof errorData.code === 'string') error.code = errorData.code;
+      if (typeof errorData.remainingAttempts === 'number') {
+        error.remainingAttempts = errorData.remainingAttempts;
+      }
     } catch {
       error.message = response.statusText || error.message;
     }
@@ -149,6 +153,10 @@ async function paymentApiRequestPersonal<T>(
     try {
       const errorData = await response.json();
       error.message = errorData.message || errorData.error || error.message;
+      if (typeof errorData.code === 'string') error.code = errorData.code;
+      if (typeof errorData.remainingAttempts === 'number') {
+        error.remainingAttempts = errorData.remainingAttempts;
+      }
     } catch {
       error.message = response.statusText || error.message;
     }
@@ -208,6 +216,9 @@ export type CreatePayoutAccountRequest = {
   network?: string;
   provider_name?: string;
   is_verified?: boolean;
+  /** OTP email `add_payout_account` untuk isi rekening ini (D14). */
+  otpId?: string;
+  otpCode?: string;
 };
 
 export type UpdatePayoutAccountRequest = Partial<CreatePayoutAccountRequest>;
@@ -626,6 +637,8 @@ export interface CreateWithdrawalPayload {
   currency?: string;
   payoutAccountId: string;
   description?: string;
+  /** PIN wallet pengaju (D14/D19). */
+  pin?: string;
 }
 
 export async function createWithdrawalRequest(
@@ -1013,5 +1026,148 @@ export async function setAppPayoutChannel(
     `/app-payout-method-settings/${encodeURIComponent(payoutMethodFeeId)}`,
     { method: 'PATCH', body: JSON.stringify({ appId, isEnabled }) },
     organizationId,
+  );
+}
+
+// ---------------------------------------------------------------------------
+// PIN & OTP wallet (D14/D19) — satu PIN per user, dikelola di pay-web.
+// ---------------------------------------------------------------------------
+
+export type WalletPinStatus = {
+  hasPin: boolean;
+  lockedUntil: string | null;
+  spendBlockedUntil: string | null;
+};
+
+export async function getWalletPinStatus(): Promise<WalletPinStatus> {
+  return paymentApiRequestPersonal<WalletPinStatus>('/wallets/pin/status', { method: 'GET' });
+}
+
+/** Isi rekening yang disetujui lewat OTP — harus sama persis dengan yang disimpan. */
+export type PayoutAccountOtpPayload = {
+  currency_code: string;
+  payout_method: string;
+  method_code?: string;
+  bank_name?: string;
+  account_identifier: string;
+  account_holder_name: string;
+};
+
+export type WalletOtpRequested = {
+  otpId: string;
+  expiresAt: string;
+  resendAvailableAt: string;
+  maskedEmail: string;
+};
+
+export async function requestPayoutAccountOtp(
+  payload: PayoutAccountOtpPayload,
+): Promise<WalletOtpRequested> {
+  return paymentApiRequestPersonal<WalletOtpRequested>('/wallets/otp', {
+    method: 'POST',
+    body: JSON.stringify({ purpose: 'add_payout_account', payload }),
+  });
+}
+
+/** Halaman pay-web untuk buat / ubah / lupa PIN, kembali ke halaman console ini. */
+export function walletPinPageUrl(returnUrl: string, mode?: 'forgot'): string {
+  const payWeb = (process.env.NEXT_PUBLIC_PAY_WEB_URL || 'http://localhost:3010').replace(/\/$/, '');
+  const params = new URLSearchParams({ returnUrl });
+  if (process.env.NEXT_PUBLIC_CLIENT_APP_ID) params.set('client_id', process.env.NEXT_PUBLIC_CLIENT_APP_ID);
+  if (mode) params.set('mode', mode);
+  return `${payWeb}/wallet/pin?${params.toString()}`;
+}
+
+// ---------------------------------------------------------------------------
+// Hosted withdraw pay-web (D10): dompet personal menarik dana lewat pay-web.
+// ---------------------------------------------------------------------------
+
+export type WithdrawalSessionCreated = { sessionToken: string; url: string; expiresAt: string };
+
+export async function createWithdrawalSession(params: {
+  currency: string;
+  returnUrl: string;
+  cancelUrl: string;
+}): Promise<WithdrawalSessionCreated> {
+  return paymentApiRequestPersonal<WithdrawalSessionCreated>('/wallets/withdrawal-sessions', {
+    method: 'POST',
+    body: JSON.stringify(params),
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Akses wallet org (D18): owner memberi anggota izin belanja dengan batas.
+// ---------------------------------------------------------------------------
+
+export type OrgWalletSpendGrant = {
+  id: string;
+  walletId: string;
+  orgId: string;
+  userId: string;
+  perTransactionLimit: number | null;
+  monthlyLimit: number | null;
+  monthlyUsed: number;
+  isActive: boolean;
+  grantedBy: string;
+  updatedAt: string;
+};
+
+export type OrgWalletSpendLimits = {
+  perTransactionLimit?: number | null;
+  monthlyLimit?: number | null;
+};
+
+export type OrgWalletMemberUsage = {
+  monthlyUsed: number;
+  monthStart: string;
+  transactions: { id: string; amount: number; type: string; description: string | null; created_at: string }[];
+};
+
+export async function listOrgWalletSpendGrants(walletId: string): Promise<OrgWalletSpendGrant[]> {
+  return paymentApiRequestPersonal<OrgWalletSpendGrant[]>(
+    `/wallets/${encodeURIComponent(walletId)}/spend-grants`,
+    { method: 'GET' },
+  );
+}
+
+export async function upsertOrgWalletSpendGrant(
+  walletId: string,
+  userId: string,
+  limits: OrgWalletSpendLimits,
+): Promise<OrgWalletSpendGrant> {
+  return paymentApiRequestPersonal<OrgWalletSpendGrant>(
+    `/wallets/${encodeURIComponent(walletId)}/spend-grants/${encodeURIComponent(userId)}`,
+    { method: 'PUT', body: JSON.stringify(limits) },
+  );
+}
+
+export async function updateOrgWalletSpendGrant(
+  walletId: string,
+  userId: string,
+  changes: OrgWalletSpendLimits & { isActive?: boolean },
+): Promise<OrgWalletSpendGrant> {
+  return paymentApiRequestPersonal<OrgWalletSpendGrant>(
+    `/wallets/${encodeURIComponent(walletId)}/spend-grants/${encodeURIComponent(userId)}`,
+    { method: 'PATCH', body: JSON.stringify(changes) },
+  );
+}
+
+export async function revokeOrgWalletSpendGrant(
+  walletId: string,
+  userId: string,
+): Promise<OrgWalletSpendGrant> {
+  return paymentApiRequestPersonal<OrgWalletSpendGrant>(
+    `/wallets/${encodeURIComponent(walletId)}/spend-grants/${encodeURIComponent(userId)}`,
+    { method: 'DELETE' },
+  );
+}
+
+export async function getOrgWalletMemberUsage(
+  walletId: string,
+  userId: string,
+): Promise<OrgWalletMemberUsage> {
+  return paymentApiRequestPersonal<OrgWalletMemberUsage>(
+    `/wallets/${encodeURIComponent(walletId)}/spend-grants/${encodeURIComponent(userId)}/usage`,
+    { method: 'GET' },
   );
 }

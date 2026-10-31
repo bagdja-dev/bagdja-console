@@ -13,11 +13,15 @@ import {
 } from 'lucide-react';
 import {
   createWithdrawalRequest,
+  getWalletPinStatus,
   getWithdrawalChannels,
   listPayoutAccounts,
+  walletPinPageUrl,
   type PayoutAccount,
+  type WalletPinStatus,
   type WithdrawalChannel,
 } from '@/lib/payment-api';
+import { walletErrorMessage } from '@/lib/wallet-errors';
 import { formatMoney } from '@/lib/money';
 
 type WithdrawModalProps = {
@@ -56,6 +60,23 @@ export default function WithdrawModal({
   const [channels, setChannels] = useState<WithdrawalChannel[]>([]);
   const [selectedChannelId, setSelectedChannelId] = useState<string>('');
   const [loadingChannels, setLoadingChannels] = useState(false);
+  // PIN wallet pengaju (D14/D19); dikelola di pay-web.
+  const [pin, setPin] = useState('');
+  const [pinStatus, setPinStatus] = useState<WalletPinStatus | null>(null);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    setPin('');
+    let mounted = true;
+    getWalletPinStatus()
+      .then((status) => mounted && setPinStatus(status))
+      .catch(() => mounted && setPinStatus(null));
+    return () => {
+      mounted = false;
+    };
+  }, [isOpen]);
+
+  const pinReady = pinStatus?.hasPin !== false && (pinStatus === null || pin.length === 6);
 
   // Fetch payout accounts when modal opens
   useEffect(() => {
@@ -193,12 +214,14 @@ export default function WithdrawModal({
         payoutAccountId: selectedAccountId,
         payoutMethodFeeId: legacyAccount ? undefined : selectedChannelId,
         description: description.trim() || undefined,
+        pin: pin || undefined,
       });
 
       setIsSuccess(true);
       onSuccess?.();
-    } catch (err: any) {
-      setError(err.message || 'Failed to submit withdrawal request');
+    } catch (err: unknown) {
+      setPin('');
+      setError(walletErrorMessage(err, 'Failed to submit withdrawal request'));
     } finally {
       setIsSubmitting(false);
     }
@@ -225,6 +248,11 @@ export default function WithdrawModal({
               <p className="text-sm text-[var(--text-secondary)]">
                 Withdraw from your {isPersonal ? 'personal' : 'organization'} {currency} wallet
               </p>
+              {!isPersonal && (
+                <p className="text-xs text-[var(--text-secondary)]">
+                  Only the organization owner can withdraw organization funds.
+                </p>
+              )}
             </div>
           </div>
           <button
@@ -486,6 +514,48 @@ export default function WithdrawModal({
               />
             </div>
 
+            {/* Wallet PIN (D14/D19) */}
+            {pinStatus?.hasPin === false ? (
+              <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-3 text-xs text-[var(--text-primary)]">
+                Create your wallet PIN before withdrawing.{' '}
+                <a
+                  href={typeof window !== 'undefined' ? walletPinPageUrl(window.location.href) : '#'}
+                  className="font-medium text-[var(--action-primary)] hover:underline"
+                >
+                  Set up PIN
+                </a>
+              </div>
+            ) : (
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="text-xs font-medium text-[var(--text-secondary)]">Wallet PIN</label>
+                  <a
+                    href={typeof window !== 'undefined' ? walletPinPageUrl(window.location.href, 'forgot') : '#'}
+                    className="text-xs text-[var(--action-primary)] hover:underline"
+                  >
+                    Forgot PIN?
+                  </a>
+                </div>
+                <input
+                  type="password"
+                  inputMode="numeric"
+                  autoComplete="off"
+                  maxLength={6}
+                  value={pin}
+                  onChange={(e) => setPin(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                  disabled={isSubmitting || accounts.length === 0}
+                  placeholder="••••••"
+                  className="w-full rounded-lg border border-[var(--border-default)] bg-[var(--bg-main)] p-2.5 text-center text-lg font-semibold tracking-[0.5em] text-[var(--text-primary)] focus:border-[var(--action-primary)] focus:outline-none"
+                />
+                {pinStatus?.spendBlockedUntil && (
+                  <p className="mt-1 text-xs text-amber-500">
+                    Withdrawals are on hold until {new Date(pinStatus.spendBlockedUntil).toLocaleString()} after a PIN
+                    reset.
+                  </p>
+                )}
+              </div>
+            )}
+
             {/* Actions */}
             <div className="mt-6 flex justify-end gap-3 pt-2">
               <button
@@ -504,7 +574,8 @@ export default function WithdrawModal({
                   !amount ||
                   Number(amount) <= 0 ||
                   Number(amount) > availableBalance ||
-                  (!legacyAccount && !selectedChannel?.eligible)
+                  (!legacyAccount && !selectedChannel?.eligible) ||
+                  !pinReady
                 }
                 className="flex items-center gap-2 rounded-lg bg-[var(--action-primary)] px-5 py-2 text-sm font-medium text-white hover:bg-[var(--action-primary-hover)] disabled:cursor-not-allowed disabled:bg-[var(--text-muted)] transition-colors"
               >

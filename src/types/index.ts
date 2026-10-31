@@ -30,6 +30,10 @@ export interface User {
 export interface ApiError {
   message: string;
   statusCode?: number;
+  /** Kode mesin dari payment-service, mis. WALLET_PIN_INVALID / WALLET_OTP_EXPIRED. */
+  code?: string;
+  /** Sisa percobaan PIN/OTP bila tersedia. */
+  remainingAttempts?: number;
 }
 
 export interface ClientTokenRequest {
