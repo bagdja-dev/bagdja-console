@@ -127,6 +127,12 @@ const menuItems: MenuItem[] = [
         href: '/balance/personal',
       },
       {
+        id: 'payment-wallet-access',
+        label: 'Wallet Access',
+        icon: ShieldCheck,
+        href: '/payment/wallet-access',
+      },
+      {
         id: 'payment-payout-setup',
         label: 'Payout Setup',
         icon: Settings,

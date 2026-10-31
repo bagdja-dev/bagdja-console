@@ -1,8 +1,14 @@
 'use client';
 
 import { useMemo, useState, useEffect, useCallback, useRef } from 'react';
-import { CheckCircle2, Clock3, Wallet as WalletIcon, Loader2, RefreshCw } from 'lucide-react';
-import { listUserWallets, activateUserWallet, type Wallet } from '@/lib/payment-api';
+import { CheckCircle2, Clock3, Wallet as WalletIcon, Loader2, RefreshCw, KeyRound } from 'lucide-react';
+import {
+  listUserWallets,
+  activateUserWallet,
+  createWithdrawalSession,
+  walletPinPageUrl,
+  type Wallet,
+} from '@/lib/payment-api';
 import { getSupportedCurrencies } from '@/lib/api';
 import { useLayout } from '@/context/LayoutContext';
 import WalletLedgerGrid from '../WalletLedgerGrid';
@@ -10,7 +16,6 @@ import WithdrawalRequestsGrid from '../WithdrawalRequestsGrid';
 import WithdrawalSummaryCards from '@/components/withdrawal/WithdrawalSummaryCards';
 import WalletBalanceTiles, { useWithdrawnTotals } from '@/components/withdrawal/WalletBalanceTiles';
 import TopUpModal from '@/components/TopUpModal';
-import WithdrawModal from '@/components/WithdrawModal';
 
 type Currency = string;
 type TabKey = 'transactions' | 'withdraw_requests';
@@ -149,12 +154,45 @@ export default function PersonalWalletPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [activatingCurrency, setActivatingCurrency] = useState<Currency | null>(null);
   const [topUpCurrency, setTopUpCurrency] = useState<Currency | null>(null);
-  const [withdrawWallet, setWithdrawWallet] = useState<WalletSummary | null>(null);
+  const [withdrawingCurrency, setWithdrawingCurrency] = useState<Currency | null>(null);
+  const [withdrawError, setWithdrawError] = useState<string | null>(null);
   const [withdrawRefreshKey, setWithdrawRefreshKey] = useState(0);
   const [selectedCurrency, setSelectedCurrency] = useState<Currency>('IDR');
   const [activeTab, setActiveTab] = useState<TabKey>('transactions');
   const { setTopbarContent } = useLayout();
   const headerRef = useRef<HTMLDivElement>(null);
+
+  /**
+   * D10: dompet personal menarik dana lewat hosted withdraw pay-web (rekening,
+   * nominal, PIN). Kembali ke halaman ini dengan `?withdrawalId=…&status=…`.
+   */
+  const handleWithdraw = async (wallet: WalletSummary) => {
+    setWithdrawError(null);
+    setWithdrawingCurrency(wallet.currency);
+    try {
+      const pageUrl = `${window.location.origin}/balance/personal`;
+      const session = await createWithdrawalSession({
+        currency: wallet.currency,
+        returnUrl: `${pageUrl}?currency=${encodeURIComponent(wallet.currency)}`,
+        cancelUrl: pageUrl,
+      });
+      window.location.assign(session.url);
+    } catch (error) {
+      setWithdrawError((error as { message?: string })?.message || 'Failed to open the withdrawal page');
+      setWithdrawingCurrency(null);
+    }
+  };
+
+  // Kembali dari hosted withdraw: tampilkan tab pengajuan untuk mata uang itu.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (!params.get('withdrawalId')) return;
+    const currency = params.get('currency');
+    if (currency) setSelectedCurrency(currency);
+    setActiveTab('withdraw_requests');
+    setWithdrawRefreshKey((prev) => prev + 1);
+    window.history.replaceState({}, '', window.location.pathname);
+  }, []);
 
   const fetchWallets = useCallback(async () => {
     try {
@@ -326,7 +364,24 @@ export default function PersonalWalletPage() {
             <RefreshCw className={`h-4.5 w-4.5 ${refreshing ? 'animate-spin' : ''}`} />
           </button>
         </div>
-        <p className="mt-2 text-[var(--text-secondary)]">View and manage your personal wallet balances.</p>
+        <div className="mt-2 flex flex-wrap items-center justify-between gap-3">
+          <p className="text-[var(--text-secondary)]">View and manage your personal wallet balances.</p>
+          <a
+            href={typeof window !== 'undefined' ? walletPinPageUrl(window.location.href) : '#'}
+            className="inline-flex items-center gap-2 rounded-lg border border-[var(--border-default)] bg-[var(--bg-main)] px-3 py-1.5 text-sm font-medium text-[var(--text-primary)] hover:border-[var(--action-primary)] hover:text-[var(--action-primary)] transition-colors"
+          >
+            <KeyRound className="h-4 w-4" />
+            Wallet PIN
+          </a>
+        </div>
+        {withdrawingCurrency && (
+          <p className="mt-2 text-sm text-[var(--text-secondary)]">Opening the withdrawal page…</p>
+        )}
+        {withdrawError && (
+          <p className="mt-2 rounded-lg border border-red-500/20 bg-red-500/10 px-3 py-2 text-sm text-red-500">
+            {withdrawError}
+          </p>
+        )}
       </div>
 
       <div className="mb-8 grid grid-cols-1 gap-4 lg:grid-cols-3 flex-shrink-0">
@@ -338,7 +393,7 @@ export default function PersonalWalletPage() {
             onActivate={() => handleActivate(wallet.currency)}
             onSelect={() => setSelectedCurrency(wallet.currency)}
             onTopUp={() => setTopUpCurrency(wallet.currency)}
-            onWithdraw={() => setWithdrawWallet(wallet)}
+            onWithdraw={() => void handleWithdraw(wallet)}
             isActivating={activatingCurrency === wallet.currency}
           />
         ))}
@@ -417,17 +472,6 @@ export default function PersonalWalletPage() {
         isPersonal={true}
       />
 
-      <WithdrawModal
-        isOpen={withdrawWallet !== null}
-        onClose={() => setWithdrawWallet(null)}
-        onSuccess={() => {
-          fetchWallets();
-          setWithdrawRefreshKey((prev) => prev + 1);
-        }}
-        currency={withdrawWallet?.currency || 'IDR'}
-        availableBalance={withdrawWallet?.availableBalance || 0}
-        isPersonal={true}
-      />
     </div>
   );
 }
