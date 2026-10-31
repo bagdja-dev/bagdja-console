@@ -8,10 +8,14 @@ import { Select } from '@/ui/select';
 import type { ApiError } from '@/types';
 import {
   listPayoutMethods,
+  requestPayoutAccountOtp,
   type CreatePayoutAccountRequest,
   type PayoutAccount,
+  type PayoutAccountOtpPayload,
   type PayoutMethod,
+  type WalletOtpRequested,
 } from '@/lib/payment-api';
+import { isOtpError, walletErrorMessage } from '@/lib/wallet-errors';
 
 /** Pilihan "Lainnya": bank di luar katalog, diproses manual tanpa channel. */
 const OTHER_METHOD = '__other__';
@@ -78,10 +82,17 @@ export default function PayoutAccountModal({
   const [form, setForm] = useState<FormState>(emptyForm);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // OTP email untuk tujuan dana baru/berubah (D14) — terikat isi rekening.
+  const [otp, setOtp] = useState<(WalletOtpRequested & { payloadKey: string }) | null>(null);
+  const [otpCode, setOtpCode] = useState('');
+  const [sendingOtp, setSendingOtp] = useState(false);
+  const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => {
     if (!isOpen) return;
     setError(null);
+    setOtp(null);
+    setOtpCode('');
 
     if (mode === 'edit' && account) {
       setForm({
@@ -132,9 +143,69 @@ export default function PayoutAccountModal({
 
   const disabled = Boolean(isLoadingInitial) || submitting;
 
+  /** Field penentu tujuan dana — sama dengan yang di-hash payment-service. */
+  const destination: PayoutAccountOtpPayload = useMemo(
+    () => ({
+      currency_code: form.currency_code,
+      payout_method: form.payout_method,
+      method_code: form.method_code && form.method_code !== OTHER_METHOD ? form.method_code : undefined,
+      bank_name: form.bank_name || undefined,
+      account_identifier: form.account_identifier,
+      account_holder_name: form.account_holder_name,
+    }),
+    [form],
+  );
+  const destinationKey = JSON.stringify(destination);
+
+  const destinationChanged =
+    mode === 'create' ||
+    !account ||
+    (account.currency_code || '') !== destination.currency_code ||
+    (account.payout_method || '') !== destination.payout_method ||
+    (account.method_code || '') !== (destination.method_code || '') ||
+    (account.bank_name || '') !== (destination.bank_name || '') ||
+    (account.account_identifier || '') !== destination.account_identifier ||
+    (account.account_holder_name || '') !== destination.account_holder_name;
+
+  // Isi rekening berubah setelah kode dikirim → kode lama tidak berlaku.
+  const otpValid = otp !== null && otp.payloadKey === destinationKey;
+
+  useEffect(() => {
+    if (!otp) return;
+    const timer = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, [otp]);
+
+  const resendSeconds = otp
+    ? Math.max(0, Math.ceil((new Date(otp.resendAvailableAt).getTime() - now) / 1000))
+    : 0;
+
+  const sendOtp = async () => {
+    if (!destination.account_identifier || !destination.account_holder_name) {
+      setError('Fill in the account holder name and account identifier first.');
+      return;
+    }
+    setSendingOtp(true);
+    setError(null);
+    try {
+      const requested = await requestPayoutAccountOtp(destination);
+      setOtp({ ...requested, payloadKey: destinationKey });
+      setOtpCode('');
+      setNow(Date.now());
+    } catch (err) {
+      setError(walletErrorMessage(err, 'Failed to send the verification code'));
+    } finally {
+      setSendingOtp(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (disabled) return;
+    if (destinationChanged && (!otpValid || otpCode.length !== 6)) {
+      setError('Verify this account with the code sent to your email.');
+      return;
+    }
 
     setSubmitting(true);
     setError(null);
@@ -153,6 +224,7 @@ export default function PayoutAccountModal({
         bank_address: form.bank_address || undefined,
         network: form.network || undefined,
         provider_name: form.provider_name || undefined,
+        ...(destinationChanged && otp ? { otpId: otp.otpId, otpCode } : {}),
       };
 
       const payload = omitEmptyStrings(payloadBase) as CreatePayoutAccountRequest;
@@ -160,8 +232,11 @@ export default function PayoutAccountModal({
       await onSubmit(payload, mode === 'edit' ? account?.id : undefined);
       onClose();
     } catch (err) {
-      const apiError = err as ApiError;
-      setError(apiError.message || 'Failed to save payout account');
+      setError(walletErrorMessage(err as ApiError, 'Failed to save payout account'));
+      if (isOtpError(err)) {
+        setOtp(null);
+        setOtpCode('');
+      }
     } finally {
       setSubmitting(false);
     }
@@ -315,6 +390,44 @@ export default function PayoutAccountModal({
               placeholder="e.g. TRC20 / ERC20"
             />
           </div>
+
+          {destinationChanged && (
+            <div className="rounded-lg border border-[var(--border-default)] bg-[var(--bg-main)] p-4 space-y-3">
+              <div>
+                <p className="text-sm font-medium text-[var(--text-primary)]">Email verification</p>
+                <p className="mt-0.5 text-xs text-[var(--text-secondary)]">
+                  For your security, new or changed payout destinations are confirmed with a code sent to your
+                  email. The code is valid for these exact account details.
+                </p>
+              </div>
+              {!otpValid ? (
+                <Button type="button" variant="secondary" onClick={sendOtp} disabled={disabled || sendingOtp}>
+                  {sendingOtp ? 'Sending…' : 'Send verification code'}
+                </Button>
+              ) : (
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-2 md:items-end">
+                  <Input
+                    label={`Code sent to ${otp?.maskedEmail ?? ''}`}
+                    value={otpCode}
+                    inputMode="numeric"
+                    autoComplete="one-time-code"
+                    maxLength={6}
+                    onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                    disabled={disabled}
+                    placeholder="6-digit code"
+                  />
+                  <button
+                    type="button"
+                    onClick={sendOtp}
+                    disabled={disabled || sendingOtp || resendSeconds > 0}
+                    className="text-left text-xs font-medium text-[var(--action-primary)] hover:underline disabled:cursor-not-allowed disabled:text-[var(--text-secondary)] disabled:no-underline"
+                  >
+                    {resendSeconds > 0 ? `Resend in ${resendSeconds}s` : 'Resend code'}
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
 
           <div className="pt-2 flex items-center justify-end gap-2">
             <Button variant="secondary" type="button" onClick={onClose} disabled={disabled}>
