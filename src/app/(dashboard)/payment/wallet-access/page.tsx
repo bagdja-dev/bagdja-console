@@ -6,8 +6,9 @@ import { Loader2, ShieldCheck, UserPlus, X } from 'lucide-react';
 import { Button } from '@/ui/button';
 import { Input } from '@/ui/input';
 import { Select } from '@/ui/select';
+import { FancySelect, type FancySelectOption } from '@/ui/fancy-select';
 import { getActiveOrganizationSlug } from '@/lib/auth';
-import { findUserByUsernameOrEmail, getUserById } from '@/lib/api';
+import { getOrganizationMembers } from '@/lib/api';
 import { formatMoney } from '@/lib/money';
 import {
   getOrgWalletMemberUsage,
@@ -20,7 +21,7 @@ import {
   type OrgWalletSpendGrant,
   type Wallet,
 } from '@/lib/payment-api';
-import type { ApiError, User } from '@/types';
+import type { ApiError, OrganizationMember } from '@/types';
 
 type LimitForm = { perTransactionLimit: string; monthlyLimit: string };
 const EMPTY_LIMITS: LimitForm = { perTransactionLimit: '', monthlyLimit: '' };
@@ -47,12 +48,13 @@ function WalletAccessContent() {
   const [wallets, setWallets] = useState<Wallet[]>([]);
   const [walletId, setWalletId] = useState<string>(searchParams.get('walletId') || '');
   const [grants, setGrants] = useState<OrgWalletSpendGrant[] | null>(null);
-  const [members, setMembers] = useState<Record<string, User | null>>({});
+  const [members, setMembers] = useState<OrganizationMember[]>([]);
+  const [membersLoading, setMembersLoading] = useState(true);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [forbidden, setForbidden] = useState(false);
 
-  const [identifier, setIdentifier] = useState('');
+  const [selectedMemberId, setSelectedMemberId] = useState('');
   const [newLimits, setNewLimits] = useState<LimitForm>(EMPTY_LIMITS);
   const [saving, setSaving] = useState(false);
 
@@ -64,13 +66,23 @@ function WalletAccessContent() {
   const wallet = useMemo(() => wallets.find((item) => item.id === walletId) ?? null, [walletId, wallets]);
   const currency = wallet?.currency_code || 'IDR';
 
+  const membersById = useMemo(
+    () => new Map(members.map((member) => [member.userId, member])),
+    [members],
+  );
+
   useEffect(() => {
     const orgSlug = getActiveOrganizationSlug();
     if (!orgSlug) {
       setError('Select an organization first.');
       setLoading(false);
+      setMembersLoading(false);
       return;
     }
+    getOrganizationMembers(orgSlug)
+      .then(setMembers)
+      .catch((err) => setError(errorText(err, 'Failed to load organization members')))
+      .finally(() => setMembersLoading(false));
     listWallets(orgSlug)
       .then((list) => {
         const active = (list || []).filter((item) => item.is_active);
@@ -90,15 +102,7 @@ function WalletAccessContent() {
     setError(null);
     setForbidden(false);
     try {
-      const list = await listOrgWalletSpendGrants(walletId);
-      setGrants(list);
-      const missing = list.map((grant) => grant.userId).filter((id) => !(id in members));
-      if (missing.length > 0) {
-        const resolved = await Promise.all(
-          missing.map(async (id) => [id, await getUserById(id).catch(() => null)] as const),
-        );
-        setMembers((prev) => ({ ...prev, ...Object.fromEntries(resolved) }));
-      }
+      setGrants(await listOrgWalletSpendGrants(walletId));
     } catch (err) {
       if ((err as Partial<ApiError>)?.statusCode === 403) setForbidden(true);
       else setError(errorText(err, 'Failed to load wallet access'));
@@ -106,8 +110,6 @@ function WalletAccessContent() {
     } finally {
       setLoading(false);
     }
-    // `members` hanya cache nama; tidak perlu memicu muat ulang grant.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [walletId]);
 
   useEffect(() => {
@@ -124,10 +126,8 @@ function WalletAccessContent() {
     setSaving(true);
     setError(null);
     try {
-      const user = await findUserByUsernameOrEmail(identifier.trim());
-      setMembers((prev) => ({ ...prev, [user.id]: user }));
-      await upsertOrgWalletSpendGrant(walletId, user.id, { perTransactionLimit, monthlyLimit });
-      setIdentifier('');
+      await upsertOrgWalletSpendGrant(walletId, selectedMemberId, { perTransactionLimit, monthlyLimit });
+      setSelectedMemberId('');
       setNewLimits(EMPTY_LIMITS);
       await loadGrants();
     } catch (err) {
@@ -182,9 +182,23 @@ function WalletAccessContent() {
   };
 
   const memberLabel = (userId: string) => {
-    const user = members[userId];
-    return user ? user.name || user.username || user.email : userId;
+    const member = membersById.get(userId);
+    return member ? member.username || member.email : 'Former member';
   };
+
+  // Owner sudah punya akses penuh; tandai anggota yang sudah punya grant aktif.
+  const memberOptions: FancySelectOption[] = useMemo(() => {
+    const activeGrants = new Set((grants ?? []).filter((grant) => grant.isActive).map((grant) => grant.userId));
+    return members
+      .filter((member) => member.role?.slug !== 'owner')
+      .map((member) => ({
+        value: member.userId,
+        label: member.username || member.email,
+        description: [member.email, member.role?.name, activeGrants.has(member.userId) ? 'has access — saving updates the limits' : null]
+          .filter(Boolean)
+          .join(' · '),
+      }));
+  }, [grants, members]);
   const limitText = (value: number | null) => (value == null ? 'No limit' : formatMoney(value, currency));
 
   return (
@@ -232,12 +246,17 @@ function WalletAccessContent() {
               <h2 className="text-lg font-semibold text-[var(--text-primary)]">Give a member access</h2>
             </div>
             <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-              <Input
-                label="Member email or username"
-                value={identifier}
-                onChange={(e) => setIdentifier(e.target.value)}
-                placeholder="budi@example.com"
+              <FancySelect
+                label="Member"
+                value={selectedMemberId}
+                onChange={setSelectedMemberId}
+                options={memberOptions}
+                placeholder="Choose a member"
+                searchPlaceholder="Search by username or email…"
+                emptyText="No other members in this organization"
+                loading={membersLoading}
                 disabled={saving || !walletId}
+                searchable
               />
               <Input
                 label={`Per transaction limit (${currency})`}
@@ -257,7 +276,7 @@ function WalletAccessContent() {
               />
             </div>
             <div className="flex justify-end">
-              <Button variant="primary" onClick={addMember} disabled={saving || !walletId || !identifier.trim()}>
+              <Button variant="primary" onClick={addMember} disabled={saving || !walletId || !selectedMemberId}>
                 {saving ? 'Saving…' : 'Grant access'}
               </Button>
             </div>
@@ -294,7 +313,9 @@ function WalletAccessContent() {
                     <tr key={grant.id} className="border-b border-[var(--border-default)] last:border-0">
                       <td className="px-4 py-3">
                         <div className="font-medium text-[var(--text-primary)]">{memberLabel(grant.userId)}</div>
-                        <div className="text-xs text-[var(--text-secondary)]">{members[grant.userId]?.email || ''}</div>
+                        <div className="text-xs text-[var(--text-secondary)]">
+                          {membersById.get(grant.userId)?.email || 'No longer in this organization'}
+                        </div>
                       </td>
                       <td className="px-4 py-3 text-[var(--text-primary)]">{limitText(grant.perTransactionLimit)}</td>
                       <td className="px-4 py-3 text-[var(--text-primary)]">{limitText(grant.monthlyLimit)}</td>
