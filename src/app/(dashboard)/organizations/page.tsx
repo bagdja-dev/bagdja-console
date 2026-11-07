@@ -2,21 +2,34 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { getOrganizations, updateOrganization } from '@/lib/api';
-import { setActiveOrganization as persistActiveOrganization } from '@/lib/auth';
+import { deleteOrganization, getOrganizations, updateOrganization } from '@/lib/api';
+import {
+  clearActiveOrganization,
+  getActiveOrganizationId,
+  setActiveOrganization as persistActiveOrganization,
+} from '@/lib/auth';
 import { AssetSelector } from '@/components/AssetSelector';
-import type { Organization, ApiError } from '@/types';
-import { Plus, Building, Mail, Calendar, User, Edit, X } from 'lucide-react';
+import type { Organization, ApiError, UpdateOrganizationRequest } from '@/types';
+import { Plus, Building, Mail, Calendar, User, Edit, X, Trash2 } from 'lucide-react';
 import { Button } from '@/ui/button';
+import { Input } from '@/ui/input';
 
 export default function OrganizationsPage() {
   const router = useRouter();
   const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [editingOrgId, setEditingOrgId] = useState<string | null>(null); // orgId (slug)
+  const [editingOrganization, setEditingOrganization] = useState<Organization | null>(null);
+  const [editForm, setEditForm] = useState({
+    name: '',
+    description: '',
+    contactEmail: '',
+  });
   const [selectedLogo, setSelectedLogo] = useState<string>('');
   const [updating, setUpdating] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<Organization | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchOrganizations = async () => {
@@ -46,44 +59,85 @@ export default function OrganizationsPage() {
     router.push('/dashboard');
   };
 
-  const handleEditLogo = (org: Organization) => {
-    setEditingOrgId(org.orgId);
-    setSelectedLogo(org.logo || '');
+  const handleEditOrganization = (org: Organization) => {
+    setEditingOrganization(org);
+    setEditForm({
+      name: org.name,
+      description: org.description ?? '',
+      contactEmail: org.contactEmail ?? '',
+    });
+    setSelectedLogo(org.logo ?? '');
+    setActionError(null);
   };
 
   const handleCloseModal = () => {
-    setEditingOrgId(null);
+    setEditingOrganization(null);
     setSelectedLogo('');
+    setActionError(null);
   };
 
-  const handleSaveLogo = async () => {
-    if (!editingOrgId) return;
+  const handleSaveOrganization = async () => {
+    if (!editingOrganization) return;
 
     setUpdating(true);
+    setActionError(null);
     try {
-      const updatedOrg = await updateOrganization(editingOrgId, {
-        logo: selectedLogo || undefined,
-      });
+      const update: UpdateOrganizationRequest = {
+        name: editForm.name.trim(),
+        description: editForm.description.trim() || null,
+        contactEmail: editForm.contactEmail.trim() || null,
+        logo: selectedLogo.trim() || null,
+      };
+      const updatedOrg = await updateOrganization(editingOrganization.orgId, update);
 
-      // Update organizations list
       setOrganizations(orgs =>
-        orgs.map(org => (org.orgId === editingOrgId ? updatedOrg : org)),
+        orgs.map(org => (org.orgId === editingOrganization.orgId ? updatedOrg : org)),
       );
 
-      // Dispatch event to refresh Topbar
+      if (getActiveOrganizationId() === updatedOrg.orgId) {
+        persistActiveOrganization(updatedOrg);
+      }
       if (typeof window !== 'undefined') {
-        window.dispatchEvent(new CustomEvent('organizationChanged', { 
-          detail: { organizationId: editingOrgId } 
-        }));
+        window.dispatchEvent(
+          new CustomEvent('organizationChanged', {
+            detail: { organizationId: updatedOrg.orgId },
+          }),
+        );
       }
 
       handleCloseModal();
     } catch (err) {
       const apiError = err as ApiError;
-      setError(apiError.message || 'Failed to update organization logo');
-      console.error('Failed to update organization logo:', err);
+      setActionError(apiError.message || 'Failed to update organization');
     } finally {
       setUpdating(false);
+    }
+  };
+
+  const handleDeleteOrganization = async () => {
+    if (!deleteTarget) return;
+
+    setDeleting(true);
+    setActionError(null);
+    try {
+      await deleteOrganization(deleteTarget.orgId);
+      setOrganizations(orgs => orgs.filter(org => org.id !== deleteTarget.id));
+
+      if (getActiveOrganizationId() === deleteTarget.orgId) {
+        clearActiveOrganization();
+        window.dispatchEvent(
+          new CustomEvent('organizationChanged', {
+            detail: { organizationId: null },
+          }),
+        );
+      }
+
+      setDeleteTarget(null);
+    } catch (err) {
+      const apiError = err as ApiError;
+      setActionError(apiError.message || 'Failed to delete organization');
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -240,20 +294,6 @@ export default function OrganizationsPage() {
                           ) : (
                             <Building className="h-5 w-5" />
                           )}
-                          {/* Edit icon on hover - only show if user is owner */}
-                          {org.role?.slug === 'owner' && (
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleEditLogo(org);
-                              }}
-                              className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity"
-                              title="Edit logo"
-                            >
-                              <Edit className="h-4 w-4 text-white" />
-                            </button>
-                          )}
                         </div>
                         <div className="ml-4">
                           <div className="text-sm font-medium text-[var(--text-primary)]">
@@ -312,6 +352,33 @@ export default function OrganizationsPage() {
                       >
                         Select
                       </button>
+                      {org.role?.slug === 'owner' && (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => handleEditOrganization(org)}
+                            className="ml-2 inline-flex items-center gap-1 rounded px-2 py-1 text-[var(--text-secondary)] hover:text-[var(--action-primary)]"
+                            aria-label={`Edit ${org.name}`}
+                          >
+                            <Edit className="h-4 w-4" />
+                            Edit
+                          </button>
+                          {!org.isSystemOrg && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setDeleteTarget(org);
+                                setActionError(null);
+                              }}
+                              className="ml-2 inline-flex items-center gap-1 rounded px-2 py-1 text-[var(--brand-error)] hover:opacity-80"
+                              aria-label={`Delete ${org.name}`}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                              Delete
+                            </button>
+                          )}
+                        </>
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -321,13 +388,13 @@ export default function OrganizationsPage() {
         </div>
       )}
 
-      {/* Edit Logo Modal */}
-      {editingOrgId && (
+      {/* Edit Organization Modal */}
+      {editingOrganization && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className="bg-[var(--bg-surface)] rounded-lg border border-[var(--border-default)] p-6 max-w-md w-full mx-4 shadow-xl">
+          <div className="max-h-[90vh] w-full max-w-xl overflow-y-auto rounded-lg border border-[var(--border-default)] bg-[var(--bg-surface)] p-6 mx-4 shadow-xl">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-xl font-semibold text-[var(--text-primary)]">
-                Edit Organization Logo
+                Edit Organization
               </h2>
               <button
                 type="button"
@@ -340,6 +407,37 @@ export default function OrganizationsPage() {
             </div>
 
             <div className="space-y-4">
+              <Input
+                label="Organization Name"
+                type="text"
+                required
+                value={editForm.name}
+                onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                disabled={updating}
+              />
+              <div>
+                <label
+                  htmlFor="organization-description"
+                  className="mb-1 block text-sm font-medium text-[var(--text-primary)]"
+                >
+                  Description
+                </label>
+                <textarea
+                  id="organization-description"
+                  rows={3}
+                  value={editForm.description}
+                  onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
+                  disabled={updating}
+                  className="w-full rounded-md border border-[var(--border-default)] bg-[var(--bg-main)] px-3 py-2 text-sm text-[var(--text-primary)] focus:border-[var(--action-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--action-primary)] disabled:opacity-50"
+                />
+              </div>
+              <Input
+                label="Contact Email"
+                type="email"
+                value={editForm.contactEmail}
+                onChange={(e) => setEditForm({ ...editForm, contactEmail: e.target.value })}
+                disabled={updating}
+              />
               <AssetSelector
                 label="Logo"
                 value={selectedLogo}
@@ -349,12 +447,12 @@ export default function OrganizationsPage() {
                 helpText="Select an image asset to use as organization logo"
               />
 
-              {error && (
+              {actionError && (
                 <div
                   className="rounded-md bg-[var(--brand-error)]/20 border border-[var(--brand-error)]/30 p-3 text-sm text-[var(--brand-error)]"
                   role="alert"
                 >
-                  {error}
+                  {actionError}
                 </div>
               )}
 
@@ -369,12 +467,70 @@ export default function OrganizationsPage() {
                 </Button>
                 <Button
                   type="button"
-                  onClick={handleSaveLogo}
-                  disabled={updating}
+                  onClick={handleSaveOrganization}
+                  disabled={updating || !editForm.name.trim()}
                 >
-                  {updating ? 'Saving...' : 'Save'}
+                  {updating ? 'Saving...' : 'Save changes'}
                 </Button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {deleteTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="delete-organization-title"
+            className="w-full max-w-lg rounded-lg border border-[var(--border-default)] bg-[var(--bg-surface)] p-6 shadow-xl"
+          >
+            <div className="mb-4 flex items-center justify-between">
+              <h2
+                id="delete-organization-title"
+                className="text-xl font-semibold text-[var(--text-primary)]"
+              >
+                Delete organization?
+              </h2>
+              <button
+                type="button"
+                onClick={() => setDeleteTarget(null)}
+                className="text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                disabled={deleting}
+                aria-label="Close"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <p className="text-sm text-[var(--text-secondary)]">
+              <strong>{deleteTarget.name}</strong> will be deactivated and removed from your active organizations. Its memberships, apps, wallets, and transaction history will be retained. Active client-app tokens may continue working until they expire.
+            </p>
+            {actionError && (
+              <div
+                className="mt-4 rounded-md bg-[var(--brand-error)]/20 border border-[var(--brand-error)]/30 p-3 text-sm text-[var(--brand-error)]"
+                role="alert"
+              >
+                {actionError}
+              </div>
+            )}
+            <div className="mt-6 flex justify-end gap-3">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setDeleteTarget(null)}
+                disabled={deleting}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="button"
+                onClick={handleDeleteOrganization}
+                disabled={deleting}
+                className="bg-[var(--brand-error)] text-white hover:opacity-90"
+              >
+                {deleting ? 'Deleting...' : 'Deactivate organization'}
+              </Button>
             </div>
           </div>
         </div>
