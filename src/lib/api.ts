@@ -317,10 +317,21 @@ export async function updateOrganization(
   orgId: string,
   data: UpdateOrganizationRequest
 ): Promise<Organization> {
-  return apiRequest<Organization>(`/auth/organizations/${orgId}`, {
+  return apiRequest<Organization>(`/auth/organizations/${encodeURIComponent(orgId)}`, {
     method: 'PUT',
     body: JSON.stringify(data),
   });
+}
+
+/**
+ * Soft-delete an organization. The Auth service deactivates it and retains
+ * memberships and related records.
+ */
+export async function deleteOrganization(orgId: string): Promise<Organization> {
+  return apiRequest<Organization>(
+    `/auth/organizations/${encodeURIComponent(orgId)}`,
+    { method: 'DELETE' },
+  );
 }
 
 /**
@@ -1032,4 +1043,3 @@ export async function updateClientApp(
     body: JSON.stringify(payload),
   });
 }
-

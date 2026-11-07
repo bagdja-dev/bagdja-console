@@ -61,12 +61,12 @@ export interface Organization {
   id: string;
   name: string;
   orgId: string;
-  description?: string;
+  description?: string | null;
   isActive: boolean;
   isSystemOrg?: boolean;
   permissions?: string[];
-  logo?: string;
-  contactEmail?: string;
+  logo?: string | null;
+  contactEmail?: string | null;
   createdAt?: Date;
   updatedAt?: Date;
   role?: {
@@ -87,9 +87,9 @@ export interface CreateOrganizationRequest {
 export interface UpdateOrganizationRequest {
   name?: string;
   orgId?: string;
-  description?: string;
-  logo?: string;
-  contactEmail?: string;
+  description?: string | null;
+  logo?: string | null;
+  contactEmail?: string | null;
 }
 
 export interface ClientApp {
