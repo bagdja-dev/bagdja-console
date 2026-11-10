@@ -1,19 +1,16 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import dynamic from 'next/dynamic';
-import { X, Mail, AlertCircle, Info, Code2 } from 'lucide-react';
+import { X, AlertCircle, Info, Code2 } from 'lucide-react';
 import { Input } from '@/ui/input';
 import { Button } from '@/ui/button';
 import { ChannelType, CreateTemplateRequest, UpdateTemplateRequest } from '@/types';
 
-// Dynamically import ReactQuill to avoid SSR issues
-const ReactQuill = dynamic(() => import('react-quill-new'), {
+const EmailTemplateBuilder = dynamic(() => import('./EmailTemplateBuilder'), {
   ssr: false,
-  loading: () => <div className="h-80 w-full bg-gray-900 animate-pulse rounded-xl border border-gray-800" />
+  loading: () => <div className="h-full w-full animate-pulse rounded-xl border border-gray-800 bg-gray-900" />,
 });
-
-import 'react-quill-new/dist/quill.snow.css';
 
 interface MessageTemplateModalProps {
   isOpen: boolean;
@@ -35,26 +32,11 @@ export default function MessageTemplateModal({
   const [content, setContent] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [isRawMode, setIsRawMode] = useState(true);
-
-  // Quill modules configuration
-  const modules = useMemo(() => ({
-    toolbar: {
-      container: [
-        [{ 'header': [1, 2, 3, false] }],
-        ['bold', 'italic', 'underline', 'strike'],
-        [{ 'color': [] }, { 'background': [] }],
-        [{ 'list': 'ordered' }, { 'list': 'bullet' }],
-        [{ 'align': [] }],
-        ['link', 'image'],
-        ['clean']
-      ],
-    },
-  }), []);
+  const [builderInstance, setBuilderInstance] = useState(0);
 
   useEffect(() => {
     if (isOpen) {
-      setIsRawMode(channelType === ChannelType.EMAIL);
+      setBuilderInstance((instance) => instance + 1);
       if (initialData) {
         setName(initialData.name);
         setSubject(initialData.subject || '');
@@ -67,17 +49,6 @@ export default function MessageTemplateModal({
       setError(null);
     }
   }, [isOpen, initialData, channelType]);
-
-  const toggleEditorMode = () => {
-    if (isRawMode) {
-      const shouldSwitch = window.confirm(
-        'Switching to Rich Text may rewrite your HTML structure and email layout. Continue?',
-      );
-      if (!shouldSwitch) return;
-    }
-
-    setIsRawMode(!isRawMode);
-  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -98,7 +69,7 @@ export default function MessageTemplateModal({
       const payload: any = {
         name: name.trim(),
         channelType,
-        content: content.trim(),
+        content,
       };
 
       if (channelType === ChannelType.EMAIL) {
@@ -122,11 +93,11 @@ export default function MessageTemplateModal({
         className="bg-[var(--bg-surface)] rounded-2xl border border-[var(--border-default)] shadow-2xl animate-in fade-in zoom-in duration-200 flex flex-col max-h-[90vh] relative overflow-hidden"
         style={{
           resize: 'both',
-          width: '800px',
+          width: channelType === ChannelType.EMAIL ? '1100px' : '800px',
           height: '850px',
           minWidth: '500px',
           minHeight: '600px',
-          maxWidth: '95vw'
+          maxWidth: '97vw'
         }}
       >
         <div className="flex items-center justify-between p-6 border-b border-[var(--border-default)] shrink-0">
@@ -195,90 +166,24 @@ export default function MessageTemplateModal({
             <div className="flex-1 flex flex-col min-h-0 space-y-2">
               <div className="flex items-center justify-between shrink-0">
                 <label className="text-sm font-bold text-[var(--text-primary)]">
-                  Content {channelType === ChannelType.EMAIL
-                    ? isRawMode ? '(Raw HTML)' : '(Rich Text)'
-                    : '(Plain Text)'}
+                  Content {channelType === ChannelType.EMAIL ? '(Email Builder)' : '(Plain Text)'}
                 </label>
                 <div className="flex items-center gap-4">
-                  {channelType === ChannelType.EMAIL && (
-                    <button
-                      type="button"
-                      onClick={toggleEditorMode}
-                      className={`flex items-center gap-1.5 px-2 py-1 rounded text-[10px] font-bold uppercase transition-colors ${isRawMode
-                          ? 'bg-[var(--action-primary)] text-white'
-                          : 'bg-white/5 text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
-                        }`}
-                    >
-                      <Code2 className="h-3 w-3" />
-                      {isRawMode ? 'Exit Raw HTML' : 'Raw HTML'}
-                    </button>
-                  )}
                   <span className="text-[10px] text-[var(--text-secondary)]">
-                    {channelType === ChannelType.EMAIL && isRawMode
-                      ? 'HTML source is preserved. Use {{variable}} for dynamic values'
+                    {channelType === ChannelType.EMAIL
+                      ? 'Visual editing exports email-safe HTML with inline styles'
                       : `Use {{variable}} for dynamic values`}
                   </span>
                 </div>
               </div>
 
               {channelType === ChannelType.EMAIL ? (
-                <div className="quill-dark-theme flex-1 flex flex-col min-h-0">
-                  {isRawMode ? (
-                    <textarea
-                      className="flex-1 w-full bg-gray-900 text-gray-100 font-mono text-sm p-4 rounded-xl border border-gray-800 focus:outline-none focus:ring-2 focus:ring-primary/50 resize-none"
-                      value={content}
-                      onChange={(e) => setContent(e.target.value)}
-                      spellCheck={false}
-                      placeholder="<html>...</html>"
-                    />
-                  ) : (
-                    <ReactQuill
-                      theme="snow"
-                      value={content}
-                      onChange={setContent}
-                      modules={modules}
-                      placeholder="Write your email content here... Use {{username}} for dynamic data."
-                      className="flex-1 flex flex-col min-h-0"
-                    />
-                  )}
-                  <style jsx global>{`
-                    .quill-dark-theme .ql-toolbar {
-                      background-color: #1f2937;
-                      border-color: #374151;
-                      border-top-left-radius: 0.75rem;
-                      border-top-right-radius: 0.75rem;
-                      flex-shrink: 0;
-                    }
-                    .quill-dark-theme .ql-container {
-                      background-color: #ffffff;
-                      border-color: #374151;
-                      border-bottom-left-radius: 0.75rem;
-                      border-bottom-right-radius: 0.75rem;
-                      font-family: inherit;
-                      flex: 1;
-                      display: flex;
-                      flex-direction: column;
-                      min-height: 0;
-                    }
-                    .quill-dark-theme .ql-editor {
-                      color: #111827;
-                      flex: 1;
-                      overflow-y: auto;
-                    }
-                    .quill-dark-theme .ql-stroke {
-                      stroke: #9ca3af;
-                    }
-                    .quill-dark-theme .ql-fill {
-                      fill: #9ca3af;
-                    }
-                    .quill-dark-theme .ql-picker {
-                      color: #9ca3af;
-                    }
-                    .quill-dark-theme .ql-picker-options {
-                      background-color: #1f2937;
-                      border-color: #374151;
-                    }
-                  `}</style>
+                <div className="flex-1 flex flex-col min-h-0">
+                  <EmailTemplateBuilder
+                    key={builderInstance}
+                    initialHtml={content}
+                    onChange={setContent}
+                  />
                 </div>
               ) : (
                 <textarea
