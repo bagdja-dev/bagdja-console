@@ -35,7 +35,7 @@ export default function MessageTemplateModal({
   const [content, setContent] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [isRawMode, setIsRawMode] = useState(false);
+  const [isRawMode, setIsRawMode] = useState(true);
 
   // Quill modules configuration
   const modules = useMemo(() => ({
@@ -54,6 +54,7 @@ export default function MessageTemplateModal({
 
   useEffect(() => {
     if (isOpen) {
+      setIsRawMode(channelType === ChannelType.EMAIL);
       if (initialData) {
         setName(initialData.name);
         setSubject(initialData.subject || '');
@@ -65,7 +66,18 @@ export default function MessageTemplateModal({
       }
       setError(null);
     }
-  }, [isOpen, initialData]);
+  }, [isOpen, initialData, channelType]);
+
+  const toggleEditorMode = () => {
+    if (isRawMode) {
+      const shouldSwitch = window.confirm(
+        'Switching to Rich Text may rewrite your HTML structure and email layout. Continue?',
+      );
+      if (!shouldSwitch) return;
+    }
+
+    setIsRawMode(!isRawMode);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -183,13 +195,15 @@ export default function MessageTemplateModal({
             <div className="flex-1 flex flex-col min-h-0 space-y-2">
               <div className="flex items-center justify-between shrink-0">
                 <label className="text-sm font-bold text-[var(--text-primary)]">
-                  Content {channelType === ChannelType.EMAIL ? '(Rich Text)' : '(Plain Text)'}
+                  Content {channelType === ChannelType.EMAIL
+                    ? isRawMode ? '(Raw HTML)' : '(Rich Text)'
+                    : '(Plain Text)'}
                 </label>
                 <div className="flex items-center gap-4">
                   {channelType === ChannelType.EMAIL && (
                     <button
                       type="button"
-                      onClick={() => setIsRawMode(!isRawMode)}
+                      onClick={toggleEditorMode}
                       className={`flex items-center gap-1.5 px-2 py-1 rounded text-[10px] font-bold uppercase transition-colors ${isRawMode
                           ? 'bg-[var(--action-primary)] text-white'
                           : 'bg-white/5 text-[var(--text-secondary)] hover:text-[var(--text-primary)]'
@@ -200,7 +214,9 @@ export default function MessageTemplateModal({
                     </button>
                   )}
                   <span className="text-[10px] text-[var(--text-secondary)]">
-                    Use {"{{variable}}"} for dynamic values
+                    {channelType === ChannelType.EMAIL && isRawMode
+                      ? 'HTML source is preserved. Use {{variable}} for dynamic values'
+                      : `Use {{variable}} for dynamic values`}
                   </span>
                 </div>
               </div>
@@ -212,6 +228,7 @@ export default function MessageTemplateModal({
                       className="flex-1 w-full bg-gray-900 text-gray-100 font-mono text-sm p-4 rounded-xl border border-gray-800 focus:outline-none focus:ring-2 focus:ring-primary/50 resize-none"
                       value={content}
                       onChange={(e) => setContent(e.target.value)}
+                      spellCheck={false}
                       placeholder="<html>...</html>"
                     />
                   ) : (
