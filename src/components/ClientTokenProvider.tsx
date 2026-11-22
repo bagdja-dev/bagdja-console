@@ -1,7 +1,11 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { usePathname } from 'next/navigation';
 import { refreshClientToken } from '@/lib/api';
+
+/** Public pages that call no API: render immediately (and server-side) while the token loads in the background. */
+const NON_BLOCKING_PATHS = new Set(['/']);
 
 /**
  * Client Token Provider
@@ -9,6 +13,7 @@ import { refreshClientToken } from '@/lib/api';
  * This token is required for all API calls to the auth service
  */
 export function ClientTokenProvider({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
   const [isInitialized, setIsInitialized] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -30,7 +35,7 @@ export function ClientTokenProvider({ children }: { children: React.ReactNode })
   }, []);
 
   // Show loading state while initializing
-  if (!isInitialized) {
+  if (!isInitialized && !NON_BLOCKING_PATHS.has(pathname)) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-[var(--bg-main)]">
         <div className="text-center">

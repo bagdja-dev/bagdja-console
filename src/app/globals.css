@@ -134,3 +134,201 @@ html {
 
 
 
+
+/* ------------------------------------------------------------------ */
+/* Public landing page (src/app/page.tsx)                              */
+/* ------------------------------------------------------------------ */
+.landing-root {
+  font-family: var(--font-geist-sans);
+}
+
+.landing-grid {
+  background-image:
+    linear-gradient(to right, rgb(148 163 184 / 0.07) 1px, transparent 1px),
+    linear-gradient(to bottom, rgb(148 163 184 / 0.07) 1px, transparent 1px);
+  background-size: 48px 48px;
+  mask-image: radial-gradient(ellipse 70% 60% at 50% 0%, #000 40%, transparent 100%);
+  -webkit-mask-image: radial-gradient(ellipse 70% 60% at 50% 0%, #000 40%, transparent 100%);
+}
+
+.landing-glow {
+  background:
+    radial-gradient(closest-side, rgb(249 115 22 / 0.22), transparent 70%),
+    radial-gradient(closest-side at 70% 60%, rgb(56 189 248 / 0.16), transparent 70%);
+  filter: blur(20px);
+}
+
+.landing-gradient-text {
+  background: linear-gradient(90deg, #fdba74 0%, #f97316 45%, #38bdf8 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.landing-btn-primary,
+.landing-btn-ghost {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  border-radius: 0.75rem;
+  padding: 0.5rem 1rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  transition: background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease, color 0.2s ease;
+}
+
+.landing-btn-primary {
+  background: var(--action-primary);
+  color: #0b1120;
+  box-shadow: 0 0 0 1px rgb(249 115 22 / 0.4), 0 8px 30px -8px rgb(249 115 22 / 0.6);
+}
+
+.landing-btn-primary:hover {
+  background: var(--action-primary-hover);
+}
+
+.landing-btn-ghost {
+  border: 1px solid var(--border-default);
+  background: rgb(255 255 255 / 0.03);
+  color: var(--text-primary);
+}
+
+.landing-btn-ghost:hover {
+  border-color: #334155;
+  background: rgb(255 255 255 / 0.06);
+}
+
+.landing-btn-primary:focus-visible,
+.landing-btn-ghost:focus-visible,
+.landing-root a:focus-visible,
+.landing-root button:focus-visible,
+.landing-root summary:focus-visible {
+  outline: 2px solid var(--brand-info);
+  outline-offset: 2px;
+}
+
+.landing-panel {
+  border: 1px solid var(--border-default);
+  background: linear-gradient(180deg, rgb(15 23 42 / 0.85), rgb(2 6 23 / 0.85));
+  box-shadow: 0 30px 80px -30px rgb(0 0 0 / 0.8), inset 0 1px 0 rgb(255 255 255 / 0.04);
+  backdrop-filter: blur(12px);
+}
+
+.landing-card {
+  border: 1px solid var(--border-default);
+  background: rgb(15 23 42 / 0.55);
+  transition: border-color 0.25s ease, transform 0.25s ease;
+}
+
+.landing-card:hover {
+  border-color: #334155;
+}
+
+.landing-card-accent {
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--action-primary), transparent);
+  opacity: 0.5;
+}
+
+.landing-node {
+  border: 1px solid var(--border-default);
+  background: rgb(2 6 23 / 0.6);
+}
+
+.landing-core {
+  border: 1px solid rgb(249 115 22 / 0.35);
+  background: radial-gradient(120% 80% at 50% 0%, rgb(249 115 22 / 0.08), transparent 60%), rgb(15 23 42 / 0.7);
+  box-shadow: 0 0 60px -20px rgb(249 115 22 / 0.45);
+}
+
+/* Connector between diagram columns: vertical on mobile, horizontal on desktop. */
+.landing-flow {
+  position: relative;
+  margin: 0 auto;
+  width: 2px;
+  height: 32px;
+  background: linear-gradient(180deg, transparent, rgb(56 189 248 / 0.5), transparent);
+  overflow: hidden;
+}
+
+.landing-flow-packet {
+  position: absolute;
+  left: -2px;
+  top: -6px;
+  width: 6px;
+  height: 6px;
+  border-radius: 9999px;
+  background: var(--brand-info);
+  box-shadow: 0 0 10px var(--brand-info);
+  animation: landing-packet-y 2.2s linear infinite;
+}
+
+@media (min-width: 1024px) {
+  .landing-flow {
+    width: 56px;
+    height: 2px;
+    margin: 0 0.75rem;
+    background: linear-gradient(90deg, transparent, rgb(56 189 248 / 0.5), transparent);
+  }
+
+  .landing-flow-packet {
+    top: -2px;
+    left: -6px;
+    animation-name: landing-packet-x;
+  }
+}
+
+@keyframes landing-packet-y {
+  from { transform: translateY(0); }
+  to { transform: translateY(44px); }
+}
+
+@keyframes landing-packet-x {
+  from { transform: translateX(0); }
+  to { transform: translateX(68px); }
+}
+
+.landing-pulse {
+  animation: landing-pulse 2s ease-in-out infinite;
+}
+
+@keyframes landing-pulse {
+  0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgb(34 197 94 / 0.6); }
+  50% { opacity: 0.7; box-shadow: 0 0 0 6px rgb(34 197 94 / 0); }
+}
+
+.landing-step {
+  border: 1px solid rgb(249 115 22 / 0.5);
+  background: rgb(249 115 22 / 0.1);
+  color: var(--action-primary);
+}
+
+.landing-step-line {
+  position: absolute;
+  left: 2.45rem;
+  bottom: -1rem;
+  height: 1rem;
+  width: 1px;
+  background: rgb(249 115 22 / 0.4);
+}
+
+.landing-faq summary::-webkit-details-marker {
+  display: none;
+}
+
+.landing-cta {
+  border: 1px solid rgb(249 115 22 / 0.3);
+  background:
+    radial-gradient(80% 120% at 50% 0%, rgb(249 115 22 / 0.18), transparent 60%),
+    radial-gradient(60% 100% at 100% 100%, rgb(56 189 248 / 0.12), transparent 60%),
+    var(--bg-sidebar);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .landing-flow-packet,
+  .landing-pulse {
+    animation: none;
+  }
+}
