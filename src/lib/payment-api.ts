@@ -24,7 +24,7 @@ function getPaymentApiBase(): string {
 const AUTH_API_BASE = process.env.NEXT_PUBLIC_AUTH_API || 'https://auth.bagdja.com';
 const CLIENT_APP_ID = process.env.NEXT_PUBLIC_CLIENT_APP_ID || 'user-console';
 const CLIENT_APP_SECRET =
-  process.env.NEXT_PUBLIC_CLIENT_APP_SECRET || 'a9F3kL2P8QwZx7C0M5eB1R4H6TnUJDYVSm';
+  process.env.NEXT_PUBLIC_CLIENT_APP_SECRET || '';
 
 async function ensureClientToken(): Promise<string> {
   const clientToken = getClientToken();
@@ -1169,5 +1169,111 @@ export async function getOrgWalletMemberUsage(
   return paymentApiRequestPersonal<OrgWalletMemberUsage>(
     `/wallets/${encodeURIComponent(walletId)}/spend-grants/${encodeURIComponent(userId)}/usage`,
     { method: 'GET' },
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Split dana Tenant & Partner (tenant-partner-split-plan.md F4) — pemilik App.
+// Dipanggil dengan login user + org aktif; payment-service memverifikasi org
+// ini pemilik App ke bagdja-auth.
+// ---------------------------------------------------------------------------
+
+export type PartnerStatus = 'active' | 'suspended';
+
+export type PartnerAllocationLimit = {
+  id: string;
+  org_id: string;
+  app_id: string;
+  /** Tipe partner, atau '*' = fallback untuk tipe tanpa baris sendiri. */
+  partner_type: string;
+  max_percentage: number;
+  /** Hanya baris '*': atap Σ semua alokasi partner per transaksi. */
+  max_total_percentage: number | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type UpsertPartnerAllocationLimit = {
+  app_id: string;
+  partner_type: string;
+  max_percentage: number;
+  max_total_percentage?: number | null;
+};
+
+export type TenantPartner = {
+  id: string;
+  escrow_product_id: string;
+  partner_type: string;
+  wallet_id: string;
+  user_id: string | null;
+  external_ref: string;
+  status: PartnerStatus;
+  max_percentage: number | null;
+  created_at: string;
+  updated_at: string;
+};
+
+export type TenantPartners = {
+  escrow_product_id: string;
+  app_id: string;
+  tenant_wallet_id: string | null;
+  partners: TenantPartner[];
+};
+
+export async function listPartnerAllocationLimits(
+  appId: string,
+  organizationId?: string,
+): Promise<PartnerAllocationLimit[]> {
+  const qs = new URLSearchParams({ app_id: appId });
+  return paymentApiRequest<PartnerAllocationLimit[]>(
+    `/partner-allocation-limits?${qs.toString()}`,
+    { method: 'GET' },
+    organizationId,
+  );
+}
+
+export async function upsertPartnerAllocationLimit(
+  data: UpsertPartnerAllocationLimit,
+  organizationId?: string,
+): Promise<PartnerAllocationLimit> {
+  return paymentApiRequest<PartnerAllocationLimit>(
+    '/partner-allocation-limits',
+    { method: 'PUT', body: JSON.stringify(data) },
+    organizationId,
+  );
+}
+
+export async function deletePartnerAllocationLimit(
+  id: string,
+  organizationId?: string,
+): Promise<void> {
+  return paymentApiRequest<void>(
+    `/partner-allocation-limits/${encodeURIComponent(id)}`,
+    { method: 'DELETE' },
+    organizationId,
+  );
+}
+
+export async function getTenantPartners(
+  escrowProductId: string,
+  organizationId?: string,
+): Promise<TenantPartners> {
+  return paymentApiRequest<TenantPartners>(
+    `/console/escrow-products/${encodeURIComponent(escrowProductId)}/partners`,
+    { method: 'GET' },
+    organizationId,
+  );
+}
+
+export async function setTenantPartnerStatus(
+  escrowProductId: string,
+  partnerId: string,
+  status: PartnerStatus,
+  organizationId?: string,
+): Promise<TenantPartner> {
+  return paymentApiRequest<TenantPartner>(
+    `/console/escrow-products/${encodeURIComponent(escrowProductId)}/partners/${encodeURIComponent(partnerId)}`,
+    { method: 'PATCH', body: JSON.stringify({ status }) },
+    organizationId,
   );
 }

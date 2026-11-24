@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { setAccessToken } from '@/lib/auth';
-import { decryptState } from '@/lib/oauth';
 
 export function CallbackClient({
   code,
@@ -30,28 +29,20 @@ export function CallbackClient({
           
           // Get code_verifier from sessionStorage (stored during login initiation)
           const codeVerifier = sessionStorage.getItem('oauth_code_verifier');
-          const SESSION_ENCRYPTION_KEY = process.env.NEXT_PUBLIC_SESSION_ENCRYPTION_KEY;
+          const storedState = sessionStorage.getItem('oauth_state');
 
           if (!codeVerifier) {
             setError('Missing code_verifier. Session may have expired.');
             return;
           }
 
-          if (!SESSION_ENCRYPTION_KEY) {
-            console.warn('SESSION_ENCRYPTION_KEY not configured, using fixed key fallback');
+          // CSRF: state harus sama dengan yang dibuat browser ini saat login.
+          // Dekripsi & validasi isi state dilakukan di server (/api/auth/callback).
+          if (!storedState || storedState !== state) {
+            setError('State parameter validation failed. Please try logging in again.');
+            return;
           }
-
-          // Decrypt state to get original redirect path
-          let redirectPath = '/dashboard';
-          if (SESSION_ENCRYPTION_KEY) {
-            const statePayload = await decryptState(state, SESSION_ENCRYPTION_KEY);
-            if (statePayload) {
-              redirectPath = statePayload.path || '/dashboard';
-            } else {
-              setError('State parameter validation failed. Please try logging in again.');
-              return;
-            }
-          }
+          const redirectPath = '/dashboard';
 
           // Exchange authorization code for access token
           // Call our backend API route which will set httpOnly cookie

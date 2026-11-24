@@ -98,6 +98,7 @@ import {
   CheckCircle2,
   RotateCcw,
   Pencil,
+  Handshake,
 } from "lucide-react";
 import DataGrid, {
   type GridColumn,
@@ -118,6 +119,8 @@ import ChannelSetupModal from "@/components/ChannelSetupModal";
 import MessageLogDetailModal from "@/components/MessageLogDetailModal";
 import AlertModal, { AlertType } from "@/components/AlertModal";
 import AppPayoutChannelsCard from "@/components/AppPayoutChannelsCard";
+import PartnerAllocationLimitsCard from "@/components/PartnerAllocationLimitsCard";
+import TenantPartnersModal from "@/components/TenantPartnersModal";
 import { useLayout } from "@/context/LayoutContext";
 import { generateCurl } from "@/lib/utils";
 import {
@@ -155,6 +158,7 @@ type TabType =
   | "users"
   | "product"
   | "escrow-product"
+  | "partners"
   | "dispute"
   | "plan"
   | "license"
@@ -299,6 +303,8 @@ export default function AppDetailPage() {
     null,
   );
   const [escrowProductModalOpen, setEscrowProductModalOpen] = useState(false);
+  const [partnersEscrowProduct, setPartnersEscrowProduct] =
+    useState<EscrowProduct | null>(null);
   const [editingEscrowProduct, setEditingEscrowProduct] =
     useState<EscrowProduct | null>(null);
 
@@ -817,7 +823,11 @@ export default function AppDetailPage() {
   // Fetch escrow products when escrow-product tab is active
   useEffect(() => {
     const fetchEscrowProducts = async () => {
-      if (activeTab !== "escrow-product" || !app?.id) return;
+      if (
+        (activeTab !== "escrow-product" && activeTab !== "partners") ||
+        !app?.id
+      )
+        return;
 
       try {
         setEscrowProductsLoading(true);
@@ -1801,6 +1811,19 @@ export default function AppDetailPage() {
             </div>
           </button>
           <button
+            onClick={() => setActiveTab("partners")}
+            className={`pb-4 px-1 border-b-2 font-medium text-sm transition-colors ${
+              activeTab === "partners"
+                ? "border-[var(--action-primary)] text-[var(--action-primary)]"
+                : "border-transparent text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+            }`}
+          >
+            <div className="flex items-center gap-2 text-nowrap">
+              <Handshake className="h-4 w-4" />
+              Partner
+            </div>
+          </button>
+          <button
             onClick={() => setActiveTab("dispute")}
             className={`pb-4 px-1 border-b-2 font-medium text-sm transition-colors ${
               activeTab === "dispute"
@@ -2347,6 +2370,13 @@ export default function AppDetailPage() {
                               <Edit className="h-4 w-4" />
                             </button>
                             <button
+                              className="p-1 text-[var(--text-secondary)] hover:text-[var(--action-primary)] transition-colors"
+                              onClick={() => setPartnersEscrowProduct(ep)}
+                              title="Partner tenant"
+                            >
+                              <Users className="h-4 w-4" />
+                            </button>
+                            <button
                               className="p-1 text-[var(--text-secondary)] hover:text-[var(--text-danger)] transition-colors"
                               onClick={() => handleDeleteEscrowProduct(ep.id)}
                               title="Delete"
@@ -2361,8 +2391,93 @@ export default function AppDetailPage() {
                 </table>
               </div>
             )}
+
           </div>
         )}
+
+        {/* Partner Tab — atap alokasi & partner per Tenant (escrow + pembayaran langsung) */}
+        {activeTab === "partners" && (
+          <div className="p-4 sm:p-6">
+            <div className="mb-6">
+              <h2 className="text-lg font-semibold text-[var(--text-primary)]">
+                Partner
+              </h2>
+              <p className="mt-1 text-sm text-[var(--text-secondary)]">
+                Bagi hasil ke partner tenant (outlet, driver, penulis, …).
+                Berlaku untuk transaksi escrow maupun pembayaran langsung
+                (mis. produk digital).
+              </p>
+            </div>
+
+            <PartnerAllocationLimitsCard
+              appId={app?.appId || ""}
+              orgId={app?.orgId}
+              onShowAlert={(msg, type, title) =>
+                showAlert(msg, (type as AlertType) || "info", title)
+              }
+            />
+
+            <section className="mt-6 rounded-lg border border-[var(--border-default)] bg-[var(--bg-surface)] p-4 sm:p-5">
+              <h3 className="text-base font-semibold text-[var(--text-primary)]">
+                Partner per Tenant
+              </h3>
+              <p className="mt-1 text-sm text-[var(--text-secondary)]">
+                Partner didaftarkan app atas nama tenant. Di sini Anda bisa
+                melihat wallet tenant dan membekukan/mengaktifkan partner.
+              </p>
+              {escrowProductsLoading && escrowProducts.length === 0 ? (
+                <p className="py-6 text-center text-sm text-[var(--text-secondary)]">
+                  Memuat tenant...
+                </p>
+              ) : escrowProductsError ? (
+                <p className="py-6 text-center text-sm text-[var(--text-danger)]">
+                  {escrowProductsError}
+                </p>
+              ) : escrowProducts.length === 0 ? (
+                <p className="py-6 text-center text-sm text-[var(--text-secondary)]">
+                  Belum ada tenant. Buat dulu di tab Escrow Product.
+                </p>
+              ) : (
+                <ul className="mt-4 divide-y divide-[var(--border-default)]">
+                  {escrowProducts.map((ep) => (
+                    <li
+                      key={ep.id}
+                      className="flex flex-col gap-2 py-3 sm:flex-row sm:items-center sm:justify-between"
+                    >
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-medium text-[var(--text-primary)]">
+                          {ep.name}
+                        </p>
+                        <p className="truncate font-mono text-xs text-[var(--text-secondary)]">
+                          {ep.id}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setPartnersEscrowProduct(ep)}
+                        className="inline-flex w-full flex-shrink-0 items-center justify-center gap-2 rounded-lg border border-[var(--border-default)] px-3 py-2 text-sm font-medium text-[var(--text-primary)] hover:bg-white/5 sm:w-auto"
+                      >
+                        <Users className="h-4 w-4" />
+                        Lihat partner
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
+          </div>
+        )}
+
+        <TenantPartnersModal
+          isOpen={partnersEscrowProduct !== null}
+          onClose={() => setPartnersEscrowProduct(null)}
+          escrowProductId={partnersEscrowProduct?.id ?? null}
+          escrowProductName={partnersEscrowProduct?.name}
+          orgId={app?.orgId}
+          onShowAlert={(msg, type, title) =>
+            showAlert(msg, (type as AlertType) || "info", title)
+          }
+        />
 
         {/* Dispute Tab */}
         {activeTab === "dispute" && (

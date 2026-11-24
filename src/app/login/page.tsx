@@ -4,7 +4,7 @@ import { Suspense, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Image from 'next/image';
 import { Button } from '@/ui/button';
-import { generateCodeVerifier, generateCodeChallenge, generateState, generateEncryptionKey } from '@/lib/oauth';
+import { generateCodeVerifier, generateCodeChallenge } from '@/lib/oauth';
 
 function LoginContent() {
   const searchParams = useSearchParams();
@@ -16,7 +16,6 @@ function LoginContent() {
 
   // Get bagdja-login URL from environment variable
   const LOGIN_URL = process.env.NEXT_PUBLIC_LOGIN_URL || 'http://localhost:3000';
-  const SESSION_ENCRYPTION_KEY = process.env.NEXT_PUBLIC_SESSION_ENCRYPTION_KEY;
   const CLIENT_ID =
     process.env.NEXT_PUBLIC_CLIENT_ID ||
     process.env.NEXT_PUBLIC_CLIENT_APP_ID ||
@@ -39,17 +38,16 @@ function LoginContent() {
       const codeVerifier = await generateCodeVerifier();
       const codeChallenge = await generateCodeChallenge(codeVerifier);
 
-      // Generate encrypted state with original redirect path
-      // Use a fixed encryption key for now (in production, fetch from config)
-      let encryptionKey = SESSION_ENCRYPTION_KEY;
-      if (!encryptionKey) {
-        // Fallback: generate a key, but this won't work across requests
-        // In production, use a server-side key from environment
-        console.warn('SESSION_ENCRYPTION_KEY not set, using generated key (not recommended for production)');
-        encryptionKey = generateEncryptionKey();
+      // State dienkripsi di server (kunci tidak pernah dikirim ke browser)
+      const stateResponse = await fetch('/api/auth/state', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path: redirectPath }),
+      });
+      if (!stateResponse.ok) {
+        throw new Error(`Failed to create OAuth state (${stateResponse.status})`);
       }
-
-      const state = await generateState(redirectPath, encryptionKey);
+      const { state } = (await stateResponse.json()) as { state: string };
 
       // Store code_verifier in sessionStorage for later use in callback
       sessionStorage.setItem('oauth_code_verifier', codeVerifier);
@@ -64,9 +62,6 @@ function LoginContent() {
       authUrl.searchParams.set('code_challenge', codeChallenge);
       authUrl.searchParams.set('code_challenge_method', 'S256');
       authUrl.searchParams.set('scope', 'openid profile email');
-      // #region debug-point D:console-auth-url
-      fetch('http://127.0.0.1:7777/event', { method: 'POST', body: JSON.stringify({ sessionId: 'oauth-login-loop', runId: 'pre-fix', hypothesisId: 'D', location: 'bagdja-console/src/app/login/page.tsx:handleLogin', msg: '[DEBUG] console built oauth authorize url', data: { loginUrl: LOGIN_URL, clientId: CLIENT_ID, redirectUri: REDIRECT_URI, redirectPath, hasEncryptionKey: !!SESSION_ENCRYPTION_KEY, stateLength: state.length, codeChallengeLength: codeChallenge.length }, ts: Date.now() }) }).catch(() => {});
-      // #endregion
 
       // Redirect to OAuth authorization endpoint
       window.location.href = authUrl.toString();
