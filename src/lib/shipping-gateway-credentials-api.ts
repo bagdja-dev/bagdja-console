@@ -27,7 +27,7 @@ function getShippingApiBase(): string {
 const AUTH_API_BASE = process.env.NEXT_PUBLIC_AUTH_API || 'https://auth.bagdja.com';
 const CLIENT_APP_ID = process.env.NEXT_PUBLIC_CLIENT_APP_ID || 'user-console';
 const CLIENT_APP_SECRET =
-  process.env.NEXT_PUBLIC_CLIENT_APP_SECRET || 'a9F3kL2P8QwZx7C0M5eB1R4H6TnUJDYVSm';
+  process.env.NEXT_PUBLIC_CLIENT_APP_SECRET || '';
 
 async function ensureClientToken(): Promise<string> {
   const clientToken = getClientToken();
@@ -115,7 +115,10 @@ export interface ShippingGatewayCredential {
   provider: string;
   org_id: string;
   app_id: string;
+  /** Hanya field non-rahasia (mis. baseUrl). Nilai rahasia tidak pernah dikirim server. */
   credentials: Record<string, string>;
+  /** Semua field yang sudah terisi, termasuk yang rahasia (mis. apiKey). */
+  configured_fields?: string[];
   is_sandbox: boolean;
   is_active: boolean;
   created_at: string;

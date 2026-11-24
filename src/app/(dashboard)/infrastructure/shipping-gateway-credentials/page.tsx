@@ -204,8 +204,10 @@ export default function ShippingGatewayCredentialsPage() {
     {
       key: 'credentials',
       label: 'Fields Configured',
-      render: (val) => {
-        const keys = Object.keys(val || {}).filter((k) => (val as Record<string, string>)[k]?.trim());
+      render: (val, row: ShippingGatewayCredential) => {
+        const keys =
+          row?.configured_fields ??
+          Object.keys(val || {}).filter((k) => (val as Record<string, string>)[k]?.trim());
         return (
           <span className="text-xs text-[var(--text-secondary)]">
             {keys.length > 0 ? keys.join(', ') : '— none —'}

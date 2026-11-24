@@ -42,7 +42,7 @@ const AUTH_API_BASE =
 const CLIENT_APP_ID = process.env.NEXT_PUBLIC_CLIENT_APP_ID || "user-console";
 const CLIENT_APP_SECRET =
   process.env.NEXT_PUBLIC_CLIENT_APP_SECRET ||
-  "a9F3kL2P8QwZx7C0M5eB1R4H6TnUJDYVSm";
+  '';
 
 async function ensureClientToken(): Promise<string> {
   const clientToken = getClientToken();

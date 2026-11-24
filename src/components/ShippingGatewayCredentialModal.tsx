@@ -122,6 +122,8 @@ export default function ShippingGatewayCredentialModal({
       setProvider(credential.provider);
       setOrgId(credential.org_id);
       setAppId(credential.app_id);
+      // Server tidak pernah mengirim nilai rahasia (apiKey, …): field itu
+      // kosong di form; dibiarkan kosong = nilai tersimpan tidak diubah.
       setCredFields(credential.credentials || {});
       setIsSandbox(credential.is_sandbox);
       setIsActive(credential.is_active);
@@ -153,7 +155,9 @@ export default function ShippingGatewayCredentialModal({
           provider: credential!.provider,
           org_id: credential!.org_id,
           app_id: credential!.app_id,
-          credentials: credFields,
+          credentials: Object.fromEntries(
+            Object.entries(credFields).filter(([, value]) => value?.trim()),
+          ),
           is_sandbox: isSandbox,
           is_active: isActive,
         });
@@ -241,7 +245,13 @@ export default function ShippingGatewayCredentialModal({
                 id={f.key}
                 value={credFields[f.key] ?? ''}
                 onChange={(e) => setCredFields((prev) => ({ ...prev, [f.key]: e.target.value }))}
-                placeholder={f.placeholder}
+                placeholder={
+                  mode === 'edit' &&
+                  credential?.configured_fields?.includes(f.key) &&
+                  !credential.credentials?.[f.key]
+                    ? 'Tersimpan — kosongkan bila tidak diubah'
+                    : f.placeholder
+                }
                 disabled={isSubmitting}
               />
             ))}

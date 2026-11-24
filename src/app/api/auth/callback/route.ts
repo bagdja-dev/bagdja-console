@@ -58,9 +58,6 @@ export async function POST(request: NextRequest): Promise<Response> {
     }
 
     const body: TokenExchangeRequest = await request.json();
-    // #region debug-point D:console-callback-input
-    fetch('http://127.0.0.1:7777/event', { method: 'POST', body: JSON.stringify({ sessionId: 'oauth-login-loop', runId: 'pre-fix', hypothesisId: 'D', location: 'bagdja-console/src/app/api/auth/callback/route.ts:POST', msg: '[DEBUG] console callback route received oauth params', data: { hasCode: !!body.code, hasState: !!body.state, hasCodeVerifier: !!body.code_verifier, loginUrl: LOGIN_URL, clientId: NEXT_PUBLIC_CLIENT_ID, redirectUri }, ts: Date.now() }) }).catch(() => {});
-    // #endregion
 
     // Validate request
     const validation = validateRequest(body);
@@ -73,9 +70,6 @@ export async function POST(request: NextRequest): Promise<Response> {
 
     // Decrypt and validate state parameter
     const statePayload = await decryptState(body.state!, SESSION_ENCRYPTION_KEY);
-    // #region debug-point D:console-state-decrypt
-    fetch('http://127.0.0.1:7777/event', { method: 'POST', body: JSON.stringify({ sessionId: 'oauth-login-loop', runId: 'pre-fix', hypothesisId: 'D', location: 'bagdja-console/src/app/api/auth/callback/route.ts:POST', msg: '[DEBUG] console callback state decrypt result', data: { stateValid: !!statePayload, redirectPath: statePayload?.path || null }, ts: Date.now() }) }).catch(() => {});
-    // #endregion
 
     if (!statePayload) {
       return NextResponse.json(
@@ -103,9 +97,6 @@ export async function POST(request: NextRequest): Promise<Response> {
         client_secret: OAUTH_CLIENT_SECRET,
       }),
     });
-    // #region debug-point D:console-token-exchange-response
-    fetch('http://127.0.0.1:7777/event', { method: 'POST', body: JSON.stringify({ sessionId: 'oauth-login-loop', runId: 'pre-fix', hypothesisId: 'D', location: 'bagdja-console/src/app/api/auth/callback/route.ts:POST', msg: '[DEBUG] console callback token exchange response', data: { status: tokenResponse.status, ok: tokenResponse.ok }, ts: Date.now() }) }).catch(() => {});
-    // #endregion
 
     if (!tokenResponse.ok) {
       const error = await tokenResponse.json();
