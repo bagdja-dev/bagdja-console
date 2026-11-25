@@ -12,6 +12,7 @@ import {
   setClientToken,
 } from './auth';
 import type { ApiError } from '@/types';
+import { paymentConsoleRequest } from './console-user-api';
 
 function getPaymentApiBase(): string {
   const apiBase = process.env.NEXT_PUBLIC_PAYMENT_API;
@@ -448,28 +449,26 @@ export async function getBillingSettings(
   if (params?.currency) qs.append('currency', params.currency);
   if (params?.is_active) qs.append('is_active', params.is_active);
 
-  return paymentApiRequest<BillingSettingListResponse>(`/billing/settings?${qs.toString()}`, {}, 'all');
+  return paymentConsoleRequest<BillingSettingListResponse>(`/billing/settings?${qs.toString()}`);
 }
 
 export async function getGlobalDefaultBillingSetting(): Promise<BillingSetting | null> {
-  // Use 'default' as organizationId for global settings
-  return paymentApiRequest<BillingSetting | null>('/billing/settings/global-default', {}, 'default');
+  return paymentConsoleRequest<BillingSetting | null>('/billing/settings/global-default');
 }
 
 export async function updateGlobalDefaultBillingSetting(data: Partial<BillingSetting>): Promise<BillingSetting> {
-  // Use 'default' as organizationId for global settings
-  return paymentApiRequest<BillingSetting>('/billing/settings/global-default', {
+  return paymentConsoleRequest<BillingSetting>('/billing/settings/global-default', {
     method: 'PATCH',
     body: JSON.stringify(data),
-  }, 'default');
+  });
 }
 
 export async function upsertBillingSetting(data: BillingSetting): Promise<BillingSetting> {
-  // Use the org_id from data if available, otherwise fallback to current org
-  return paymentApiRequest<BillingSetting>('/billing/settings', {
+  // Target org selalu dari `data.org_id` (lintas org, hanya org sistem).
+  return paymentConsoleRequest<BillingSetting>('/billing/settings', {
     method: 'POST',
     body: JSON.stringify(data),
-  }, data.org_id);
+  });
 }
 
 export async function updateBillingSetting(
@@ -481,13 +480,12 @@ export async function updateBillingSetting(
 ): Promise<BillingSetting> {
   const orgId = (data as { org_id?: string }).org_id || getActiveOrganizationSlug() || 'default';
 
-  return paymentApiRequest<BillingSetting>(
-    `/billing/settings/${encodeURIComponent(appId)}/${encodeURIComponent(itemType)}/${encodeURIComponent(itemId)}/${encodeURIComponent(currency)}`,
+  return paymentConsoleRequest<BillingSetting>(
+    `/billing/settings/${encodeURIComponent(orgId)}/${encodeURIComponent(appId)}/${encodeURIComponent(itemType)}/${encodeURIComponent(itemId)}/${encodeURIComponent(currency)}`,
     {
       method: 'PATCH',
       body: JSON.stringify(data),
     },
-    orgId,
   );
 }
 
@@ -498,12 +496,9 @@ export async function deleteBillingSetting(
   itemId: string,
   currency: string,
 ): Promise<void> {
-  const qs = new URLSearchParams();
-  qs.set('org_id', orgId);
-  return paymentApiRequest<void>(
-    `/billing/settings/${encodeURIComponent(appId)}/${encodeURIComponent(itemType)}/${encodeURIComponent(itemId)}/${encodeURIComponent(currency)}?${qs.toString()}`,
+  return paymentConsoleRequest<void>(
+    `/billing/settings/${encodeURIComponent(orgId)}/${encodeURIComponent(appId)}/${encodeURIComponent(itemType)}/${encodeURIComponent(itemId)}/${encodeURIComponent(currency)}`,
     { method: 'DELETE' },
-    orgId,
   );
 }
 

@@ -1,121 +1,28 @@
 /**
  * Payment Gateway Credentials API Client
  *
- * Backend only allows core services (isCoreService=true on this console's
- * client-app registration) to call these endpoints — see
- * PaymentGatewayCredentialsController in bagdja-payment-service.
+ * Memanggil jalur Console berbasis USER di payment-service
+ * (`/console/payment-gateway-credentials`, plan/architecture/
+ * core-service-flag-removal-plan.md P2): cukup token login user, tanpa
+ * token client app core service. Butuh keanggotaan org sistem +
+ * `console.infra.payment-gateway-credentials.view` / `.manage`.
+ *
+ * Nilai rahasia (apiKey, serverKey, …) tidak pernah dikirim server; saat
+ * edit, field rahasia yang dikosongkan mempertahankan nilai tersimpan.
  */
 
-import {
-  requireAccessToken,
-  getActiveOrganizationId,
-  getActiveOrganizationSlug,
-  getClientToken,
-  isClientTokenExpired,
-  setClientToken,
-} from './auth';
-import type { ApiError } from '@/types';
+import { paymentConsoleRequest } from './console-user-api';
 
-function getPaymentApiBase(): string {
-  const apiBase = process.env.NEXT_PUBLIC_PAYMENT_API;
-  if (!apiBase) {
-    throw new Error('NEXT_PUBLIC_PAYMENT_API environment variable is required. Please set it in your .env file.');
-  }
-  return apiBase;
-}
-
-const AUTH_API_BASE = process.env.NEXT_PUBLIC_AUTH_API || 'https://auth.bagdja.com';
-const CLIENT_APP_ID = process.env.NEXT_PUBLIC_CLIENT_APP_ID || 'user-console';
-const CLIENT_APP_SECRET =
-  process.env.NEXT_PUBLIC_CLIENT_APP_SECRET || '';
-
-async function ensureClientToken(): Promise<string> {
-  const clientToken = getClientToken();
-
-  if (!clientToken || isClientTokenExpired()) {
-    const url = `${AUTH_API_BASE}/auth/client`;
-    const requestBody = { app_id: CLIENT_APP_ID, app_secret: CLIENT_APP_SECRET };
-
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(requestBody),
-    });
-
-    if (!response.ok) {
-      const error: ApiError = { message: 'Failed to obtain client app token', statusCode: response.status };
-      try {
-        const data = await response.json();
-        error.message = data.message || data.error || error.message;
-      } catch {
-        error.message = response.statusText || error.message;
-      }
-      throw error;
-    }
-
-    const data = await response.json();
-    setClientToken(data['x-api-token'], data.expires_in);
-    return data['x-api-token'];
-  }
-
-  return clientToken;
-}
-
-async function credentialsApiRequest<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
-  const clientToken = await ensureClientToken();
-  const userToken = requireAccessToken();
-
-  if (!userToken) {
-    throw new Error('User not authenticated');
-  }
-
-  const orgSlug = getActiveOrganizationSlug() || 'all';
-  const orgUuid = getActiveOrganizationId();
-  const url = `${getPaymentApiBase()}${endpoint}`;
-
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-    'x-api-key': clientToken,
-    Authorization: `Bearer ${userToken}`,
-    'x-organization-id': orgSlug,
-    ...(orgUuid && orgUuid !== orgSlug ? { 'x-organization-uuid': orgUuid } : {}),
-    ...(options.headers as Record<string, string>),
-  };
-
-  const response = await fetch(url, {
-    ...options,
-    headers,
-    cache: options.cache || 'no-store',
-  });
-
-  if (!response.ok) {
-    const error: ApiError = { message: 'An error occurred', statusCode: response.status };
-    try {
-      const errorData = await response.json();
-      error.message = errorData.message || errorData.error || error.message;
-    } catch {
-      error.message = response.statusText || error.message;
-    }
-
-    // 401 dari service non-auth TIDAK menghapus token login (29 Okt 2026):
-    // bisa berarti guard/izin di service itu, bukan sesi berakhir. Sesi
-    // hanya diakhiri oleh 401 dari bagdja-auth (lib/api.ts).
-
-    throw error;
-  }
-
-  if (response.status === 204) {
-    return undefined as T;
-  }
-
-  return response.json();
-}
+const BASE = '/payment-gateway-credentials';
 
 export interface PaymentGatewayCredential {
   provider: string;
   org_id: string;
   app_id: string;
+  /** Hanya field non-rahasia (mis. merchantCode, baseUrl). */
   credentials: Record<string, string>;
+  /** Semua field yang sudah terisi, termasuk yang rahasia (mis. apiKey). */
+  configured_fields?: string[];
   is_sandbox: boolean;
   is_active: boolean;
   created_at: string;
@@ -132,10 +39,9 @@ export async function getPaymentGatewayCredentials(params?: {
   if (params?.orgId) qs.append('orgId', params.orgId);
   if (params?.appId) qs.append('appId', params.appId);
   const queryString = qs.toString();
-  const url = queryString
-    ? `/payment-gateway-credentials?${queryString}`
-    : '/payment-gateway-credentials';
-  return credentialsApiRequest<PaymentGatewayCredential[]>(url, { method: 'GET' });
+  return paymentConsoleRequest<PaymentGatewayCredential[]>(queryString ? `${BASE}?${queryString}` : BASE, {
+    method: 'GET',
+  });
 }
 
 export async function createPaymentGatewayCredential(payload: {
@@ -146,7 +52,7 @@ export async function createPaymentGatewayCredential(payload: {
   is_sandbox?: boolean;
   is_active?: boolean;
 }): Promise<PaymentGatewayCredential> {
-  return credentialsApiRequest<PaymentGatewayCredential>('/payment-gateway-credentials', {
+  return paymentConsoleRequest<PaymentGatewayCredential>(BASE, {
     method: 'POST',
     body: JSON.stringify(payload),
   });
@@ -158,15 +64,15 @@ export async function updatePaymentGatewayCredential(
   appId: string,
   payload: Partial<Pick<PaymentGatewayCredential, 'credentials' | 'is_sandbox' | 'is_active'>>,
 ): Promise<PaymentGatewayCredential> {
-  return credentialsApiRequest<PaymentGatewayCredential>(
-    `/payment-gateway-credentials/${encodeURIComponent(provider)}/${encodeURIComponent(orgId)}/${encodeURIComponent(appId)}`,
+  return paymentConsoleRequest<PaymentGatewayCredential>(
+    `${BASE}/${encodeURIComponent(provider)}/${encodeURIComponent(orgId)}/${encodeURIComponent(appId)}`,
     { method: 'PATCH', body: JSON.stringify(payload) },
   );
 }
 
 export async function deletePaymentGatewayCredential(provider: string, orgId: string, appId: string): Promise<void> {
-  return credentialsApiRequest<void>(
-    `/payment-gateway-credentials/${encodeURIComponent(provider)}/${encodeURIComponent(orgId)}/${encodeURIComponent(appId)}`,
+  return paymentConsoleRequest<void>(
+    `${BASE}/${encodeURIComponent(provider)}/${encodeURIComponent(orgId)}/${encodeURIComponent(appId)}`,
     { method: 'DELETE' },
   );
 }

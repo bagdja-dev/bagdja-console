@@ -21,6 +21,7 @@ import {
   isClientTokenExpired,
 } from './auth';
 import type { ApiError } from '@/types';
+import { paymentConsoleRequest } from './console-user-api';
 
 function getPaymentApiBase(): string {
   const apiBase = process.env.NEXT_PUBLIC_PAYMENT_API;
@@ -200,6 +201,35 @@ export async function upsertEscrowFeeConfig(
   data: UpsertEscrowFeeConfigRequest,
 ): Promise<EscrowFeeConfig> {
   return apiRequest<EscrowFeeConfig>('/escrow/fee-configs', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+/**
+ * Daftar SEMUA config fee escrow (semua scope) — Infrastructure → Payment
+ * Config. Jalur Console berbasis user (`/console/escrow/fee-configs`, P2):
+ * butuh org sistem + `console.infra.payment-config.view`.
+ */
+export async function listPlatformEscrowFeeConfigs(params?: {
+  product_id?: string;
+  is_active?: boolean;
+}): Promise<EscrowFeeConfig[]> {
+  const qs = new URLSearchParams();
+  if (params?.product_id) qs.append('product_id', params.product_id);
+  if (typeof params?.is_active === 'boolean') qs.append('is_active', String(params.is_active));
+  const query = qs.toString();
+  return paymentConsoleRequest<EscrowFeeConfig[]>(`/escrow/fee-configs${query ? `?${query}` : ''}`);
+}
+
+/**
+ * Set/update config fee escrow untuk scope mana pun, termasuk global
+ * `default` — butuh org sistem + `console.infra.payment-config.manage`.
+ */
+export async function upsertPlatformEscrowFeeConfig(
+  data: UpsertEscrowFeeConfigRequest,
+): Promise<EscrowFeeConfig> {
+  return paymentConsoleRequest<EscrowFeeConfig>('/escrow/fee-configs', {
     method: 'POST',
     body: JSON.stringify(data),
   });
