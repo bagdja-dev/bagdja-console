@@ -10,8 +10,8 @@ import {
   type BillingSetting,
 } from '@/lib/payment-api';
 import {
-  listEscrowFeeConfigs,
-  upsertEscrowFeeConfig,
+  listPlatformEscrowFeeConfigs,
+  upsertPlatformEscrowFeeConfig,
   type EscrowFeeConfig,
   type UpsertEscrowFeeConfigRequest,
 } from '@/lib/escrow-fee-configs-api';
@@ -221,7 +221,7 @@ export default function PaymentConfigPage() {
     try {
       setEscrowFeeConfigsLoading(true);
       setEscrowFeeConfigsError(null);
-      const data = await listEscrowFeeConfigs();
+      const data = await listPlatformEscrowFeeConfigs();
       setEscrowFeeConfigs(data);
 
       // Resolve product names for display — fetch escrow products per distinct app
@@ -251,7 +251,7 @@ export default function PaymentConfigPage() {
   }, [configTab, fetchEscrowFeeConfigs, refreshTrigger]);
 
   const handleUpsertEscrowFeeConfig = async (payload: UpsertEscrowFeeConfigRequest) => {
-    await upsertEscrowFeeConfig(payload);
+    await upsertPlatformEscrowFeeConfig(payload);
     await fetchEscrowFeeConfigs();
   };
 
