@@ -1,19 +1,16 @@
 /**
  * Storage Account Credentials API Client
  *
- * Backend only allows core services (isCoreService=true on this console's
- * client-app registration) to call these endpoints — see
- * StorageAccountCredentialsController in bagdja-storage-service.
+ * Memanggil jalur Console berbasis USER di storage-service
+ * (`/console/storage-account-credentials`, plan/architecture/
+ * core-service-flag-removal-plan.md P1.4): cukup token login user — tanpa
+ * token client app core service. storage-service memverifikasi token ke
+ * bagdja-auth dan mewajibkan keanggotaan org sistem + permission
+ * `console.infra.storage-credentials.view` / `.manage` (owner org sistem
+ * selalu lolos).
  */
 
-import {
-  requireAccessToken,
-  getActiveOrganizationId,
-  getActiveOrganizationSlug,
-  getClientToken,
-  isClientTokenExpired,
-  setClientToken,
-} from './auth';
+import { requireAccessToken } from './auth';
 import type { ApiError } from '@/types';
 
 function getStorageApiBase(): string {
@@ -24,67 +21,21 @@ function getStorageApiBase(): string {
   return apiBase;
 }
 
-const AUTH_API_BASE = process.env.NEXT_PUBLIC_AUTH_API || 'https://auth.bagdja.com';
-const CLIENT_APP_ID = process.env.NEXT_PUBLIC_CLIENT_APP_ID || 'user-console';
-const CLIENT_APP_SECRET =
-  process.env.NEXT_PUBLIC_CLIENT_APP_SECRET || '';
-
-async function ensureClientToken(): Promise<string> {
-  const clientToken = getClientToken();
-
-  if (!clientToken || isClientTokenExpired()) {
-    const url = `${AUTH_API_BASE}/auth/client`;
-    const requestBody = { app_id: CLIENT_APP_ID, app_secret: CLIENT_APP_SECRET };
-
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(requestBody),
-    });
-
-    if (!response.ok) {
-      const error: ApiError = { message: 'Failed to obtain client app token', statusCode: response.status };
-      try {
-        const data = await response.json();
-        error.message = data.message || data.error || error.message;
-      } catch {
-        error.message = response.statusText || error.message;
-      }
-      throw error;
-    }
-
-    const data = await response.json();
-    setClientToken(data['x-api-token'], data.expires_in);
-    return data['x-api-token'];
-  }
-
-  return clientToken;
-}
+const CONSOLE_BASE = '/console/storage-account-credentials';
 
 async function credentialsApiRequest<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
-  const clientToken = await ensureClientToken();
   const userToken = requireAccessToken();
-
   if (!userToken) {
     throw new Error('User not authenticated');
   }
 
-  const orgSlug = getActiveOrganizationSlug() || 'all';
-  const orgUuid = getActiveOrganizationId();
-  const url = `${getStorageApiBase()}${endpoint}`;
-
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-    'x-api-key': clientToken,
-    Authorization: `Bearer ${userToken}`,
-    'x-organization-id': orgSlug,
-    ...(orgUuid && orgUuid !== orgSlug ? { 'x-organization-uuid': orgUuid } : {}),
-    ...(options.headers as Record<string, string>),
-  };
-
-  const response = await fetch(url, {
+  const response = await fetch(`${getStorageApiBase()}${CONSOLE_BASE}${endpoint}`, {
     ...options,
-    headers,
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${userToken}`,
+      ...(options.headers as Record<string, string>),
+    },
     cache: options.cache || 'no-store',
   });
 
@@ -97,9 +48,9 @@ async function credentialsApiRequest<T>(endpoint: string, options: RequestInit =
       error.message = response.statusText || error.message;
     }
 
-    // 401 dari service non-auth TIDAK menghapus token login (29 Okt 2026):
-    // bisa berarti guard/izin di service itu, bukan sesi berakhir. Sesi
-    // hanya diakhiri oleh 401 dari bagdja-auth (lib/api.ts).
+    // 401/403 dari service non-auth TIDAK menghapus token login (29 Okt 2026):
+    // bisa berarti izin di service itu, bukan sesi berakhir. Sesi hanya
+    // diakhiri oleh 401 dari bagdja-auth (lib/api.ts).
 
     throw error;
   }
@@ -131,9 +82,7 @@ export async function getStorageAccountCredentials(params?: {
   if (params?.orgId) qs.append('orgId', params.orgId);
   if (params?.appId) qs.append('appId', params.appId);
   const queryString = qs.toString();
-  const url = queryString
-    ? `/storage-account-credentials?${queryString}`
-    : '/storage-account-credentials';
+  const url = queryString ? `?${queryString}` : '';
   return credentialsApiRequest<StorageAccountCredential[]>(url, { method: 'GET' });
 }
 
@@ -144,7 +93,7 @@ export async function createStorageAccountCredential(payload: {
   credentials: Record<string, string>;
   is_active?: boolean;
 }): Promise<StorageAccountCredential> {
-  return credentialsApiRequest<StorageAccountCredential>('/storage-account-credentials', {
+  return credentialsApiRequest<StorageAccountCredential>('', {
     method: 'POST',
     body: JSON.stringify(payload),
   });
@@ -157,14 +106,14 @@ export async function updateStorageAccountCredential(
   payload: Partial<Pick<StorageAccountCredential, 'credentials' | 'is_active'>>,
 ): Promise<StorageAccountCredential> {
   return credentialsApiRequest<StorageAccountCredential>(
-    `/storage-account-credentials/${encodeURIComponent(provider)}/${encodeURIComponent(orgId)}/${encodeURIComponent(appId)}`,
+    `/${encodeURIComponent(provider)}/${encodeURIComponent(orgId)}/${encodeURIComponent(appId)}`,
     { method: 'PATCH', body: JSON.stringify(payload) },
   );
 }
 
 export async function deleteStorageAccountCredential(provider: string, orgId: string, appId: string): Promise<void> {
   return credentialsApiRequest<void>(
-    `/storage-account-credentials/${encodeURIComponent(provider)}/${encodeURIComponent(orgId)}/${encodeURIComponent(appId)}`,
+    `/${encodeURIComponent(provider)}/${encodeURIComponent(orgId)}/${encodeURIComponent(appId)}`,
     { method: 'DELETE' },
   );
 }
