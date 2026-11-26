@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { getInfraApps } from '@/lib/api';
+import { listHubApps } from '@/lib/events-console-api';
 import { Server, Activity, Shield, CheckCircle, XCircle, Clock } from 'lucide-react';
 
 export default function InfraServicesPage() {
@@ -13,7 +13,7 @@ export default function InfraServicesPage() {
     async function fetchServices() {
       try {
         setLoading(true);
-        const data = await getInfraApps();
+        const data = await listHubApps();
         setServices(data);
       } catch (err: any) {
         setError(err.message || 'Failed to fetch core services');

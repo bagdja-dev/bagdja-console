@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { getInfraContracts } from '@/lib/api';
+import { listAllEventContracts } from '@/lib/events-console-api';
 import { Activity, Shield, CheckCircle, XCircle, Globe, Lock, Code } from 'lucide-react';
 
 export default function InfraEventsPage() {
@@ -13,7 +13,7 @@ export default function InfraEventsPage() {
         async function fetchContracts() {
             try {
                 setLoading(true);
-                const { data } = await getInfraContracts();
+                const { data } = await listAllEventContracts();
                 setContracts(data);
             } catch (err: any) {
                 setError(err.message || 'Failed to fetch event contracts');
