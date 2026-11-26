@@ -65,7 +65,8 @@ import type {
   MessageTemplate,
   MessageLog,
 } from "@/types";
-import { getLogs } from "@/lib/logs-api";
+import { getAppLogs } from "@/lib/logs-api";
+import type { PlatformLogEntry } from "@/lib/logs-api";
 import {
   ArrowLeft,
   Package,
@@ -400,7 +401,8 @@ export default function AppDetailPage() {
   const [paymentSubTab, setPaymentSubTab] = useState<PaymentSubTab>("methods");
 
   // Platform Logs state
-  const [selectedPlatformLog, setSelectedPlatformLog] = useState<any>(null);
+  const [selectedPlatformLog, setSelectedPlatformLog] =
+    useState<PlatformLogEntry | null>(null);
   const [refreshPlatformLogs, setRefreshPlatformLogs] = useState(0);
 
   // Settings state
@@ -4484,8 +4486,7 @@ export default function AppDetailPage() {
               fetchData={async (params) => {
                 const { page, size, search, filter } = params;
                 const offset = (page - 1) * size;
-                const response = await getLogs({
-                  appId: app.appId,
+                const response = await getAppLogs(app.orgId, app.appId, {
                   search: search || undefined,
                   service: filter.service || undefined,
                   level: filter.level || undefined,
