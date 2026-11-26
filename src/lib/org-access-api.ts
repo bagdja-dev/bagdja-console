@@ -51,6 +51,8 @@ export interface AssignablePermission {
   key: string;
   description: string | null;
   grantable: boolean;
+  /** Hanya bisa dimiliki role di org sistem (hanya muncul di katalog org sistem). */
+  isSystemOnly: boolean;
 }
 
 export interface CreateOrgRoleRequest {
