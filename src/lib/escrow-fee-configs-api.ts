@@ -1,8 +1,12 @@
 /**
  * Escrow Fee Config API Client
- * Handles all API calls related to escrow fee configs
- * (`bagdja-payment-service` `/escrow/fee-configs`) — "billing config" yang
- * menentukan potongan platform_fee/app_fee saat release escrow.
+ * Config fee escrow (`bagdja-payment-service`) — potongan platform_fee/app_fee
+ * saat release escrow. Semua lewat endpoint Console berbasis USER (P2,
+ * plan/architecture/core-service-flag-removal-plan.md), tanpa token core:
+ * - Platform (org sistem): `/console/escrow/fee-configs`.
+ * - Pemilik App: `/console/apps/:appId/escrow/fee-configs` + header
+ *   `x-organization-id` = org pemilik App. Field `platform_*` diabaikan
+ *   service di jalur ini.
  *
  * Catatan kontrak API (asimetris, ikuti apa adanya):
  * - Request body (upsert) pakai snake_case: org_id, app_id, product_id,
@@ -14,122 +18,7 @@
  *   dari `payment-api.ts` `BillingSetting.percentage_fee` yang desimal.
  */
 
-import {
-  requireAccessToken,
-  getClientToken,
-  setClientToken,
-  isClientTokenExpired,
-} from './auth';
-import type { ApiError } from '@/types';
 import { paymentConsoleRequest } from './console-user-api';
-
-function getPaymentApiBase(): string {
-  const apiBase = process.env.NEXT_PUBLIC_PAYMENT_API;
-  if (!apiBase) {
-    throw new Error('NEXT_PUBLIC_PAYMENT_API environment variable is required. Please set it in your .env file.');
-  }
-  return apiBase;
-}
-
-const AUTH_API_BASE = process.env.NEXT_PUBLIC_AUTH_API || 'https://auth.bagdja.com';
-
-const CLIENT_APP_ID = process.env.NEXT_PUBLIC_CLIENT_APP_ID || 'user-console';
-const CLIENT_APP_SECRET = process.env.NEXT_PUBLIC_CLIENT_APP_SECRET || '';
-
-async function ensureClientToken(): Promise<string> {
-  const clientToken = getClientToken();
-
-  if (!clientToken || isClientTokenExpired()) {
-    const url = `${AUTH_API_BASE}/auth/client`;
-
-    const requestBody = {
-      app_id: CLIENT_APP_ID,
-      app_secret: CLIENT_APP_SECRET,
-    };
-
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(requestBody),
-    });
-
-    if (!response.ok) {
-      const error: ApiError = {
-        message: 'Failed to obtain client app token',
-        statusCode: response.status,
-      };
-
-      try {
-        const data = await response.json();
-        error.message = data.message || data.error || error.message;
-      } catch {
-        error.message = response.statusText || error.message;
-      }
-
-      throw error;
-    }
-
-    const data = await response.json();
-    setClientToken(data['x-api-token'], data.expires_in);
-
-    return data['x-api-token'];
-  }
-
-  return clientToken;
-}
-
-async function apiRequest<T>(
-  endpoint: string,
-  options: RequestInit = {}
-): Promise<T> {
-  const clientToken = await ensureClientToken();
-  const userToken = requireAccessToken();
-
-  const url = `${getPaymentApiBase()}${endpoint}`;
-
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-    'x-api-token': clientToken,
-    'x-api-key': clientToken,
-    ...(options.headers as Record<string, string>),
-  };
-
-  headers['Authorization'] = `Bearer ${userToken}`;
-
-  const response = await fetch(url, {
-    ...options,
-    headers,
-    cache: options.cache || 'no-store',
-  });
-
-  if (!response.ok) {
-    const error: ApiError = {
-      message: 'An error occurred',
-      statusCode: response.status,
-    };
-
-    try {
-      const data = await response.json();
-      error.message = data.message || data.error || error.message;
-    } catch {
-      error.message = response.statusText || error.message;
-    }
-
-    // 401 dari service non-auth TIDAK menghapus token login (29 Okt 2026):
-    // bisa berarti guard/izin di service itu, bukan sesi berakhir. Sesi
-    // hanya diakhiri oleh 401 dari bagdja-auth (lib/api.ts).
-
-    throw error;
-  }
-
-  if (response.status === 204) {
-    return undefined as T;
-  }
-
-  return response.json();
-}
 
 export type EscrowFeeConfig = {
   id: string;
@@ -176,32 +65,50 @@ export type UpsertEscrowFeeConfigRequest = {
   is_active?: boolean;
 };
 
-/**
- * List escrow fee configs. `bagdja-console` terdaftar sebagai core service di
- * payment-service, jadi ini mengembalikan SEMUA config lintas org/app (bukan
- * cuma milik satu app) — filter di sisi klien pakai `product_id`/`is_active`
- * kalau perlu.
- */
-export async function listEscrowFeeConfigs(params?: {
-  product_id?: string;
-  is_active?: boolean;
-}): Promise<EscrowFeeConfig[]> {
+function feeConfigQuery(params?: { product_id?: string; is_active?: boolean }): string {
   const qs = new URLSearchParams();
   if (params?.product_id) qs.append('product_id', params.product_id);
   if (typeof params?.is_active === 'boolean') qs.append('is_active', String(params.is_active));
   const query = qs.toString();
-  return apiRequest<EscrowFeeConfig[]>(`/escrow/fee-configs${query ? `?${query}` : ''}`);
+  return query ? `?${query}` : '';
+}
+
+function appScope(orgId: string, appId: string): { path: string; headers: Record<string, string> } {
+  return {
+    path: `/apps/${encodeURIComponent(appId)}/escrow/fee-configs`,
+    headers: { 'x-organization-id': orgId },
+  };
 }
 
 /**
- * Create/update a fee config for a scope (org_id, app_id, product_id).
- * Upsert — matching scope yang sudah ada akan di-update, bukan duplikat.
+ * Config fee escrow yang berlaku untuk SATU App (pemilik App): baris
+ * (org, App, *) + fallback (org, default) dan (default, default) — cukup
+ * untuk `resolveEffectiveFeeConfig`. Butuh `payment.escrow-fee-configs.manage`
+ * di org pemilik App.
  */
-export async function upsertEscrowFeeConfig(
+export async function listAppEscrowFeeConfigs(
+  orgId: string,
+  appId: string,
+  params?: { product_id?: string; is_active?: boolean },
+): Promise<EscrowFeeConfig[]> {
+  const { path, headers } = appScope(orgId, appId);
+  return paymentConsoleRequest<EscrowFeeConfig[]>(`${path}${feeConfigQuery(params)}`, { headers });
+}
+
+/**
+ * Set/update Fee App untuk App milik user (opsional per produk). Scope
+ * selalu (org pemilik, App ini); `platform_*` diabaikan service — baris
+ * baru mewarisi Fee Platform yang sedang berlaku.
+ */
+export async function upsertAppEscrowFeeConfig(
+  orgId: string,
+  appId: string,
   data: UpsertEscrowFeeConfigRequest,
 ): Promise<EscrowFeeConfig> {
-  return apiRequest<EscrowFeeConfig>('/escrow/fee-configs', {
+  const { path, headers } = appScope(orgId, appId);
+  return paymentConsoleRequest<EscrowFeeConfig>(path, {
     method: 'POST',
+    headers,
     body: JSON.stringify(data),
   });
 }
@@ -215,11 +122,7 @@ export async function listPlatformEscrowFeeConfigs(params?: {
   product_id?: string;
   is_active?: boolean;
 }): Promise<EscrowFeeConfig[]> {
-  const qs = new URLSearchParams();
-  if (params?.product_id) qs.append('product_id', params.product_id);
-  if (typeof params?.is_active === 'boolean') qs.append('is_active', String(params.is_active));
-  const query = qs.toString();
-  return paymentConsoleRequest<EscrowFeeConfig[]>(`/escrow/fee-configs${query ? `?${query}` : ''}`);
+  return paymentConsoleRequest<EscrowFeeConfig[]>(`/escrow/fee-configs${feeConfigQuery(params)}`);
 }
 
 /**

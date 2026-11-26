@@ -6,7 +6,7 @@ import { ProductStatus } from '@/types';
 import { Input } from '@/ui/input';
 import { Select } from '@/ui/select';
 import { X, Code2, AlertCircle } from 'lucide-react';
-import { listEscrowFeeConfigs, type EscrowFeeConfig } from '@/lib/escrow-fee-configs-api';
+import { listAppEscrowFeeConfigs, type EscrowFeeConfig } from '@/lib/escrow-fee-configs-api';
 import { PercentFeeInput } from '@/components/billing/FeeInputFields';
 
 const DEFAULT_SCOPE = 'default';
@@ -196,7 +196,7 @@ export default function EscrowProductModal({
     (async () => {
       setFeeLoading(true);
       try {
-        const configs = await listEscrowFeeConfigs({ is_active: true });
+        const configs = await listAppEscrowFeeConfigs(orgId, appId, { is_active: true });
         if (cancelled) return;
         const productId = escrowProduct?.id;
         const effective = resolveEffectiveFeeConfig(configs, orgId, appId, productId);
