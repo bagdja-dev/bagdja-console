@@ -44,7 +44,7 @@ export default function OrgRoleModal({ isOpen, role, catalog, onClose, onSubmit 
     const known = new Set(catalog.map((p) => p.key));
     const extra: AssignablePermission[] = (role?.permissions ?? [])
       .filter((key) => !known.has(key))
-      .map((key) => ({ key, description: null, grantable: false }));
+      .map((key) => ({ key, description: null, grantable: false, isSystemOnly: false }));
     return groupPermissions([...catalog, ...extra]);
   }, [catalog, role]);
 
@@ -163,6 +163,11 @@ export default function OrgRoleModal({ isOpen, role, catalog, onClose, onSubmit 
                           <span className="min-w-0">
                             <span className="block break-all font-mono text-xs text-[var(--text-primary)]">
                               {permission.key}
+                              {permission.isSystemOnly && (
+                                <span className="ml-2 rounded bg-amber-500/10 px-1.5 py-0.5 font-sans text-[10px] font-bold uppercase text-amber-600">
+                                  Khusus org sistem
+                                </span>
+                              )}
                             </span>
                             {permission.description && (
                               <span className="block text-xs text-[var(--text-secondary)]">
