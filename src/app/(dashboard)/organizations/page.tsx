@@ -10,7 +10,7 @@ import {
 } from '@/lib/auth';
 import { AssetSelector } from '@/components/AssetSelector';
 import type { Organization, ApiError, UpdateOrganizationRequest } from '@/types';
-import { Plus, Building, Mail, Calendar, User, Edit, X, Trash2 } from 'lucide-react';
+import { Plus, Building, Mail, Calendar, User, Users, Edit, X, Trash2 } from 'lucide-react';
 import { Button } from '@/ui/button';
 import { Input } from '@/ui/input';
 
@@ -351,6 +351,15 @@ export default function OrganizationsPage() {
                         className="text-[var(--action-primary)] hover:text-[var(--action-primary-hover)] focus:outline-none focus:ring-2 focus:ring-[var(--action-primary)] focus:ring-offset-2 rounded px-2 py-1"
                       >
                         Select
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => router.push(`/organizations/${encodeURIComponent(org.orgId)}`)}
+                        className="ml-2 inline-flex items-center gap-1 rounded px-2 py-1 text-[var(--text-secondary)] hover:text-[var(--action-primary)]"
+                        aria-label={`Anggota dan role ${org.name}`}
+                      >
+                        <Users className="h-4 w-4" />
+                        Anggota & Role
                       </button>
                       {org.role?.slug === 'owner' && (
                         <>

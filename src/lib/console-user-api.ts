@@ -17,6 +17,25 @@ export function requireServiceBase(envValue: string | undefined, envName: string
   return envValue;
 }
 
+/**
+ * Pesan 403 yang bisa ditindaklanjuti (org-user-management-plan §7): apa yang
+ * kurang + ke mana minta izin. Detail asli dari service tetap disertakan.
+ */
+export function describeForbidden(detail: string): string {
+  const hint =
+    'Minta owner atau admin organisasi memberi izin di Organizations → Anggota & Role.';
+  if (/system organization/i.test(detail)) {
+    return `Hanya anggota organisasi sistem yang boleh melakukan aksi ini. ${hint}`;
+  }
+  if (/not a member of this organization/i.test(detail)) {
+    return `Anda bukan anggota organisasi pemilik data ini. ${hint}`;
+  }
+  if (/not owned by organization/i.test(detail)) {
+    return 'App ini bukan milik organisasi yang sedang aktif. Pilih organisasi pemilik App lebih dulu.';
+  }
+  return `Anda tidak punya izin untuk aksi ini (${detail}). ${hint}`;
+}
+
 export async function consoleUserRequest<T>(
   baseUrl: string,
   path: string,
@@ -49,6 +68,11 @@ export async function consoleUserRequest<T>(
     // 401/403 dari service non-auth TIDAK menghapus token login (29 Okt 2026):
     // bisa berarti izin di service itu, bukan sesi berakhir. Sesi hanya
     // diakhiri oleh 401 dari bagdja-auth (lib/api.ts).
+
+    if (response.status === 403) {
+      error.code = 'FORBIDDEN';
+      error.message = describeForbidden(error.message);
+    }
 
     throw error;
   }
