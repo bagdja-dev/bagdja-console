@@ -14,7 +14,6 @@ import {
   unfreezeEscrow,
   forceReleaseDispute,
   refundEscrow,
-  getWalletById,
   type EscrowDetail,
 } from "@/lib/escrow-disputes-api";
 import {
@@ -38,7 +37,7 @@ import {
   updateEscrowProduct,
   deleteEscrowProduct,
 } from "@/lib/escrow-products-api";
-import { upsertEscrowFeeConfig } from "@/lib/escrow-fee-configs-api";
+import { upsertAppEscrowFeeConfig } from "@/lib/escrow-fee-configs-api";
 import type { EscrowProductFeeOverride } from "@/components/EscrowProductModal";
 import { ChannelType, PlanDuration } from "@/types";
 import type {
@@ -851,22 +850,30 @@ export default function AppDetailPage() {
   // Fetch disputed escrows (+ resolve buyer identity & product info) when dispute tab is active
   useEffect(() => {
     const fetchDisputes = async () => {
-      if (activeTab !== "dispute" || !app?.appId) return;
+      if (activeTab !== "dispute" || !app?.appId || !app?.orgId) return;
 
       try {
         setDisputesLoading(true);
         setDisputesError(null);
-        const result = await listDisputedEscrows({ appId: app.appId });
+        const result = await listDisputedEscrows({
+          orgId: app.orgId,
+          appId: app.appId,
+        });
         setDisputedEscrows(result.data);
 
-        const [products, wallets] = await Promise.all([
-          getEscrowProducts(app.appId).catch(() => [] as EscrowProduct[]),
-          Promise.all(
-            Array.from(new Set(result.data.map((e) => e.buyer_wallet_id))).map(
-              (walletId) => getWalletById(walletId).catch(() => null),
-            ),
-          ),
-        ]);
+        // Ringkasan wallet pembeli ikut di respons sengketa (P2 batch 2) —
+        // tidak perlu lagi GET /wallets/:id per pembeli.
+        const wallets = Array.from(
+          new Map(
+            result.data
+              .map((e) => e.buyer_wallet)
+              .filter((w): w is NonNullable<typeof w> => Boolean(w))
+              .map((w) => [w.id, w]),
+          ).values(),
+        );
+        const products = await getEscrowProducts(app.appId).catch(
+          () => [] as EscrowProduct[],
+        );
 
         setDisputeProductById(
           Object.fromEntries(products.map((p) => [p.id, p])),
@@ -913,7 +920,7 @@ export default function AppDetailPage() {
     };
 
     fetchDisputes();
-  }, [activeTab, app?.appId]);
+  }, [activeTab, app?.appId, app?.orgId]);
 
   // Fetch plans when plan tab is active
   useEffect(() => {
@@ -1379,9 +1386,7 @@ export default function AppDetailPage() {
   ) => {
     if (!feeOverride || !app?.orgId || !app?.appId) return;
     if (feeOverride.active) {
-      await upsertEscrowFeeConfig({
-        org_id: app.orgId,
-        app_id: app.appId,
+      await upsertAppEscrowFeeConfig(app.orgId, app.appId, {
         product_id: productId,
         platform_fixed_fee: feeOverride.platform_fixed_fee,
         platform_percentage_fee: feeOverride.platform_percentage_fee,
@@ -1398,9 +1403,7 @@ export default function AppDetailPage() {
         is_active: true,
       });
     } else {
-      await upsertEscrowFeeConfig({
-        org_id: app.orgId,
-        app_id: app.appId,
+      await upsertAppEscrowFeeConfig(app.orgId, app.appId, {
         product_id: productId,
         is_active: false,
       });
@@ -1462,14 +1465,16 @@ export default function AppDetailPage() {
 
   const handleDisputeAction = async (note: string) => {
     if (!disputeActionTarget) return;
+    if (!app?.orgId || !app?.appId) return;
     const { action, escrow } = disputeActionTarget;
+    const scope = { orgId: app.orgId, appId: app.appId };
 
     if (action === "unfreeze") {
-      await unfreezeEscrow(escrow.id, note);
+      await unfreezeEscrow(scope, escrow.id, note);
     } else if (action === "release") {
-      await forceReleaseDispute(escrow, note);
+      await forceReleaseDispute(scope, escrow, note);
     } else {
-      await refundEscrow(escrow.id, `console-refund-${escrow.id}`, note);
+      await refundEscrow(scope, escrow.id, `console-refund-${escrow.id}`, note);
     }
 
     setDisputedEscrows((prev) => prev.filter((e) => e.id !== escrow.id));
