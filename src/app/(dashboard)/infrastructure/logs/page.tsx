@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { getLogs } from '@/lib/logs-api';
+import { getInfraLogs } from '@/lib/logs-api';
+import type { PlatformLogEntry } from '@/lib/logs-api';
 import { 
   List, 
   Info, 
@@ -23,7 +24,7 @@ export default function LogsPage() {
   const headerRef = useRef<HTMLDivElement>(null);
   const isHeaderVisibleRef = useRef(true);
 
-  const [selectedLog, setSelectedLog] = useState<any>(null);
+  const [selectedLog, setSelectedLog] = useState<PlatformLogEntry | null>(null);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
 
   // Topbar content logic similar to app detail
@@ -175,7 +176,7 @@ export default function LogsPage() {
     const { page, size, search, filter } = params;
     const offset = (page - 1) * size;
     
-    const response = await getLogs({
+    const response = await getInfraLogs({
       search: search || undefined,
       level: filter.level || undefined,
       tags: filter.tags || undefined,
