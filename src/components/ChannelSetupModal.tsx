@@ -5,20 +5,21 @@ import { X, Shield, Server, Mail, AlertCircle, CheckCircle2 } from 'lucide-react
 import { Input } from '@/ui/input';
 import { Button } from '@/ui/button';
 import { ChannelType, ProviderType } from '@/types';
+import type { ChannelConfig, ChannelSetting, SetupChannelRequest } from '@/types';
 import { testConnection } from '@/lib/messages-api';
 
 interface ChannelSetupModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSubmit: (data: { channelType: ChannelType; providerType: ProviderType; config: any }) => Promise<void>;
+  onSubmit: (data: SetupChannelRequest) => Promise<void>;
+  orgId: string;
+  appId: string;
   channelType: ChannelType;
-  initialData?: {
-    providerType: ProviderType;
-    config: any;
-  };
+  /** Dari server: tanpa nilai rahasia, lihat `configuredFields`. */
+  initialData?: ChannelSetting;
 }
 
-const DEFAULT_SMTP_CONFIG = {
+const DEFAULT_SMTP_CONFIG: ChannelConfig = {
   host: '',
   port: 587,
   user: '',
@@ -27,9 +28,17 @@ const DEFAULT_SMTP_CONFIG = {
   secure: false,
 };
 
-export default function ChannelSetupModal({ isOpen, onClose, onSubmit, channelType, initialData }: ChannelSetupModalProps) {
+export default function ChannelSetupModal({
+  isOpen,
+  onClose,
+  onSubmit,
+  orgId,
+  appId,
+  channelType,
+  initialData,
+}: ChannelSetupModalProps) {
   const [providerType, setProviderType] = useState<ProviderType>(ProviderType.SMTP);
-  const [config, setConfig] = useState<any>(DEFAULT_SMTP_CONFIG);
+  const [config, setConfig] = useState<ChannelConfig>(DEFAULT_SMTP_CONFIG);
   const [loading, setLoading] = useState(false);
   const [testing, setTesting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -39,7 +48,14 @@ export default function ChannelSetupModal({ isOpen, onClose, onSubmit, channelTy
     if (isOpen) {
       if (initialData) {
         setProviderType(initialData.providerType || ProviderType.SMTP);
-        setConfig(initialData.config || (initialData.providerType === ProviderType.SMTP ? DEFAULT_SMTP_CONFIG : {}));
+        // Field rahasia tidak dikirim server → input kosong; kosong saat
+        // simpan = pertahankan nilai tersimpan.
+        setConfig({
+          ...(initialData.providerType === ProviderType.SMTP ? DEFAULT_SMTP_CONFIG : {}),
+          ...initialData.config,
+          pass: '',
+          apiKey: '',
+        });
       } else {
         setProviderType(ProviderType.SMTP);
         setConfig(DEFAULT_SMTP_CONFIG);
@@ -49,24 +65,36 @@ export default function ChannelSetupModal({ isOpen, onClose, onSubmit, channelTy
     }
   }, [isOpen, initialData]);
 
-  const handleConfigChange = (key: string, value: any) => {
-    setConfig((prev: any) => ({ ...prev, [key]: value }));
+  const handleConfigChange = <K extends keyof ChannelConfig>(key: K, value: ChannelConfig[K]) => {
+    setConfig((prev) => ({ ...prev, [key]: value }));
   };
+
+  /** Rahasia sudah tersimpan untuk provider yang sama → boleh dikosongkan. */
+  const hasStoredSecret = (field: 'pass' | 'apiKey') =>
+    initialData?.providerType === providerType && !!initialData?.configuredFields?.includes(field);
+  const storedSecretPlaceholder = 'Tersimpan — kosongkan untuk mempertahankan';
 
   const handleTestConnection = async () => {
     setTesting(true);
     setError(null);
     setTestResult(null);
 
+    if (!config.from) {
+      setError('Isi From Address dulu — email uji dikirim ke alamat itu.');
+      setTesting(false);
+      return;
+    }
+
     try {
-      const res = await testConnection({
-        to: config.from || 'test@example.com',
+      const res = await testConnection(orgId, appId, {
+        to: config.from,
+        channelType,
         providerType,
         config,
       });
       setTestResult(res);
-    } catch (err: any) {
-      setError(err.message || 'Connection test failed');
+    } catch (err) {
+      setError((err as { message?: string })?.message || 'Connection test failed');
     } finally {
       setTesting(false);
     }
@@ -80,8 +108,8 @@ export default function ChannelSetupModal({ isOpen, onClose, onSubmit, channelTy
     try {
       await onSubmit({ channelType, providerType, config });
       onClose();
-    } catch (err: any) {
-      setError(err.message || 'Failed to save configuration');
+    } catch (err) {
+      setError((err as { message?: string })?.message || 'Failed to save configuration');
     } finally {
       setLoading(false);
     }
@@ -148,7 +176,7 @@ export default function ChannelSetupModal({ isOpen, onClose, onSubmit, channelTy
                   <label className="block text-sm font-bold text-[var(--text-primary)] mb-1.5">SMTP Host</label>
                   <Input
                     placeholder="smtp.example.com"
-                    value={config.host}
+                    value={config.host ?? ''}
                     onChange={(e) => handleConfigChange('host', e.target.value)}
                     required
                   />
@@ -158,8 +186,8 @@ export default function ChannelSetupModal({ isOpen, onClose, onSubmit, channelTy
                   <Input
                     type="number"
                     placeholder="587"
-                    value={config.port}
-                    onChange={(e) => handleConfigChange('port', parseInt(e.target.value))}
+                    value={config.port ?? ''}
+                    onChange={(e) => handleConfigChange('port', parseInt(e.target.value, 10))}
                     required
                   />
                 </div>
@@ -167,7 +195,7 @@ export default function ChannelSetupModal({ isOpen, onClose, onSubmit, channelTy
                   <input
                     type="checkbox"
                     id="secure"
-                    checked={config.secure}
+                    checked={!!config.secure}
                     onChange={(e) => handleConfigChange('secure', e.target.checked)}
                     className="w-4 h-4 rounded border-gray-300 text-primary"
                   />
@@ -177,7 +205,7 @@ export default function ChannelSetupModal({ isOpen, onClose, onSubmit, channelTy
                   <label className="block text-sm font-bold text-[var(--text-primary)] mb-1.5">Username</label>
                   <Input
                     placeholder="user@example.com"
-                    value={config.user}
+                    value={config.user ?? ''}
                     onChange={(e) => handleConfigChange('user', e.target.value)}
                     required
                   />
@@ -186,17 +214,17 @@ export default function ChannelSetupModal({ isOpen, onClose, onSubmit, channelTy
                   <label className="block text-sm font-bold text-[var(--text-primary)] mb-1.5">Password</label>
                   <Input
                     type="password"
-                    placeholder="••••••••"
-                    value={config.pass}
+                    placeholder={hasStoredSecret('pass') ? storedSecretPlaceholder : '••••••••'}
+                    value={config.pass ?? ''}
                     onChange={(e) => handleConfigChange('pass', e.target.value)}
-                    required
+                    required={!hasStoredSecret('pass')}
                   />
                 </div>
                 <div className="col-span-2">
                   <label className="block text-sm font-bold text-[var(--text-primary)] mb-1.5">From Address</label>
                   <Input
                     placeholder="noreply@yourdomain.com"
-                    value={config.from}
+                    value={config.from ?? ''}
                     onChange={(e) => handleConfigChange('from', e.target.value)}
                     required
                   />
@@ -210,17 +238,17 @@ export default function ChannelSetupModal({ isOpen, onClose, onSubmit, channelTy
                   <label className="block text-sm font-bold text-[var(--text-primary)] mb-1.5">API Key</label>
                   <Input
                     type="password"
-                    placeholder="SG.xxxxxxxx..."
-                    value={config.apiKey}
+                    placeholder={hasStoredSecret('apiKey') ? storedSecretPlaceholder : 'SG.xxxxxxxx...'}
+                    value={config.apiKey ?? ''}
                     onChange={(e) => handleConfigChange('apiKey', e.target.value)}
-                    required
+                    required={!hasStoredSecret('apiKey')}
                   />
                 </div>
                 <div>
                   <label className="block text-sm font-bold text-[var(--text-primary)] mb-1.5">From Address</label>
                   <Input
                     placeholder="noreply@yourdomain.com"
-                    value={config.from}
+                    value={config.from ?? ''}
                     onChange={(e) => handleConfigChange('from', e.target.value)}
                     required
                   />
@@ -237,7 +265,7 @@ export default function ChannelSetupModal({ isOpen, onClose, onSubmit, channelTy
         </form>
 
         <div className="p-6 border-t border-[var(--border-default)] flex flex-col gap-3">
-          {providerType !== ProviderType.SYSTEM && (
+          {providerType === ProviderType.SMTP && (
             <Button
               type="button"
               variant="outline"
