@@ -480,15 +480,31 @@ export enum ProviderType {
   MAILGUN = "mailgun",
 }
 
+/** Pengaturan channel. Nilai rahasia (password, API key) tidak pernah dikirim. */
 export interface ChannelSetting {
   id: string;
   appId: string;
   channelType: ChannelType;
   providerType: ProviderType;
-  config: any;
+  /** Config tanpa field rahasia. */
+  config: ChannelConfig;
+  /** Semua field yang terisi, termasuk yang rahasia (mis. `pass`). */
+  configuredFields: string[];
   isActive: boolean;
-  createdAt: Date;
-  updatedAt: Date;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ChannelConfig {
+  host?: string;
+  port?: number;
+  secure?: boolean;
+  user?: string;
+  /** Kosong saat edit = pertahankan nilai tersimpan. */
+  pass?: string;
+  /** Kosong saat edit = pertahankan nilai tersimpan. */
+  apiKey?: string;
+  from?: string;
 }
 
 export interface MessageTemplate {
@@ -496,14 +512,44 @@ export interface MessageTemplate {
   appId: string;
   name: string;
   channelType: ChannelType;
-  subject?: string;
+  subject?: string | null;
   content: string;
-  createdAt: Date;
-  updatedAt: Date;
+  description?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type MessageStatus = "pending" | "sent" | "failed";
+
+export interface MessageLog {
+  id: string;
+  appId: string;
+  channelType: ChannelType;
+  recipient: string;
+  subject?: string | null;
+  content: string;
+  templateName?: string | null;
+  status: MessageStatus;
+  errorMessage?: string | null;
+  providerType?: string | null;
+  /** true = konten dimask (mis. OTP) dan tidak bisa dikirim ulang. */
+  isSensitive: boolean;
+  metadata?: Record<string, unknown> | null;
+  createdAt: string;
+}
+
+export interface MessageGridPage<T> {
+  data: T[];
+  meta: {
+    totalItems: number;
+    itemCount: number;
+    itemsPerPage: number;
+    totalPages: number;
+    currentPage: number;
+  };
 }
 
 export interface CreateTemplateRequest {
-  appId?: string;
   name: string;
   channelType: ChannelType;
   subject?: string;
@@ -511,8 +557,8 @@ export interface CreateTemplateRequest {
 }
 
 export interface UpdateTemplateRequest {
-  appId?: string;
   name?: string;
+  channelType?: ChannelType;
   subject?: string;
   content?: string;
 }
@@ -520,11 +566,12 @@ export interface UpdateTemplateRequest {
 export interface SetupChannelRequest {
   channelType: ChannelType;
   providerType: ProviderType;
-  config: any;
+  config: ChannelConfig;
 }
 
 export interface TestConnectionRequest {
   to: string;
+  channelType: ChannelType;
   providerType: ProviderType;
-  config: any;
+  config: ChannelConfig;
 }

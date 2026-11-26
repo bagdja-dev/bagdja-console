@@ -1,10 +1,10 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { X, Globe, Lock, Clock, AlertCircle, Link2, FileText, Search, Copy, Check, List } from 'lucide-react';
 import { Input } from '@/ui/input';
 import { Button } from '@/ui/button';
-import { getAvailableEvents } from '@/lib/api';
+import { listAvailableEvents, type EventGridParams } from '@/lib/events-console-api';
 import DataGrid from './DataGrid';
 
 interface EventSubscribeModalProps {
@@ -19,9 +19,17 @@ interface EventSubscribeModalProps {
     eventName: string;
     contract?: any;
   };
+  /** Org pemilik App (header `x-organization-id`). */
+  orgId: string;
+  /** App yang akan berlangganan. */
+  appId: string;
 }
 
-export default function EventSubscribeModal({ isOpen, onClose, onSubmit, initialData }: EventSubscribeModalProps) {
+export default function EventSubscribeModal({ isOpen, onClose, onSubmit, initialData, orgId, appId }: EventSubscribeModalProps) {
+  const fetchAvailableEvents = useCallback(
+    (params: EventGridParams) => listAvailableEvents(orgId, appId, params),
+    [orgId, appId],
+  );
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -133,7 +141,7 @@ export default function EventSubscribeModal({ isOpen, onClose, onSubmit, initial
                 <DataGrid
                   title="Available Events"
                   description="Browse and select events available for subscription."
-                  fetchData={getAvailableEvents}
+                  fetchData={fetchAvailableEvents}
                   isScrollable={true}
                   fullHeight={true}
                   onRowClick={(row) => {

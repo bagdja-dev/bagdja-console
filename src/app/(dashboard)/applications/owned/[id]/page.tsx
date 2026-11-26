@@ -39,7 +39,7 @@ import {
 } from "@/lib/escrow-products-api";
 import { upsertAppEscrowFeeConfig } from "@/lib/escrow-fee-configs-api";
 import type { EscrowProductFeeOverride } from "@/components/EscrowProductModal";
-import { ChannelType, PlanDuration } from "@/types";
+import { ChannelType, PlanDuration, ProviderType } from "@/types";
 import type {
   ClientApp,
   ApiError,
@@ -58,6 +58,12 @@ import type {
   EscrowProduct,
   CreateEscrowProductRequest,
   UpdateEscrowProductRequest,
+  ChannelSetting,
+  CreateTemplateRequest,
+  UpdateTemplateRequest,
+  SetupChannelRequest,
+  MessageTemplate,
+  MessageLog,
 } from "@/types";
 import { getLogs } from "@/lib/logs-api";
 import {
@@ -123,20 +129,20 @@ import TenantPartnersModal from "@/components/TenantPartnersModal";
 import { useLayout } from "@/context/LayoutContext";
 import { generateCurl } from "@/lib/utils";
 import {
-  getInfraContracts,
-  createEventContract,
-  registerAppInHub,
-  updateEventContract,
-  deleteEventContract,
-  getMyAppSubscriptions,
-  subscribeToEvent,
-  updateMySubscription,
-  deleteMySubscription,
-  getSubscriptionRequests,
-  updateSubscriptionStatus,
-  getEventLogs,
-  resendEventLog,
-} from "@/lib/api";
+  listAppEventContracts,
+  createAppEventContract,
+  updateAppEventContract,
+  deleteAppEventContract,
+  listAppEventSubscriptions,
+  subscribeAppToEvent,
+  updateAppEventSubscription,
+  deleteAppEventSubscription,
+  listAppSubscriptionRequests,
+  updateAppSubscriptionRequestStatus,
+  listAppEventLogs,
+  resendAppEventLog,
+  type EventSubscriptionStatus,
+} from "@/lib/events-console-api";
 import {
   getTemplates,
   createTemplate,
@@ -373,14 +379,14 @@ export default function AppDetailPage() {
   const [activeChannel, setActiveChannel] = useState<ChannelType | null>(null);
   const [messagingSubTab, setMessagingSubTab] =
     useState<MessagingSubTab>("setup");
-  const [channelSettings, setChannelSettings] = useState<any[]>([]);
+  const [channelSettings, setChannelSettings] = useState<ChannelSetting[]>([]);
   const [channelSettingsLoading, setChannelSettingsLoading] = useState(false);
   const [refreshTemplatesTrigger, setRefreshTemplatesTrigger] = useState(0);
   const [templateModalOpen, setTemplateModalOpen] = useState(false);
   const [channelSetupModalOpen, setChannelSetupModalOpen] = useState(false);
-  const [editingTemplate, setEditingTemplate] = useState<any>(null);
+  const [editingTemplate, setEditingTemplate] = useState<MessageTemplate | null>(null);
   const [msgLogDetailModalOpen, setMsgLogDetailModalOpen] = useState(false);
-  const [selectedMsgLog, setSelectedMsgLog] = useState<any>(null);
+  const [selectedMsgLog, setSelectedMsgLog] = useState<MessageLog | null>(null);
 
   // Payment method settings state
   const [paymentMethodSettings, setPaymentMethodSettings] = useState<
@@ -548,10 +554,10 @@ export default function AppDetailPage() {
   };
 
   const fetchChannelSettings = async () => {
-    if (!app?.appId) return;
+    if (!app?.orgId || !app?.appId) return;
     try {
       setChannelSettingsLoading(true);
-      const data = await getChannelSettings(app.appId);
+      const data = await getChannelSettings(app.orgId, app.appId);
       setChannelSettings(data);
     } catch (err) {
       console.error("Failed to fetch channel settings:", err);
@@ -612,16 +618,13 @@ export default function AppDetailPage() {
     }
   };
 
-  const handleChannelSetupSubmit = async (data: any) => {
-    if (!app?.appId) return;
+  const handleChannelSetupSubmit = async (data: SetupChannelRequest) => {
+    if (!app?.orgId || !app?.appId) return;
     try {
-      await setupChannel({
-        ...data,
-        appId: app.appId,
-      });
+      await setupChannel(app.orgId, app.appId, data);
       await fetchChannelSettings();
-    } catch (err: any) {
-      throw new Error(err.message || "Failed to setup channel");
+    } catch (err) {
+      throw new Error((err as { message?: string })?.message || "Failed to setup channel");
     }
   };
 
@@ -632,11 +635,11 @@ export default function AppDetailPage() {
 
   const handleResendEvent = async (e: React.MouseEvent, logId: string) => {
     e.stopPropagation();
-    if (!app?.appId) return;
+    if (!app?.appId || !app?.orgId) return;
 
     try {
       setResendingLogId(logId);
-      await resendEventLog(logId, app.appId);
+      await resendAppEventLog(app.orgId, app.appId, logId);
       showAlert(
         "Event has been successfully re-enqueued for delivery.",
         "success",
@@ -655,11 +658,11 @@ export default function AppDetailPage() {
 
   const handleResendMessage = async (e: React.MouseEvent, logId: string) => {
     e.stopPropagation();
-    if (!app?.appId) return;
+    if (!app?.orgId || !app?.appId) return;
 
     try {
       setResendingMsgLogId(logId);
-      await resendMessageLog(logId, app.appId);
+      await resendMessageLog(app.orgId, app.appId, logId);
       showAlert(
         "Email has been successfully resent.",
         "success",
@@ -676,27 +679,24 @@ export default function AppDetailPage() {
     }
   };
 
-  const handleTemplateSubmit = async (data: any) => {
-    if (!app?.appId) return;
-
-    const payload = {
-      ...data,
-      appId: app.appId,
-    };
+  const handleTemplateSubmit = async (
+    data: CreateTemplateRequest | UpdateTemplateRequest,
+  ) => {
+    if (!app?.orgId || !app?.appId) return;
 
     if (editingTemplate) {
-      await updateTemplate(editingTemplate.id, payload);
+      await updateTemplate(app.orgId, app.appId, editingTemplate.id, data);
     } else {
-      await createTemplate(payload);
+      await createTemplate(app.orgId, app.appId, data as CreateTemplateRequest);
     }
     setRefreshTemplatesTrigger((prev) => prev + 1);
   };
 
   const handleDeleteTemplate = async (id: string) => {
     if (!confirm("Are you sure you want to delete this template?")) return;
-    if (!app?.appId) return;
+    if (!app?.orgId || !app?.appId) return;
     try {
-      await deleteTemplate(id, app.appId);
+      await deleteTemplate(app.orgId, app.appId, id);
       setRefreshTemplatesTrigger((prev) => prev + 1);
       showAlert("Template deleted successfully.", "success");
     } catch (err) {
@@ -1046,12 +1046,17 @@ export default function AppDetailPage() {
   // Fetch subscription requests when events/requests tab is active
   useEffect(() => {
     const fetchRequests = async () => {
-      if (activeTab !== "events" || eventSubTab !== "requests" || !app?.appId)
+      if (
+        activeTab !== "events" ||
+        eventSubTab !== "requests" ||
+        !app?.appId ||
+        !app?.orgId
+      )
         return;
 
       try {
         setSubscriptionRequestsLoading(true);
-        const res = await getSubscriptionRequests(app.appId);
+        const res = await listAppSubscriptionRequests(app.orgId, app.appId);
         setSubscriptionRequests(res.data || []);
       } catch (err) {
         console.error("Failed to fetch subscription requests:", err);
@@ -1061,7 +1066,7 @@ export default function AppDetailPage() {
     };
 
     fetchRequests();
-  }, [activeTab, eventSubTab, app?.appId]);
+  }, [activeTab, eventSubTab, app?.appId, app?.orgId]);
 
   const formatCurrency = (amount: number, currency: string = "IDR") => {
     try {
@@ -1179,23 +1184,15 @@ export default function AppDetailPage() {
     isPublic: boolean;
     isActive?: boolean;
   }) => {
-    if (!app) return;
+    if (!app?.appId || !app?.orgId) return;
 
     try {
       if (editingEvent) {
         // Update existing contract
-        await updateEventContract(editingEvent.id, data);
+        await updateAppEventContract(app.orgId, app.appId, editingEvent.id, data);
       } else {
-        // 1. Ensure app is registered in hub registry first (idempotent)
-        await registerAppInHub({
-          orgId: app.orgId,
-          orgSlug: app.orgId || "bagdja",
-          appId: app.appId,
-          appSlug: app.appSlug || app.appId.split("-")[0],
-        });
-
-        // 2. Create the event contract
-        await createEventContract(app.appId, data);
+        // App otomatis didaftarkan di hub (org = org pemilik App).
+        await createAppEventContract(app.orgId, app.appId, data);
       }
 
       // 3. Refresh list
@@ -1211,17 +1208,20 @@ export default function AppDetailPage() {
     webhookUrl?: string,
     label: string = "default",
   ) => {
-    if (!app?.appId) return;
+    if (!app?.appId || !app?.orgId) return;
     try {
       if (editingSubscription) {
-        await updateMySubscription(
-          editingSubscription.id,
-          webhookUrl,
+        await updateAppEventSubscription(
+          app.orgId,
           app.appId,
-          label,
+          editingSubscription.id,
+          { webhookUrl, label },
         );
       } else {
-        await subscribeToEvent(contractId, webhookUrl, app.appId, label);
+        await subscribeAppToEvent(app.orgId, app.appId, contractId, {
+          webhookUrl,
+          label,
+        });
       }
 
       // Refresh list
@@ -1253,14 +1253,19 @@ export default function AppDetailPage() {
     subId: string,
     status: string,
   ) => {
-    if (!app?.appId) return;
+    if (!app?.appId || !app?.orgId) return;
     try {
-      await updateSubscriptionStatus(subId, status, app.appId);
+      await updateAppSubscriptionRequestStatus(
+        app.orgId,
+        app.appId,
+        subId,
+        status as EventSubscriptionStatus,
+      );
       // Refresh grid by triggering refreshContracts state
       setRefreshContracts((prev) => prev + 1);
 
       // Also update the local state for current count/notifications if needed
-      const res = await getSubscriptionRequests(app.appId);
+      const res = await listAppSubscriptionRequests(app.orgId, app.appId);
       setSubscriptionRequests(res.data || []);
       showAlert(`Subscription request ${status} successfully.`, "success");
     } catch (err: any) {
@@ -1271,9 +1276,9 @@ export default function AppDetailPage() {
   const handleUnsubscribe = async (subId: string) => {
     if (!confirm("Are you sure you want to unsubscribe from this event?"))
       return;
-    if (!app?.appId) return;
+    if (!app?.appId || !app?.orgId) return;
     try {
-      await deleteMySubscription(subId, app.appId);
+      await deleteAppEventSubscription(app.orgId, app.appId, subId);
       setRefreshContracts((prev) => prev + 1);
       showAlert("Unsubscribed successfully.", "success");
     } catch (err: any) {
@@ -1290,8 +1295,9 @@ export default function AppDetailPage() {
       return;
     }
 
+    if (!app?.appId || !app?.orgId) return;
     try {
-      await deleteEventContract(id);
+      await deleteAppEventContract(app.orgId, app.appId, id);
       // Refresh list
       setRefreshContracts((prev) => prev + 1);
       showAlert("Event contract deleted successfully.", "success");
@@ -3234,10 +3240,9 @@ export default function AppDetailPage() {
                   title="Your Event Contracts"
                   description="Manage events that this application broadcasts to the hub."
                   fetchData={(params) =>
-                    getInfraContracts({
-                      ...params,
-                      filter: { ...params.filter, appId: app?.appId },
-                    })
+                    app?.orgId && app?.appId
+                      ? listAppEventContracts(app.orgId, app.appId, params)
+                      : Promise.resolve({ data: [], meta: { totalItems: 0 } })
                   }
                   refreshTrigger={refreshContracts}
                   isScrollable={true}
@@ -3381,7 +3386,9 @@ export default function AppDetailPage() {
                   title="Your Subscriptions"
                   description="Events that this application is currently subscribed to."
                   fetchData={(params) =>
-                    getMyAppSubscriptions(app?.appId, params)
+                    app?.orgId && app?.appId
+                      ? listAppEventSubscriptions(app.orgId, app.appId, params)
+                      : Promise.resolve({ data: [], meta: { totalItems: 0 } })
                   }
                   refreshTrigger={refreshContracts}
                   isScrollable={true}
@@ -3516,7 +3523,9 @@ export default function AppDetailPage() {
                   title="Subscription Requests"
                   description="Applications requesting to subscribe to your events."
                   fetchData={(params) =>
-                    getSubscriptionRequests(app?.appId, params)
+                    app?.orgId && app?.appId
+                      ? listAppSubscriptionRequests(app.orgId, app.appId, params)
+                      : Promise.resolve({ data: [], meta: { totalItems: 0 } })
                   }
                   refreshTrigger={refreshContracts}
                   isScrollable={true}
@@ -3700,7 +3709,11 @@ export default function AppDetailPage() {
                 <DataGrid
                   title="Event Logs"
                   description="Event history and logs for this application."
-                  fetchData={(params) => getEventLogs(app?.appId, params)}
+                  fetchData={(params) =>
+                    app?.orgId && app?.appId
+                      ? listAppEventLogs(app.orgId, app.appId, params)
+                      : Promise.resolve({ data: [], meta: { totalItems: 0 } })
+                  }
                   isScrollable={true}
                   fullHeight={true}
                   columns={[
@@ -4006,7 +4019,7 @@ export default function AppDetailPage() {
                           </div>
                           {channelSettings.find(
                             (s) => s.channelType === activeChannel,
-                          )?.providerType === "SYSTEM" ||
+                          )?.providerType === ProviderType.SYSTEM ||
                           !channelSettings.find(
                             (s) => s.channelType === activeChannel,
                           ) ? (
@@ -4031,7 +4044,7 @@ export default function AppDetailPage() {
                               <p className="text-sm font-bold text-[var(--text-primary)]">
                                 {channelSettings.find(
                                   (s) => s.channelType === activeChannel,
-                                )?.providerType === "SYSTEM" ||
+                                )?.providerType === ProviderType.SYSTEM ||
                                 !channelSettings.find(
                                   (s) => s.channelType === activeChannel,
                                 )
@@ -4041,7 +4054,7 @@ export default function AppDetailPage() {
                               <p className="text-xs text-[var(--text-secondary)] leading-relaxed">
                                 {channelSettings.find(
                                   (s) => s.channelType === activeChannel,
-                                )?.providerType === "SYSTEM" ||
+                                )?.providerType === ProviderType.SYSTEM ||
                                 !channelSettings.find(
                                   (s) => s.channelType === activeChannel,
                                 )
@@ -4078,10 +4091,12 @@ export default function AppDetailPage() {
                         title={`${activeChannel.charAt(0).toUpperCase() + activeChannel.slice(1)} Templates`}
                         description={`Manage your ${activeChannel} templates using Handlebars syntax.`}
                         fetchData={(params) =>
-                          getTemplates(app?.appId, {
-                            ...params,
-                            channelType: activeChannel,
-                          })
+                          app?.orgId && app?.appId
+                            ? getTemplates(app.orgId, app.appId, {
+                                ...params,
+                                channelType: activeChannel,
+                              })
+                            : Promise.resolve({ data: [], meta: { totalItems: 0 } })
                         }
                         refreshTrigger={refreshTemplatesTrigger}
                         isScrollable={true}
@@ -4199,13 +4214,15 @@ export default function AppDetailPage() {
                         title={`${activeChannel.charAt(0).toUpperCase() + activeChannel.slice(1)} Delivery Logs`}
                         description={`Detailed history of ${activeChannel} messages sent from this application.`}
                         fetchData={(params) =>
-                          getMessageLogs(app?.appId, {
-                            ...params,
-                            filter: {
-                              ...params.filter,
-                              channelType: activeChannel,
-                            },
-                          })
+                          app?.orgId && app?.appId
+                            ? getMessageLogs(app.orgId, app.appId, {
+                                ...params,
+                                filter: {
+                                  ...params.filter,
+                                  channelType: activeChannel,
+                                },
+                              })
+                            : Promise.resolve({ data: [], meta: { totalItems: 0 } })
                         }
                         isScrollable={true}
                         fullHeight={true}
@@ -4660,6 +4677,8 @@ export default function AppDetailPage() {
           }}
           onSubmit={handleEventSubscribe}
           initialData={editingSubscription}
+          orgId={app.orgId}
+          appId={app.appId}
         />
       )}
 
@@ -4683,6 +4702,8 @@ export default function AppDetailPage() {
           isOpen={channelSetupModalOpen}
           onClose={() => setChannelSetupModalOpen(false)}
           onSubmit={handleChannelSetupSubmit}
+          orgId={app.orgId}
+          appId={app.appId}
           channelType={activeChannel}
           initialData={channelSettings.find(
             (s) => s.channelType === activeChannel,

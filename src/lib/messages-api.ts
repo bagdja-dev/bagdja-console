@@ -1,164 +1,154 @@
 /**
- * Message Service API Client
+ * Messaging (`bagdja-messaging-service`) untuk Console — endpoint
+ * `/console/apps/:appId/messaging/*` berbasis USER
+ * (plan/architecture/core-service-flag-removal-plan.md P2 messaging).
+ *
+ * Header `x-organization-id` = org pemilik App, permission
+ * `messaging.templates.manage`. Hanya token login user; tidak ada token
+ * client / secret core service.
  */
 
-import { getClientToken, isClientTokenExpired, requireAccessToken } from './auth';
-import { ChannelType, ProviderType } from '@/types';
-import type { 
-  ChannelSetting, 
-  MessageTemplate, 
-  CreateTemplateRequest, 
-  UpdateTemplateRequest, 
-  SetupChannelRequest, 
+import { consoleUserRequest, requireServiceBase } from './console-user-api';
+import type {
+  ChannelConfig,
+  ChannelSetting,
+  ChannelType,
+  CreateTemplateRequest,
+  MessageGridPage,
+  MessageLog,
+  MessageTemplate,
+  SetupChannelRequest,
   TestConnectionRequest,
-  ApiError 
+  UpdateTemplateRequest,
 } from '@/types';
 
-const MESSAGE_API_BASE = process.env.NEXT_PUBLIC_MESSAGE_API || 'http://localhost:4086';
-
-async function ensureClientToken(): Promise<string> {
-  // This is a simplified version, assuming the token management is handled in auth.ts
-  const token = getClientToken();
-  if (!token) throw new Error('No client token available');
-  return token;
+export interface MessageGridParams {
+  page?: number;
+  size?: number;
+  search?: string;
+  filter?: Record<string, string>;
+  sort?: string;
 }
 
-async function request<T>(
-  endpoint: string, 
-  options: RequestInit = {}
-): Promise<T> {
-  const token = await ensureClientToken();
-  const userToken = requireAccessToken();
-  
-  const headers = {
-    'Content-Type': 'application/json',
-    'x-api-key': token,
-    Authorization: `Bearer ${userToken}`,
-    ...options.headers,
-  };
+function messagingBase(): string {
+  return requireServiceBase(process.env.NEXT_PUBLIC_MESSAGE_API, 'NEXT_PUBLIC_MESSAGE_API');
+}
 
-  const response = await fetch(`${MESSAGE_API_BASE}${endpoint}`, {
-    ...options,
-    headers,
-  });
-
-  const data = await response.json();
-
-  if (!response.ok) {
-    const error: ApiError = {
-      message: data.message || 'Something went wrong',
-      statusCode: response.status,
-    };
-    throw error;
+function gridQuery(params?: MessageGridParams & { channelType?: ChannelType }): string {
+  const query = new URLSearchParams();
+  if (params?.channelType) query.append('channelType', params.channelType);
+  if (params?.page) query.append('page', String(params.page));
+  if (params?.size) query.append('size', String(params.size));
+  if (params?.search) query.append('search', params.search);
+  if (params?.sort) query.append('sort', params.sort);
+  for (const [key, value] of Object.entries(params?.filter ?? {})) {
+    if (value) query.append(`filter[${key}]`, value);
   }
-
-  return data as T;
+  const qs = query.toString();
+  return qs ? `?${qs}` : '';
 }
 
-// Channel Settings
-export const getChannelSettings = (appId: string) => 
-  request<ChannelSetting[]>(`/channels?appId=${appId}`);
+const CONFIG_FIELDS: (keyof ChannelConfig)[] = ['host', 'port', 'secure', 'user', 'pass', 'apiKey', 'from'];
 
-export const setupChannel = (data: SetupChannelRequest) =>
-  request<ChannelSetting>('/channels/setup', {
-    method: 'POST',
-    body: JSON.stringify(data),
-  });
-
-export const testConnection = (data: TestConnectionRequest) =>
-  request<{ success: boolean; message: string }>('/messages/email/test-connection', {
-    method: 'POST',
-    body: JSON.stringify(data),
-  });
-
-// Templates
-export const getTemplates = (
-  appId: string,
-  params?: {
-    channelType?: ChannelType;
-    page?: number;
-    size?: number;
-    search?: string;
-    filter?: Record<string, string>;
-    sort?: string;
-  },
-) => {
-  const queryParams = new URLSearchParams();
-  queryParams.append('appId', appId);
-
-  if (params) {
-    if (params.channelType) queryParams.append('channelType', params.channelType);
-    if (params.page) queryParams.append('page', params.page.toString());
-    if (params.size) queryParams.append('size', params.size.toString());
-    if (params.search) queryParams.append('search', params.search);
-    if (params.sort) queryParams.append('sort', params.sort);
-    if (params.filter) {
-      Object.keys(params.filter).forEach((key) => {
-        queryParams.append(`filter[${key}]`, params.filter![key]);
-      });
+/** Server menolak field config asing (400); kirim hanya field yang dikenal. */
+function pickConfig(config: ChannelConfig | undefined): ChannelConfig {
+  const picked: ChannelConfig = {};
+  for (const field of CONFIG_FIELDS) {
+    const value = config?.[field];
+    if (value !== undefined && !(typeof value === 'number' && Number.isNaN(value))) {
+      (picked as Record<string, unknown>)[field] = value;
     }
   }
+  return picked;
+}
 
-  return request<{ data: MessageTemplate[]; meta: any }>(
-    `/messages/templates?${queryParams.toString()}`,
+/** Request ke `/console/apps/:appId/messaging…` sebagai user di org pemilik App. */
+function appRequest<T>(orgId: string, appId: string, path: string, options: RequestInit = {}): Promise<T> {
+  return consoleUserRequest<T>(
+    messagingBase(),
+    `/console/apps/${encodeURIComponent(appId)}/messaging${path}`,
+    {
+      ...options,
+      headers: { 'x-organization-id': orgId, ...(options.headers as Record<string, string>) },
+    },
   );
-};
+}
 
-export const createTemplate = (data: CreateTemplateRequest) =>
-  request<MessageTemplate>('/messages/templates', {
-    method: 'POST',
-    body: JSON.stringify(data),
+// ─── Channel / provider ────────────────────────────────────────────────
+
+/** Tanpa nilai rahasia; lihat `configuredFields`. */
+export function getChannelSettings(orgId: string, appId: string): Promise<ChannelSetting[]> {
+  return appRequest(orgId, appId, '/channels');
+}
+
+/** Field rahasia (`pass`, `apiKey`) kosong = pertahankan nilai tersimpan. */
+export function setupChannel(orgId: string, appId: string, data: SetupChannelRequest): Promise<ChannelSetting> {
+  return appRequest(orgId, appId, `/channels/${encodeURIComponent(data.channelType)}`, {
+    method: 'PUT',
+    body: JSON.stringify({ providerType: data.providerType, config: pickConfig(data.config) }),
   });
+}
 
-export const updateTemplate = (id: string, data: UpdateTemplateRequest) =>
-  request<MessageTemplate>(`/messages/templates/${id}`, {
+/** Hanya SMTP. */
+export function testConnection(
+  orgId: string,
+  appId: string,
+  data: TestConnectionRequest,
+): Promise<{ success: boolean; message: string }> {
+  return appRequest(orgId, appId, '/channels/test-connection', {
+    method: 'POST',
+    body: JSON.stringify({ ...data, config: pickConfig(data.config) }),
+  });
+}
+
+// ─── Template ──────────────────────────────────────────────────────────
+
+export function getTemplates(
+  orgId: string,
+  appId: string,
+  params?: MessageGridParams & { channelType?: ChannelType },
+): Promise<MessageGridPage<MessageTemplate>> {
+  return appRequest(orgId, appId, `/templates${gridQuery(params)}`);
+}
+
+export function createTemplate(
+  orgId: string,
+  appId: string,
+  data: CreateTemplateRequest,
+): Promise<MessageTemplate> {
+  return appRequest(orgId, appId, '/templates', { method: 'POST', body: JSON.stringify(data) });
+}
+
+export function updateTemplate(
+  orgId: string,
+  appId: string,
+  templateId: string,
+  data: UpdateTemplateRequest,
+): Promise<MessageTemplate> {
+  return appRequest(orgId, appId, `/templates/${encodeURIComponent(templateId)}`, {
     method: 'PATCH',
     body: JSON.stringify(data),
   });
+}
 
-export const deleteTemplate = (id: string, appId?: string) => {
-  let url = `/messages/templates/${id}`;
-  if (appId) url += `?appId=${appId}`;
-  return request<void>(url, {
-    method: 'DELETE',
-  });
-};
+export function deleteTemplate(orgId: string, appId: string, templateId: string): Promise<{ success: true }> {
+  return appRequest(orgId, appId, `/templates/${encodeURIComponent(templateId)}`, { method: 'DELETE' });
+}
 
-// Logs
-export const getMessageLogs = (
+// ─── Log pengiriman ────────────────────────────────────────────────────
+
+export function getMessageLogs(
+  orgId: string,
   appId: string,
-  params?: {
-    page?: number;
-    size?: number;
-    search?: string;
-    filter?: Record<string, string>;
-    sort?: string;
-  },
-) => {
-  const queryParams = new URLSearchParams();
-  queryParams.append('appId', appId);
+  params?: MessageGridParams,
+): Promise<MessageGridPage<MessageLog>> {
+  return appRequest(orgId, appId, `/logs${gridQuery(params)}`);
+}
 
-  if (params) {
-    if (params.page) queryParams.append('page', params.page.toString());
-    if (params.size) queryParams.append('size', params.size.toString());
-    if (params.search) queryParams.append('search', params.search);
-    if (params.sort) queryParams.append('sort', params.sort);
-    if (params.filter) {
-      Object.keys(params.filter).forEach((key) => {
-        queryParams.append(`filter[${key}]`, params.filter![key]);
-      });
-    }
-  }
-
-  return request<{ data: any[]; meta: any }>(
-    `/messages/logs?${queryParams.toString()}`,
-  );
-};
-
-export const resendMessageLog = (logId: string, appId?: string) => {
-  let url = `/messages/logs/${logId}/resend`;
-  if (appId) url += `?appId=${appId}`;
-  return request<{ success: boolean; logId: string }>(url, {
-    method: 'POST',
-  });
-};
+export function resendMessageLog(
+  orgId: string,
+  appId: string,
+  logId: string,
+): Promise<{ success: boolean; logId: string }> {
+  return appRequest(orgId, appId, `/logs/${encodeURIComponent(logId)}/resend`, { method: 'POST' });
+}

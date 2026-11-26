@@ -3,11 +3,12 @@
 import React from 'react';
 import { X, Mail, Clock, Shield, AlertCircle, CheckCircle2, Copy, History, Server } from 'lucide-react';
 import { generateCurl } from '@/lib/utils';
+import type { MessageLog } from '@/types';
 
 interface MessageLogDetailModalProps {
   isOpen: boolean;
   onClose: () => void;
-  log: any;
+  log: MessageLog | null;
   onResend: (e: React.MouseEvent, logId: string) => Promise<void>;
   resendingId: string | null;
 }
@@ -44,7 +45,12 @@ export default function MessageLogDetailModal({
           <div className="flex items-center gap-2">
             <button
               onClick={(e) => onResend(e, log.id)}
-              disabled={resendingId === log.id}
+              disabled={resendingId === log.id || log.isSensitive}
+              title={
+                log.isSensitive
+                  ? 'Pesan berisi kode sekali pakai (mis. OTP) tidak bisa dikirim ulang; minta kode baru dari layanan asalnya.'
+                  : undefined
+              }
               className="flex items-center gap-2 px-4 py-2 bg-primary/10 text-primary text-xs font-bold rounded-lg hover:bg-primary/20 transition-all uppercase disabled:opacity-50"
             >
               {resendingId === log.id ? <History className="h-3.5 w-3.5 animate-spin" /> : <History className="h-3.5 w-3.5" />}
@@ -70,7 +76,7 @@ export default function MessageLogDetailModal({
             <div className="p-4 rounded-xl bg-white/5 border border-[var(--border-default)] space-y-1">
               <span className="text-[10px] font-bold text-[var(--text-secondary)] uppercase">Status</span>
               <div>
-                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase border ${log.status === 'sent' || log.status === 'delivered'
+                <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase border ${log.status === 'sent'
                   ? 'bg-green-500/10 text-green-400 border-green-500/20'
                   : log.status === 'failed'
                     ? 'bg-red-500/10 text-red-400 border-red-500/20'
