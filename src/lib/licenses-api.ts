@@ -8,204 +8,56 @@
  */
 
 import {
-  requireAccessToken,
-  getClientToken,
-  setClientToken,
-  isClientTokenExpired,
-} from './auth';
-import type {
-  License,
-  CreateLicenseRequest,
-  UpdateLicenseRequest,
-  BuyLicenseResponse,
-  ApiError,
-} from '@/types';
+  paymentAppRequest,
+  paymentConsoleRequest,
+  paymentOrgRequest,
+  type AppScope,
+} from './console-user-api';
+import type { License, CreateLicenseRequest, UpdateLicenseRequest } from '@/types';
 
-function getPaymentApiBase(): string {
-  const apiBase = process.env.NEXT_PUBLIC_PAYMENT_API;
-  if (!apiBase) {
-    throw new Error('NEXT_PUBLIC_PAYMENT_API environment variable is required. Please set it in your .env file.');
-  }
-  return apiBase;
-}
-
-const AUTH_API_BASE = process.env.NEXT_PUBLIC_AUTH_API || 'https://auth.bagdja.com';
-
-// Client app credentials from environment variables
-const CLIENT_APP_ID = process.env.NEXT_PUBLIC_CLIENT_APP_ID || 'user-console';
-const CLIENT_APP_SECRET = process.env.NEXT_PUBLIC_CLIENT_APP_SECRET || '';
-
-async function ensureClientToken(): Promise<string> {
-  const clientToken = getClientToken();
-
-  if (!clientToken || isClientTokenExpired()) {
-    const url = `${AUTH_API_BASE}/auth/client`;
-
-    const requestBody = {
-      app_id: CLIENT_APP_ID,
-      app_secret: CLIENT_APP_SECRET,
-    };
-
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(requestBody),
-    });
-
-    if (!response.ok) {
-      const error: ApiError = {
-        message: 'Failed to obtain client app token',
-        statusCode: response.status,
-      };
-
-      try {
-        const data = await response.json();
-        error.message = data.message || data.error || error.message;
-      } catch {
-        error.message = response.statusText || error.message;
-      }
-
-      throw error;
-    }
-
-    const data = await response.json();
-    setClientToken(data['x-api-token'], data.expires_in);
-
-    return data['x-api-token'];
-  }
-
-  return clientToken;
-}
-
-async function apiRequest<T>(
-  endpoint: string,
-  options: RequestInit = {}
-): Promise<T> {
-  const clientToken = await ensureClientToken();
-  const userToken = requireAccessToken();
-
-  const url = `${getPaymentApiBase()}${endpoint}`;
-
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-    'x-api-token': clientToken,
-    ...(options.headers as Record<string, string>),
-  };
-
-  headers['Authorization'] = `Bearer ${userToken}`;
-
-  const response = await fetch(url, {
-    ...options,
-    headers,
-    cache: options.cache || 'no-store',
-  });
-
-  if (!response.ok) {
-    const error: ApiError = {
-      message: 'An error occurred',
-      statusCode: response.status,
-    };
-
-    try {
-      const data = await response.json();
-      error.message = data.message || data.error || error.message;
-    } catch {
-      error.message = response.statusText || error.message;
-    }
-
-    // 401 dari service non-auth TIDAK menghapus token login (29 Okt 2026):
-    // bisa berarti guard/izin di service itu, bukan sesi berakhir. Sesi
-    // hanya diakhiri oleh 401 dari bagdja-auth (lib/api.ts).
-
-    throw error;
-  }
-
-  if (response.status === 204) {
-    return undefined as T;
-  }
-
-  return response.json();
-}
-
-/**
- * Get all licenses for an app (appId = slug)
+/*
+ * Lewat endpoint `/console/*` berbasis token user — tanpa token client
+ * (core-service-flag-removal-plan.md P5.4):
+ * - pemilik App: `/console/apps/:appId/licenses[/purchased]`;
+ * - pelanggan: `/console/subscribed-apps/:appId/licenses` (org aktif);
+ * - org sistem: `/console/catalog/licenses?appId=`.
  */
-export async function getLicenses(appId: string): Promise<License[]> {
-  return apiRequest<License[]>(`/licenses?appId=${encodeURIComponent(appId)}`);
+
+/** Semua license satu App, sebagai anggota org pemilik App. */
+export async function getLicenses(app: AppScope): Promise<License[]> {
+  return paymentAppRequest<License[]>(app, '/licenses');
 }
 
-/**
- * Get all purchased licenses for an app. Pass `orgId` to scope to a single
- * buyer org (used by `applications/subscribed/[appId]/page.tsx` — "my
- * licenses for this app" — vs no `orgId` which lists every purchased
- * license, i.e. seller/app-owner perspective).
- */
-export async function getPurchasedLicenses(appId: string, orgId?: string): Promise<License[]> {
-  const query = orgId
-    ? `appId=${encodeURIComponent(appId)}&orgId=${encodeURIComponent(orgId)}`
-    : `appId=${encodeURIComponent(appId)}`;
-  return apiRequest<License[]>(`/licenses/purchased?${query}`);
+/** License App yang sudah terjual (pemilik App; butuh payment.app-subscriptions.view). */
+export async function getPurchasedLicenses(app: AppScope): Promise<License[]> {
+  return paymentAppRequest<License[]>(app, '/licenses/purchased');
 }
 
-/**
- * Get a license by ID
- */
-export async function getLicense(id: string): Promise<License> {
-  return apiRequest<License>(`/licenses/${id}`);
+/** License App yang dibeli org aktif (halaman App yang di-subscribe). */
+export async function getMyPurchasedLicenses(appId: string, orgId: string): Promise<License[]> {
+  return paymentOrgRequest<License[]>(orgId, `/subscribed-apps/${encodeURIComponent(appId)}/licenses`);
 }
 
-/**
- * Create a new license. `appId` (slug) dikirim di body.
- */
-export async function createLicense(
-  appId: string,
-  data: CreateLicenseRequest
-): Promise<License> {
-  return apiRequest<License>('/licenses', {
+/** License App mana pun, untuk org sistem (Infrastructure). */
+export async function getPlatformLicenses(appId: string): Promise<License[]> {
+  return paymentConsoleRequest<License[]>(`/catalog/licenses?appId=${encodeURIComponent(appId)}`);
+}
+
+export async function createLicense(app: AppScope, data: CreateLicenseRequest): Promise<License> {
+  return paymentAppRequest<License>(app, '/licenses', {
     method: 'POST',
-    body: JSON.stringify({ ...data, appId }),
+    body: JSON.stringify(data),
   });
 }
 
-/**
- * Update a license
- */
-export async function updateLicense(
-  id: string,
-  data: UpdateLicenseRequest
-): Promise<License> {
-  return apiRequest<License>(`/licenses/${id}`, {
+/** License yang sudah terjual tidak bisa diubah (400 dari service). */
+export async function updateLicense(app: AppScope, id: string, data: UpdateLicenseRequest): Promise<License> {
+  return paymentAppRequest<License>(app, `/licenses/${encodeURIComponent(id)}`, {
     method: 'PATCH',
     body: JSON.stringify(data),
   });
 }
 
-/**
- * Delete a license
- */
-export async function deleteLicense(id: string): Promise<void> {
-  return apiRequest<void>(`/licenses/${id}`, {
-    method: 'DELETE',
-  });
-}
-
-/**
- * Buy a license (organization purchases license).
- *
- * NB: di payment-service, appId/orgId "pemilik inventory & penerima dana"
- * diresolve dari identitas app pemanggil (`req.clientApp`), BUKAN dari query
- * param — beda dari endpoint auth yg lama. `organizationId` di sini murni
- * jadi `orgId` pembeli (body), dipakai kalau app pemanggil bertindak atas
- * nama org tersebut. Belum ada pemanggil aktif dari console saat ini.
- */
-export async function buyLicense(
-  licenseId: string,
-  organizationId: string
-): Promise<BuyLicenseResponse> {
-  return apiRequest<BuyLicenseResponse>(`/licenses/${licenseId}/buy`, {
-    method: 'POST',
-    body: JSON.stringify({ orgId: organizationId }),
-  });
+export async function deleteLicense(app: AppScope, id: string): Promise<void> {
+  return paymentAppRequest<void>(app, `/licenses/${encodeURIComponent(id)}`, { method: 'DELETE' });
 }

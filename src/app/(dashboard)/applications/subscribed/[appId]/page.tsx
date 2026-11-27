@@ -6,8 +6,8 @@ import Link from 'next/link';
 import { getPublicAppDetails } from '@/lib/api';
 import { getMyAppBalance, type AppBalanceResponse } from '@/lib/piece-api';
 import { getSubscriptionsForOrg } from '@/lib/subscriptions-api';
-import { getPurchasedLicenses } from '@/lib/licenses-api';
-import { getPlans } from '@/lib/plans-api';
+import { getMyPurchasedLicenses } from '@/lib/licenses-api';
+import { getSubscribedAppPlans } from '@/lib/plans-api';
 import type { ApiError, ClientApp, Subscription, License, Plan } from '@/types';
 import {
   ArrowLeft,
@@ -126,7 +126,7 @@ export default function SubscribedAppDetailPage() {
       setSubscriptionsError(null);
       const [subs, plans] = await Promise.all([
         getSubscriptionsForOrg(appId, activeOrgId),
-        getPlans(appId),
+        getSubscribedAppPlans(appId, activeOrgId),
       ]);
       setSubscriptions(subs);
       setPlansById(Object.fromEntries(plans.map((p) => [p.id, p])));
@@ -144,7 +144,7 @@ export default function SubscribedAppDetailPage() {
     try {
       setLicensesLoading(true);
       setLicensesError(null);
-      const data = await getPurchasedLicenses(appId, activeOrgId);
+      const data = await getMyPurchasedLicenses(appId, activeOrgId);
       setLicenses(data);
     } catch (err) {
       console.error('Failed to fetch licenses:', err);
