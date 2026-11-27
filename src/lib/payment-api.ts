@@ -7,9 +7,6 @@ import {
   requireAccessToken,
   getActiveOrganizationId,
   getActiveOrganizationSlug,
-  getClientToken,
-  isClientTokenExpired,
-  setClientToken,
 } from './auth';
 import type { ApiError } from '@/types';
 import { paymentConsoleRequest } from './console-user-api';
@@ -22,49 +19,18 @@ function getPaymentApiBase(): string {
   return apiBase;
 }
 
-const AUTH_API_BASE = process.env.NEXT_PUBLIC_AUTH_API || 'https://auth.bagdja.com';
-const CLIENT_APP_ID = process.env.NEXT_PUBLIC_CLIENT_APP_ID || 'user-console';
-const CLIENT_APP_SECRET =
-  process.env.NEXT_PUBLIC_CLIENT_APP_SECRET || '';
-
-async function ensureClientToken(): Promise<string> {
-  const clientToken = getClientToken();
-
-  if (!clientToken || isClientTokenExpired()) {
-    const url = `${AUTH_API_BASE}/auth/client`;
-    const requestBody = { app_id: CLIENT_APP_ID, app_secret: CLIENT_APP_SECRET };
-
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(requestBody),
-    });
-
-    if (!response.ok) {
-      const error: ApiError = { message: 'Failed to obtain client app token', statusCode: response.status };
-      try {
-        const data = await response.json();
-        error.message = data.message || data.error || error.message;
-      } catch {
-        error.message = response.statusText || error.message;
-      }
-      throw error;
-    }
-
-    const data = await response.json();
-    setClientToken(data['x-api-token'], data.expires_in);
-    return data['x-api-token'];
-  }
-
-  return clientToken;
-}
+/*
+ * Semua request ke payment-service memakai token login user saja — tanpa
+ * token client / secret client app (core-service-flag-removal-plan.md P5.3).
+ * Endpoint yang dulu wajib token client (top-up, mutasi, rekening pencairan,
+ * withdrawal session) dipanggil lewat `/console/me/*` dan `/console/org/*`.
+ */
 
 async function paymentApiRequest<T>(
   endpoint: string,
   options: RequestInit = {},
   organizationId?: string,
 ): Promise<T> {
-  const clientToken = await ensureClientToken();
   const userToken = requireAccessToken();
 
   if (!userToken) {
@@ -83,7 +49,6 @@ async function paymentApiRequest<T>(
 
   const headers: Record<string, string> = {
     ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
-    'x-api-key': clientToken,
     Authorization: `Bearer ${userToken}`,
     'x-organization-id': orgSlug,
     ...(orgUuid && orgUuid !== orgSlug ? { 'x-organization-uuid': orgUuid } : {}),
@@ -127,7 +92,6 @@ async function paymentApiRequestPersonal<T>(
   endpoint: string,
   options: RequestInit = {},
 ): Promise<T> {
-  const clientToken = await ensureClientToken();
   const userToken = requireAccessToken();
 
   if (!userToken) {
@@ -138,7 +102,6 @@ async function paymentApiRequestPersonal<T>(
 
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
-    'x-api-key': clientToken,
     Authorization: `Bearer ${userToken}`,
     ...(options.headers as Record<string, string>),
   };
@@ -271,64 +234,30 @@ export type TopUpResponse = {
   expiryTime?: string;
 };
 
+function topupRedirects(): { successRedirectUrl: string; failureRedirectUrl: string } {
+  return {
+    successRedirectUrl: `${window.location.origin}/balance?topup=success`,
+    failureRedirectUrl: `${window.location.origin}/balance?topup=failure`,
+  };
+}
+
+/** Top-up dompet org aktif. Pemilik dompet ditentukan server dari org aktif. */
 export async function createOrgTopup(amount: number, currencyCode: string = 'IDR', organizationId?: string): Promise<TopUpResponse> {
-  const token = requireAccessToken();
-  let userId = '';
-  if (token) {
-    try {
-      const base64Url = token.split('.')[1];
-      const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-      const payload = JSON.parse(atob(base64));
-      userId = payload.sub || '';
-    } catch (e) {
-      console.warn('Could not parse userId from token', e);
-    }
-  }
-
-  const orgId = organizationId || getActiveOrganizationId();
-  if (!orgId) throw new Error('Organization ID is required');
-
   return paymentApiRequest<TopUpResponse>(
-    '/topup/organization',
+    '/console/org/topups',
     {
       method: 'POST',
-      body: JSON.stringify({
-        amount,
-        currency:
-          currencyCode,
-        userId,
-        orgId,
-        successRedirectUrl: `${window.location.origin}/balance?topup=success`,
-        failureRedirectUrl: `${window.location.origin}/balance?topup=failure`,
-      }),
+      body: JSON.stringify({ amount, currency: currencyCode, ...topupRedirects() }),
     },
-    orgId,
+    organizationId,
   );
 }
 
+/** Top-up dompet personal user yang login. */
 export async function createPersonalTopup(amount: number, currencyCode: string = 'IDR'): Promise<TopUpResponse> {
-  const token = requireAccessToken();
-  let userId = '';
-  if (token) {
-    try {
-      const base64Url = token.split('.')[1];
-      const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
-      const payload = JSON.parse(atob(base64));
-      userId = payload.sub || '';
-    } catch (e) {
-      console.warn('Could not parse userId from token', e);
-    }
-  }
-
-  return paymentApiRequestPersonal<TopUpResponse>('/topup/personal', {
+  return paymentApiRequestPersonal<TopUpResponse>('/console/me/topups', {
     method: 'POST',
-    body: JSON.stringify({
-      userId,
-      amount,
-      currency: currencyCode,
-      successRedirectUrl: `${window.location.origin}/balance?topup=success`,
-      failureRedirectUrl: `${window.location.origin}/balance?topup=failure`,
-    }),
+    body: JSON.stringify({ amount, currency: currencyCode, ...topupRedirects() }),
   });
 }
 
@@ -377,17 +306,16 @@ export async function getPaymentTransactions(params?: {
   if (params?.type) qs.append('type', params.type);
   if (params?.currency) qs.append('currency', params.currency);
   if (params?.sort) qs.append('sort', params.sort);
-  if (params?.ownerType) qs.append('ownerType', params.ownerType);
 
   if (params?.ownerType === 'personal') {
     return paymentApiRequestPersonal<TransactionListResponse>(
-      `/payments/transactions?${qs.toString()}`,
+      `/console/me/wallet-transactions?${qs.toString()}`,
       { method: 'GET' },
     );
   }
 
   return paymentApiRequest<TransactionListResponse>(
-    `/payments/transactions?${qs.toString()}`,
+    `/console/org/wallet-transactions?${qs.toString()}`,
     { method: 'GET' },
     params?.organizationId,
   );
@@ -506,26 +434,36 @@ export async function listPayoutAccounts(params?: {
   page?: number;
   size?: number;
   ownerType?: PayoutAccountOwnerType;
-  ownerId?: string;
   organizationId?: string;
 }): Promise<PayoutAccountListResponse> {
   const page = params?.page ?? 1;
   const size = params?.size ?? 20;
   const qs = new URLSearchParams({ page: String(page), size: String(size) });
-  if (params?.ownerType) qs.set('ownerType', params.ownerType);
-  if (params?.ownerId) qs.set('ownerId', params.ownerId);
-  return paymentApiRequest<PayoutAccountListResponse>(`/payout-accounts/get?${qs.toString()}`, { method: 'GET' }, params?.organizationId);
+  return payoutAccountRequest<PayoutAccountListResponse>(
+    `?${qs.toString()}`,
+    { method: 'GET' },
+    params?.ownerType,
+    params?.organizationId,
+  );
 }
 
 export type PayoutAccountOwnerType = 'organization' | 'personal';
 
 /**
- * Rekening personal vs organisasi (29 Okt 2026) — payment-service memisahkan
- * keduanya; `ownerType` dikirim lewat query (dibaca sebelum body). Tanpa
- * ownerType = rekening organisasi aktif.
+ * Rekening personal vs organisasi: personal → `/console/me/payout-accounts`
+ * (pemilik = user login), organisasi → `/console/org/payout-accounts`
+ * (pemilik = org aktif). Tanpa ownerType = rekening organisasi aktif.
  */
-function ownerTypeQuery(ownerType?: PayoutAccountOwnerType): string {
-  return ownerType ? `?ownerType=${ownerType}` : '';
+function payoutAccountRequest<T>(
+  suffix: string,
+  options: RequestInit,
+  ownerType?: PayoutAccountOwnerType,
+  organizationId?: string,
+): Promise<T> {
+  if (ownerType === 'personal') {
+    return paymentApiRequestPersonal<T>(`/console/me/payout-accounts${suffix}`, options);
+  }
+  return paymentApiRequest<T>(`/console/org/payout-accounts${suffix}`, options, organizationId);
 }
 
 export async function createPayoutAccount(
@@ -533,9 +471,10 @@ export async function createPayoutAccount(
   organizationId?: string,
   ownerType?: PayoutAccountOwnerType,
 ): Promise<PayoutAccount> {
-  return paymentApiRequest<PayoutAccount>(
-    `/payout-account${ownerTypeQuery(ownerType)}`,
+  return payoutAccountRequest<PayoutAccount>(
+    '',
     { method: 'POST', body: JSON.stringify(data) },
+    ownerType,
     organizationId,
   );
 }
@@ -545,9 +484,10 @@ export async function getPayoutAccountById(
   organizationId?: string,
   ownerType?: PayoutAccountOwnerType,
 ): Promise<PayoutAccount> {
-  return paymentApiRequest<PayoutAccount>(
-    `/payout-account/${encodeURIComponent(id)}${ownerTypeQuery(ownerType)}`,
+  return payoutAccountRequest<PayoutAccount>(
+    `/${encodeURIComponent(id)}`,
     { method: 'GET' },
+    ownerType,
     organizationId,
   );
 }
@@ -558,9 +498,10 @@ export async function updatePayoutAccount(
   organizationId?: string,
   ownerType?: PayoutAccountOwnerType,
 ): Promise<PayoutAccount> {
-  return paymentApiRequest<PayoutAccount>(
-    `/payout-account/${encodeURIComponent(id)}${ownerTypeQuery(ownerType)}`,
+  return payoutAccountRequest<PayoutAccount>(
+    `/${encodeURIComponent(id)}`,
     { method: 'PUT', body: JSON.stringify(data) },
+    ownerType,
     organizationId,
   );
 }
@@ -1084,7 +1025,7 @@ export async function createWithdrawalSession(params: {
   returnUrl: string;
   cancelUrl: string;
 }): Promise<WithdrawalSessionCreated> {
-  return paymentApiRequestPersonal<WithdrawalSessionCreated>('/wallets/withdrawal-sessions', {
+  return paymentApiRequestPersonal<WithdrawalSessionCreated>('/console/me/withdrawal-sessions', {
     method: 'POST',
     body: JSON.stringify(params),
   });
