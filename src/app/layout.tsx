@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import "./globals.css";
-import { ClientTokenProvider } from "@/components/ClientTokenProvider";
 
 export const metadata: Metadata = {
   title: "Bagdja Console",
@@ -20,9 +19,7 @@ export default function RootLayout({
       <body
         className="antialiased"
       >
-        <ClientTokenProvider>
         {children}
-        </ClientTokenProvider>
       </body>
     </html>
   );
