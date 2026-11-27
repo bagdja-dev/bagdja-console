@@ -12,120 +12,16 @@
  * app pihak lain yang di-"subscribe" oleh org yang login.
  */
 
-import {
-  requireAccessToken,
-  getClientToken,
-  setClientToken,
-  isClientTokenExpired,
-} from './auth';
-import type { Subscription, ApiError } from '@/types';
+import { paymentAppRequest, paymentOrgRequest, type AppScope } from './console-user-api';
+import type { Subscription } from '@/types';
 
-function getPaymentApiBase(): string {
-  const apiBase = process.env.NEXT_PUBLIC_PAYMENT_API;
-  if (!apiBase) {
-    throw new Error('NEXT_PUBLIC_PAYMENT_API environment variable is required. Please set it in your .env file.');
-  }
-  return apiBase;
-}
-
-const AUTH_API_BASE = process.env.NEXT_PUBLIC_AUTH_API || 'https://auth.bagdja.com';
-
-const CLIENT_APP_ID = process.env.NEXT_PUBLIC_CLIENT_APP_ID || 'user-console';
-const CLIENT_APP_SECRET = process.env.NEXT_PUBLIC_CLIENT_APP_SECRET || '';
-
-async function ensureClientToken(): Promise<string> {
-  const clientToken = getClientToken();
-
-  if (!clientToken || isClientTokenExpired()) {
-    const url = `${AUTH_API_BASE}/auth/client`;
-
-    const requestBody = {
-      app_id: CLIENT_APP_ID,
-      app_secret: CLIENT_APP_SECRET,
-    };
-
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(requestBody),
-    });
-
-    if (!response.ok) {
-      const error: ApiError = {
-        message: 'Failed to obtain client app token',
-        statusCode: response.status,
-      };
-
-      try {
-        const data = await response.json();
-        error.message = data.message || data.error || error.message;
-      } catch {
-        error.message = response.statusText || error.message;
-      }
-
-      throw error;
-    }
-
-    const data = await response.json();
-    setClientToken(data['x-api-token'], data.expires_in);
-
-    return data['x-api-token'];
-  }
-
-  return clientToken;
-}
-
-async function apiRequest<T>(
-  endpoint: string,
-  options: RequestInit = {}
-): Promise<T> {
-  const clientToken = await ensureClientToken();
-  const userToken = requireAccessToken();
-
-  const url = `${getPaymentApiBase()}${endpoint}`;
-
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-    'x-api-token': clientToken,
-    ...(options.headers as Record<string, string>),
-  };
-
-  headers['Authorization'] = `Bearer ${userToken}`;
-
-  const response = await fetch(url, {
-    ...options,
-    headers,
-    cache: options.cache || 'no-store',
-  });
-
-  if (!response.ok) {
-    const error: ApiError = {
-      message: 'An error occurred',
-      statusCode: response.status,
-    };
-
-    try {
-      const data = await response.json();
-      error.message = data.message || data.error || error.message;
-    } catch {
-      error.message = response.statusText || error.message;
-    }
-
-    // 401 dari service non-auth TIDAK menghapus token login (29 Okt 2026):
-    // bisa berarti guard/izin di service itu, bukan sesi berakhir. Sesi
-    // hanya diakhiri oleh 401 dari bagdja-auth (lib/api.ts).
-
-    throw error;
-  }
-
-  if (response.status === 204) {
-    return undefined as T;
-  }
-
-  return response.json();
-}
+/*
+ * Lewat endpoint `/console/*` berbasis token user — tanpa token client
+ * (core-service-flag-removal-plan.md P5.4):
+ * - pelanggan: `/console/subscribed-apps/:appId/subscriptions` (org aktif);
+ * - pemilik App: `/console/apps/:appId/subscriptions`
+ *   (butuh payment.app-subscriptions.view).
+ */
 
 type RawSubscription = {
   id: string;
@@ -174,36 +70,19 @@ function mapFromApi(raw: RawSubscription): Subscription {
 }
 
 /**
- * List subscriptions of `orgId` for a given target app (appId = slug).
- * `orgId` wajib diisi (payment-service menolak listing tanpa orgId/userId).
- *
- * NB: sengaja belum ada `cancelSubscription()`/`changePlan()` di sini —
- * endpoint `/subscriptions/:id/cancel` & `/:id/change-plan` di
- * payment-service pakai pola mediator (`appId` = identitas app pemanggil
- * sendiri dari `ClientAppGuard`, BUKAN query param), jadi tidak bisa
- * dipanggil apa adanya dari console (yang authenticate sbg `user-console`,
- * bukan app target). Perlu endpoint admin baru dulu (sama pola dgn
- * `GET /subscriptions` di bawah) kalau aksi cancel/change-plan dari
- * console dibutuhkan — belum diminta, jadi belum dikerjakan.
+ * Langganan org aktif (`orgId`) untuk App lain (sudut pandang pelanggan).
+ * Cancel/change-plan dari Console belum ada (pola mediator payment-service).
  */
-export async function getSubscriptionsForOrg(
-  appId: string,
-  orgId: string,
-): Promise<Subscription[]> {
-  const raw = await apiRequest<RawSubscription[]>(
-    `/subscriptions?appId=${encodeURIComponent(appId)}&orgId=${encodeURIComponent(orgId)}`,
+export async function getSubscriptionsForOrg(appId: string, orgId: string): Promise<Subscription[]> {
+  const raw = await paymentOrgRequest<RawSubscription[]>(
+    orgId,
+    `/subscribed-apps/${encodeURIComponent(appId)}/subscriptions`,
   );
   return (raw || []).map(mapFromApi);
 }
 
-/**
- * List EVERY subscriber of `appId` (owner view — no orgId/userId filter).
- * Dipakai `applications/owned/[id]/page.tsx` tab Subscriptions, beda dari
- * `getSubscriptionsForOrg()` yang scope ke satu org (subscriber view).
- */
-export async function getAllSubscriptionsForApp(appId: string): Promise<Subscription[]> {
-  const raw = await apiRequest<RawSubscription[]>(
-    `/subscriptions?appId=${encodeURIComponent(appId)}`,
-  );
+/** Semua pelanggan satu App (sudut pandang pemilik App). */
+export async function getAllSubscriptionsForApp(app: AppScope): Promise<Subscription[]> {
+  const raw = await paymentAppRequest<RawSubscription[]>(app, '/subscriptions');
   return (raw || []).map(mapFromApi);
 }

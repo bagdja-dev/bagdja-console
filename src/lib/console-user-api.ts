@@ -93,3 +93,28 @@ export function paymentConsoleRequest<T>(path: string, options: RequestInit = {}
   const base = requireServiceBase(process.env.NEXT_PUBLIC_PAYMENT_API, 'NEXT_PUBLIC_PAYMENT_API');
   return consoleUserRequest<T>(base, `/console${path}`, options);
 }
+
+/** Satu App milik org user: `orgId` = slug org pemilik, `appId` = slug App. */
+export interface AppScope {
+  orgId: string;
+  appId: string;
+}
+
+/**
+ * `${NEXT_PUBLIC_PAYMENT_API}/console/apps/:appId…` sebagai anggota org
+ * pemilik App (header `x-organization-id`).
+ */
+export function paymentAppRequest<T>(scope: AppScope, path: string, options: RequestInit = {}): Promise<T> {
+  return paymentConsoleRequest<T>(`/apps/${encodeURIComponent(scope.appId)}${path}`, {
+    ...options,
+    headers: { 'x-organization-id': scope.orgId, ...(options.headers as Record<string, string>) },
+  });
+}
+
+/** `${NEXT_PUBLIC_PAYMENT_API}/console…` dengan org aktif tertentu. */
+export function paymentOrgRequest<T>(orgId: string, path: string, options: RequestInit = {}): Promise<T> {
+  return paymentConsoleRequest<T>(path, {
+    ...options,
+    headers: { 'x-organization-id': orgId, ...(options.headers as Record<string, string>) },
+  });
+}

@@ -6,9 +6,9 @@ import { Button } from '@/ui/button';
 import { FancySelect } from '@/ui/fancy-select';
 import { Input } from '@/ui/input';
 import { getAllOrganizations, getAppsByOrgSlug, getSupportedCurrencies } from '@/lib/api';
-import { getProducts } from '@/lib/products-api';
-import { getPlans } from '@/lib/plans-api';
-import { getLicenses } from '@/lib/licenses-api';
+import { getPlatformProducts } from '@/lib/products-api';
+import { getPlatformPlans } from '@/lib/plans-api';
+import { getPlatformLicenses } from '@/lib/licenses-api';
 import type { ApiError, Organization, ClientApp, Product, Plan, License } from '@/types';
 import type { BillingSetting } from '@/lib/payment-api';
 import {
@@ -202,7 +202,7 @@ export default function BillingSettingModal({
     try {
       setLoadingItems(true);
       setError(null);
-      const data = await getProducts(appSlug);
+      const data = await getPlatformProducts(appSlug);
       setProducts(data);
     } catch (err) {
       console.error('Failed to fetch products', err);
@@ -217,7 +217,7 @@ export default function BillingSettingModal({
     try {
       setLoadingItems(true);
       setError(null);
-      const data = await getPlans(appSlug);
+      const data = await getPlatformPlans(appSlug);
       setPlans(data);
     } catch (err) {
       console.error('Failed to fetch plans', err);
@@ -232,7 +232,7 @@ export default function BillingSettingModal({
     try {
       setLoadingItems(true);
       setError(null);
-      const data = await getLicenses(appSlug);
+      const data = await getPlatformLicenses(appSlug);
       setLicenses(data);
     } catch (err) {
       console.error('Failed to fetch licenses', err);

@@ -15,7 +15,7 @@ import {
   type EscrowFeeConfig,
   type UpsertEscrowFeeConfigRequest,
 } from '@/lib/escrow-fee-configs-api';
-import { getEscrowProducts } from '@/lib/escrow-products-api';
+import { getPlatformEscrowProducts } from '@/lib/escrow-products-api';
 import { formatPercentageFeeForDisplay } from '@/lib/billing-utils';
 import { formatRuleKeyLabel, getHierarchyStep } from '@/lib/billing-hierarchy';
 import {
@@ -229,7 +229,7 @@ export default function PaymentConfigPage() {
       const appIds = Array.from(
         new Set(data.filter((c) => c.appId !== 'default').map((c) => c.appId)),
       );
-      const productLists = await Promise.all(appIds.map((appId) => getEscrowProducts(appId)));
+      const productLists = await Promise.all(appIds.map((appId) => getPlatformEscrowProducts(appId)));
       const nameById: Record<string, string> = {};
       productLists.flat().forEach((p) => {
         nameById[p.id] = p.name;
