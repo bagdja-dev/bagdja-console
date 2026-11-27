@@ -67,7 +67,7 @@ export default function LicensesPage() {
         setApp(foundApp);
 
         // Fetch licenses (appId = slug, sesuai payment-service)
-        const data = await getLicenses(foundApp.appId);
+        const data = await getLicenses(foundApp);
         setLicenses(data);
         setLoading(false);
       } catch (err) {
@@ -127,7 +127,7 @@ export default function LicensesPage() {
   const refreshLicenses = async () => {
     if (!app?.appId) return;
     try {
-      const data = await getLicenses(app.appId);
+      const data = await getLicenses(app);
       setLicenses(data);
     } catch (err) {
       const apiError = err as ApiError;
@@ -138,13 +138,13 @@ export default function LicensesPage() {
 
   const handleCreateLicense = async (data: CreateLicenseRequest) => {
     if (!app?.appId) return;
-    await createLicense(app.appId, data);
+    await createLicense(app, data);
     await refreshLicenses();
   };
 
   const handleUpdateLicense = async (data: UpdateLicenseRequest) => {
-    if (!editingLicense) return;
-    await updateLicense(editingLicense.id, data);
+    if (!app || !editingLicense) return;
+    await updateLicense(app, editingLicense.id, data);
     await refreshLicenses();
     setEditingLicense(null);
   };
@@ -158,12 +158,13 @@ export default function LicensesPage() {
   };
 
   const handleDelete = async (id: string) => {
+    if (!app) return;
     if (!confirm('Are you sure you want to delete this license? This action cannot be undone.')) {
       return;
     }
 
     try {
-      await deleteLicense(id);
+      await deleteLicense(app, id);
       await refreshLicenses();
       showAlert('License deleted successfully.', 'success');
     } catch (err) {

@@ -5,7 +5,7 @@ import { Save, X, Building2, AppWindow, ShieldCheck, Info } from 'lucide-react';
 import { Button } from '@/ui/button';
 import { FancySelect } from '@/ui/fancy-select';
 import { getAllOrganizations, getAppsByOrgSlug } from '@/lib/api';
-import { getEscrowProducts } from '@/lib/escrow-products-api';
+import { getPlatformEscrowProducts } from '@/lib/escrow-products-api';
 import type { ApiError, Organization, ClientApp, EscrowProduct } from '@/types';
 import type { EscrowFeeConfig, UpsertEscrowFeeConfigRequest } from '@/lib/escrow-fee-configs-api';
 import { PercentFeeInput } from '@/components/billing/FeeInputFields';
@@ -131,7 +131,7 @@ export default function EscrowFeeConfigModal({
     try {
       setLoadingProducts(true);
       setError(null);
-      const data = await getEscrowProducts(appSlug);
+      const data = await getPlatformEscrowProducts(appSlug);
       setEscrowProducts(data);
     } catch (err) {
       console.error('Failed to fetch escrow products', err);

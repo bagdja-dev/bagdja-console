@@ -807,7 +807,7 @@ export default function AppDetailPage() {
       try {
         setProductsLoading(true);
         setProductsError(null);
-        const data = await getProducts(app.appId);
+        const data = await getProducts(app);
         setProducts(data);
       } catch (err) {
         const apiError = err as ApiError;
@@ -833,7 +833,7 @@ export default function AppDetailPage() {
       try {
         setEscrowProductsLoading(true);
         setEscrowProductsError(null);
-        const data = await getEscrowProducts(app.appId);
+        const data = await getEscrowProducts(app);
         setEscrowProducts(data);
       } catch (err) {
         const apiError = err as ApiError;
@@ -873,7 +873,7 @@ export default function AppDetailPage() {
               .map((w) => [w.id, w]),
           ).values(),
         );
-        const products = await getEscrowProducts(app.appId).catch(
+        const products = await getEscrowProducts(app).catch(
           () => [] as EscrowProduct[],
         );
 
@@ -932,7 +932,7 @@ export default function AppDetailPage() {
       try {
         setPlansLoading(true);
         setPlansError(null);
-        const data = await getPlans(app.appId);
+        const data = await getPlans(app);
         setPlans(data);
       } catch (err) {
         const apiError = err as ApiError;
@@ -954,7 +954,7 @@ export default function AppDetailPage() {
       try {
         setLicensesLoading(true);
         setLicensesError(null);
-        const data = await getLicenses(app.appId);
+        const data = await getLicenses(app);
         setLicenses(data);
       } catch (err) {
         const apiError = err as ApiError;
@@ -977,7 +977,7 @@ export default function AppDetailPage() {
       try {
         setPurchasedLicensesLoading(true);
         setPurchasedLicensesError(null);
-        const data = await getPurchasedLicenses(app.appId);
+        const data = await getPurchasedLicenses(app);
         setPurchasedLicenses(data);
       } catch (err) {
         const apiError = err as ApiError;
@@ -1006,8 +1006,8 @@ export default function AppDetailPage() {
         setSubscriptionsLoading(true);
         setSubscriptionsError(null);
         const [subs, plans] = await Promise.all([
-          getAllSubscriptionsForApp(app.appId),
-          getPlans(app.appId),
+          getAllSubscriptionsForApp(app),
+          getPlans(app),
         ]);
         setSubscriptions(subs);
         setSubscriptionPlansById(
@@ -1146,7 +1146,7 @@ export default function AppDetailPage() {
     try {
       setProductsLoading(true);
       setProductsError(null);
-      const data = await getProducts(app.appId);
+      const data = await getProducts(app);
       setProducts(data);
     } catch (err) {
       const apiError = err as ApiError;
@@ -1159,13 +1159,13 @@ export default function AppDetailPage() {
 
   const handleCreateProduct = async (data: CreateProductRequest) => {
     if (!app?.appId) return;
-    await createProduct(app.appId, data);
+    await createProduct(app, data);
     await refreshProducts();
   };
 
   const handleUpdateProduct = async (data: UpdateProductRequest) => {
-    if (!editingProduct) return;
-    await updateProduct(editingProduct.id, data);
+    if (!app || !editingProduct) return;
+    await updateProduct(app, editingProduct.id, data);
     await refreshProducts();
     setEditingProduct(null);
   };
@@ -1309,6 +1309,7 @@ export default function AppDetailPage() {
   };
 
   const handleDeleteProduct = async (id: string) => {
+    if (!app) return;
     if (
       !confirm(
         "Are you sure you want to delete this product? This action cannot be undone.",
@@ -1318,7 +1319,7 @@ export default function AppDetailPage() {
     }
 
     try {
-      await deleteProduct(id);
+      await deleteProduct(app, id);
       await refreshProducts();
       showAlert("Product deleted successfully.", "success");
     } catch (err) {
@@ -1348,7 +1349,7 @@ export default function AppDetailPage() {
     try {
       setEscrowProductsLoading(true);
       setEscrowProductsError(null);
-      const data = await getEscrowProducts(app.appId);
+      const data = await getEscrowProducts(app);
       setEscrowProducts(data);
     } catch (err) {
       const apiError = err as ApiError;
@@ -1365,7 +1366,7 @@ export default function AppDetailPage() {
     data: CreateEscrowProductRequest,
   ) => {
     if (!app?.appId) return null;
-    const created = await createEscrowProduct(app.appId, data);
+    const created = await createEscrowProduct(app, data);
     await refreshEscrowProducts();
     return created;
   };
@@ -1373,8 +1374,8 @@ export default function AppDetailPage() {
   const handleUpdateEscrowProduct = async (
     data: UpdateEscrowProductRequest,
   ) => {
-    if (!editingEscrowProduct) return null;
-    const updated = await updateEscrowProduct(editingEscrowProduct.id, data);
+    if (!app || !editingEscrowProduct) return null;
+    const updated = await updateEscrowProduct(app, editingEscrowProduct.id, data);
     await refreshEscrowProducts();
     setEditingEscrowProduct(null);
     return updated;
@@ -1431,6 +1432,7 @@ export default function AppDetailPage() {
   };
 
   const handleDeleteEscrowProduct = async (id: string) => {
+    if (!app) return;
     if (
       !confirm(
         "Are you sure you want to delete this escrow product? This action cannot be undone.",
@@ -1440,7 +1442,7 @@ export default function AppDetailPage() {
     }
 
     try {
-      await deleteEscrowProduct(id);
+      await deleteEscrowProduct(app, id);
       await refreshEscrowProducts();
       showAlert("Escrow product deleted successfully.", "success");
     } catch (err) {
@@ -1495,7 +1497,7 @@ export default function AppDetailPage() {
     try {
       setPlansLoading(true);
       setPlansError(null);
-      const data = await getPlans(app.appId);
+      const data = await getPlans(app);
       setPlans(data);
     } catch (err) {
       const apiError = err as ApiError;
@@ -1508,13 +1510,13 @@ export default function AppDetailPage() {
 
   const handleCreatePlan = async (data: CreatePlanRequest) => {
     if (!app?.appId) return;
-    await createPlan(app.appId, data);
+    await createPlan(app, data);
     await refreshPlans();
   };
 
   const handleUpdatePlan = async (data: UpdatePlanRequest) => {
-    if (!editingPlan) return;
-    await updatePlan(editingPlan.id, data);
+    if (!app || !editingPlan) return;
+    await updatePlan(app, editingPlan.id, data);
     await refreshPlans();
     setEditingPlan(null);
   };
@@ -1530,6 +1532,7 @@ export default function AppDetailPage() {
   };
 
   const handleDeletePlan = async (id: string) => {
+    if (!app) return;
     if (
       !confirm(
         "Are you sure you want to delete this plan? This action cannot be undone.",
@@ -1539,7 +1542,7 @@ export default function AppDetailPage() {
     }
 
     try {
-      await deletePlan(id);
+      await deletePlan(app, id);
       await refreshPlans();
       showAlert("Plan deleted successfully.", "success");
     } catch (err) {
@@ -1569,7 +1572,7 @@ export default function AppDetailPage() {
     try {
       setLicensesLoading(true);
       setLicensesError(null);
-      const data = await getLicenses(app.appId);
+      const data = await getLicenses(app);
       setLicenses(data);
 
       // Also refresh purchased licenses if filter is 'sold'
@@ -1577,7 +1580,7 @@ export default function AppDetailPage() {
         try {
           setPurchasedLicensesLoading(true);
           setPurchasedLicensesError(null);
-          const purchasedData = await getPurchasedLicenses(app.appId);
+          const purchasedData = await getPurchasedLicenses(app);
           setPurchasedLicenses(purchasedData);
         } catch (err) {
           const apiError = err as ApiError;
@@ -1600,13 +1603,13 @@ export default function AppDetailPage() {
 
   const handleCreateLicense = async (data: CreateLicenseRequest) => {
     if (!app?.appId) return;
-    await createLicense(app.appId, data);
+    await createLicense(app, data);
     await refreshLicenses();
   };
 
   const handleUpdateLicense = async (data: UpdateLicenseRequest) => {
-    if (!editingLicense) return;
-    await updateLicense(editingLicense.id, data);
+    if (!app || !editingLicense) return;
+    await updateLicense(app, editingLicense.id, data);
     await refreshLicenses();
     setEditingLicense(null);
   };
@@ -1622,6 +1625,7 @@ export default function AppDetailPage() {
   };
 
   const handleDeleteLicense = async (id: string) => {
+    if (!app) return;
     if (
       !confirm(
         "Are you sure you want to delete this license? This action cannot be undone.",
@@ -1631,7 +1635,7 @@ export default function AppDetailPage() {
     }
 
     try {
-      await deleteLicense(id);
+      await deleteLicense(app, id);
       await refreshLicenses();
       showAlert("License deleted successfully.", "success");
     } catch (err) {

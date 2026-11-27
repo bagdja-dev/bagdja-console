@@ -13,130 +13,22 @@
  */
 
 import {
-  requireAccessToken,
-  getClientToken,
-  setClientToken,
-  isClientTokenExpired,
-} from "./auth";
-import type {
-  Plan,
-  CreatePlanRequest,
-  UpdatePlanRequest,
-  ApiError,
-} from "@/types";
+  paymentAppRequest,
+  paymentConsoleRequest,
+  paymentOrgRequest,
+  type AppScope,
+} from "./console-user-api";
+import type { Plan, CreatePlanRequest, UpdatePlanRequest } from "@/types";
 
-function getPaymentApiBase(): string {
-  const apiBase = process.env.NEXT_PUBLIC_PAYMENT_API;
-  if (!apiBase) {
-    throw new Error(
-      "NEXT_PUBLIC_PAYMENT_API environment variable is required. Please set it in your .env file.",
-    );
-  }
-  return apiBase;
-}
+/*
+ * Lewat endpoint `/console/*` berbasis token user — tanpa token client
+ * (core-service-flag-removal-plan.md P5.4):
+ * - pemilik App: `/console/apps/:appId/plans`;
+ * - pelanggan: `/console/subscribed-apps/:appId/plans` (org aktif);
+ * - org sistem: `/console/catalog/plans?appId=`.
+ */
 
-const AUTH_API_BASE =
-  process.env.NEXT_PUBLIC_AUTH_API || "https://auth.bagdja.com";
-
-// Client app credentials from environment variables
-const CLIENT_APP_ID = process.env.NEXT_PUBLIC_CLIENT_APP_ID || "user-console";
-const CLIENT_APP_SECRET =
-  process.env.NEXT_PUBLIC_CLIENT_APP_SECRET ||
-  '';
-
-async function ensureClientToken(): Promise<string> {
-  const clientToken = getClientToken();
-
-  if (!clientToken || isClientTokenExpired()) {
-    const url = `${AUTH_API_BASE}/auth/client`;
-
-    const requestBody = {
-      app_id: CLIENT_APP_ID,
-      app_secret: CLIENT_APP_SECRET,
-    };
-
-    const response = await fetch(url, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(requestBody),
-    });
-
-    if (!response.ok) {
-      const error: ApiError = {
-        message: "Failed to obtain client app token",
-        statusCode: response.status,
-      };
-
-      try {
-        const data = await response.json();
-        error.message = data.message || data.error || error.message;
-      } catch {
-        error.message = response.statusText || error.message;
-      }
-
-      throw error;
-    }
-
-    const data = await response.json();
-    setClientToken(data["x-api-token"], data.expires_in);
-
-    return data["x-api-token"];
-  }
-
-  return clientToken;
-}
-
-async function apiRequest<T>(
-  endpoint: string,
-  options: RequestInit = {},
-): Promise<T> {
-  const clientToken = await ensureClientToken();
-  const userToken = requireAccessToken();
-
-  const url = `${getPaymentApiBase()}${endpoint}`;
-
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json",
-    "x-api-token": clientToken,
-    ...(options.headers as Record<string, string>),
-  };
-
-  headers["Authorization"] = `Bearer ${userToken}`;
-
-  const response = await fetch(url, {
-    ...options,
-    headers,
-    cache: options.cache || "no-store",
-  });
-
-  if (!response.ok) {
-    const error: ApiError = {
-      message: "An error occurred",
-      statusCode: response.status,
-    };
-
-    try {
-      const data = await response.json();
-      error.message = data.message || data.error || error.message;
-    } catch {
-      error.message = response.statusText || error.message;
-    }
-
-    // 401 dari service non-auth TIDAK menghapus token login (29 Okt 2026):
-    // bisa berarti guard/izin di service itu, bukan sesi berakhir. Sesi
-    // hanya diakhiri oleh 401 dari bagdja-auth (lib/api.ts).
-
-    throw error;
-  }
-
-  if (response.status === 204) {
-    return undefined as T;
-  }
-
-  return response.json();
-}
+type PlanListResponse = { data: RawSubscriptionPlan[] };
 
 type RawSubscriptionPlan = {
   id: string;
@@ -211,62 +103,59 @@ function mapToApiBody(
   return body;
 }
 
-/**
- * Get all plans for an app (appId = slug)
- */
-export async function getPlans(appId: string): Promise<Plan[]> {
-  const res = await apiRequest<{ data: RawSubscriptionPlan[] }>(
-    `/subscription-plans?appId=${encodeURIComponent(appId)}`,
+/** Plan satu App, sebagai anggota org pemilik App. */
+export async function getPlans(app: AppScope): Promise<Plan[]> {
+  const res = await paymentAppRequest<PlanListResponse>(app, "/plans");
+  return (res.data || []).map(mapFromApi);
+}
+
+/** Katalog plan App yang dipakai org aktif (halaman App yang di-subscribe). */
+export async function getSubscribedAppPlans(
+  appId: string,
+  orgId: string,
+): Promise<Plan[]> {
+  const res = await paymentOrgRequest<PlanListResponse>(
+    orgId,
+    `/subscribed-apps/${encodeURIComponent(appId)}/plans`,
   );
   return (res.data || []).map(mapFromApi);
 }
 
-/**
- * Get a plan by ID
- */
-export async function getPlan(id: string): Promise<Plan> {
-  const raw = await apiRequest<RawSubscriptionPlan>(
-    `/subscription-plans/${id}`,
+/** Plan App mana pun, untuk org sistem (Infrastructure). */
+export async function getPlatformPlans(appId: string): Promise<Plan[]> {
+  const res = await paymentConsoleRequest<PlanListResponse>(
+    `/catalog/plans?appId=${encodeURIComponent(appId)}`,
   );
-  return mapFromApi(raw);
+  return (res.data || []).map(mapFromApi);
 }
 
-/**
- * Create a new plan. `appId` (slug) dikirim di body.
- */
 export async function createPlan(
-  appId: string,
+  app: AppScope,
   data: CreatePlanRequest,
 ): Promise<Plan> {
-  const raw = await apiRequest<RawSubscriptionPlan>("/subscription-plans", {
+  const raw = await paymentAppRequest<RawSubscriptionPlan>(app, "/plans", {
     method: "POST",
-    body: JSON.stringify({ ...mapToApiBody(data), appId }),
+    body: JSON.stringify(mapToApiBody(data)),
   });
   return mapFromApi(raw);
 }
 
-/**
- * Update a plan
- */
 export async function updatePlan(
+  app: AppScope,
   id: string,
   data: UpdatePlanRequest,
 ): Promise<Plan> {
-  const raw = await apiRequest<RawSubscriptionPlan>(
-    `/subscription-plans/${id}`,
-    {
-      method: "PATCH",
-      body: JSON.stringify(mapToApiBody(data)),
-    },
+  const raw = await paymentAppRequest<RawSubscriptionPlan>(
+    app,
+    `/plans/${encodeURIComponent(id)}`,
+    { method: "PATCH", body: JSON.stringify(mapToApiBody(data)) },
   );
   return mapFromApi(raw);
 }
 
-/**
- * Delete (deactivate) a plan — soft-delete di payment-service
- */
-export async function deletePlan(id: string): Promise<void> {
-  return apiRequest<void>(`/subscription-plans/${id}`, {
+/** Delete (deactivate) a plan — soft-delete di payment-service. */
+export async function deletePlan(app: AppScope, id: string): Promise<void> {
+  return paymentAppRequest<void>(app, `/plans/${encodeURIComponent(id)}`, {
     method: "DELETE",
   });
 }
