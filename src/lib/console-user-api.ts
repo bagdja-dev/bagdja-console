@@ -46,10 +46,13 @@ export async function consoleUserRequest<T>(
     throw new Error('User not authenticated');
   }
 
+  // FormData (upload): biarkan browser mengisi Content-Type + boundary.
+  const isFormData = typeof FormData !== 'undefined' && options.body instanceof FormData;
+
   const response = await fetch(`${baseUrl}${path}`, {
     ...options,
     headers: {
-      'Content-Type': 'application/json',
+      ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
       Authorization: `Bearer ${userToken}`,
       ...(options.headers as Record<string, string>),
     },
